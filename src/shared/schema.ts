@@ -1,0 +1,32 @@
+import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    startedAt: integer('started_at').notNull(),
+    durationMs: integer('duration_ms'),
+    title: text('title'),
+    source: text('source')
+  },
+  (table) => [index('sessions_started_at_idx').on(table.startedAt)]
+)
+
+export const transcripts = sqliteTable(
+  'transcripts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    sessionId: integer('session_id')
+      .notNull()
+      .references(() => sessions.id),
+    createdAt: integer('created_at').notNull(),
+    text: text('text').notNull(),
+    language: text('language'),
+    confidence: real('confidence'),
+    durationMs: integer('duration_ms')
+  },
+  (table) => [
+    index('transcripts_session_id_idx').on(table.sessionId),
+    index('transcripts_created_at_idx').on(table.createdAt)
+  ]
+)
