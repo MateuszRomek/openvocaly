@@ -1,0 +1,4 @@
+export const shortcutsKeys = {
+  all: ['shortcuts'] as const,
+  config: () => [...shortcutsKeys.all, 'config'] as const
+}

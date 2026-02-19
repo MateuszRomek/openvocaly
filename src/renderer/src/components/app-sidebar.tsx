@@ -4,6 +4,7 @@ import { cn } from '@renderer/lib/utils'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -19,10 +20,9 @@ type NavigationItem = {
   to: '/' | '/settings'
 }
 
-const navigation: NavigationItem[] = [
-  { icon: HomeIcon, label: 'Home', to: '/' },
-  { icon: SettingsIcon, label: 'Settings', to: '/settings' }
-]
+const navigation: NavigationItem[] = [{ icon: HomeIcon, label: 'Home', to: '/' }]
+
+const settingsItem: NavigationItem = { icon: SettingsIcon, label: 'Settings', to: '/settings' }
 
 function AppSidebar(): React.JSX.Element {
   const navigate = useNavigate()
@@ -61,8 +61,8 @@ function AppSidebar(): React.JSX.Element {
           </button>
         </div>
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
+      <SidebarContent className="py-2">
+        <SidebarGroup className="py-0">
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               {navigation.map((item) => {
@@ -87,6 +87,22 @@ function AppSidebar(): React.JSX.Element {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="pb-3">
+        <SidebarMenu className="gap-1">
+          <SidebarMenuItem key={settingsItem.to}>
+            <SidebarMenuButton
+              type="button"
+              onClick={() => navigate({ to: settingsItem.to })}
+              isActive={pathname === settingsItem.to}
+              tooltip={settingsItem.label}
+              className="group-data-[collapsible=icon]:justify-center"
+            >
+              <SettingsIcon className="size-4" />
+              <span className="group-data-[collapsible=icon]:hidden">{settingsItem.label}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   )
 }

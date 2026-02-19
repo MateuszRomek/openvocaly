@@ -30,3 +30,9 @@ export const transcripts = sqliteTable(
     index('transcripts_created_at_idx').on(table.createdAt)
   ]
 )
+
+export const shortcutBindings = sqliteTable('shortcut_bindings', {
+  action: text('action').primaryKey(),
+  accelerator: text('accelerator').notNull().unique(),
+  updatedAt: integer('updated_at').notNull()
+})

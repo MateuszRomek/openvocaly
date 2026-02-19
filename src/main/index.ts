@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { closeDb } from './db'
+import { initializeShortcuts, registerShortcutsIpc, shutdownShortcuts } from './shortcuts/ipc'
 import { registerStorageIpc } from './storage'
 
 function createWindow(): void {
@@ -56,6 +57,8 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => console.log('pong'))
 
   registerStorageIpc()
+  registerShortcutsIpc()
+  initializeShortcuts()
 
   createWindow()
 
@@ -77,6 +80,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  shutdownShortcuts()
   closeDb()
 })
 

@@ -10,9 +10,23 @@ import type {
   ListTranscriptsInput,
   ListTranscriptsResult
 } from '../shared/storage'
+import type {
+  ShortcutConfigResponse,
+  ShortcutMutationResponse,
+  ShortcutResetInput,
+  ShortcutUpdateInput
+} from '../shared/shortcuts'
+
+type DesktopPlatform = 'darwin' | 'win32' | 'linux'
+
+const platform: DesktopPlatform =
+  process.platform === 'darwin' || process.platform === 'win32' ? process.platform : 'linux'
 
 // Custom APIs for renderer
 const api = {
+  system: {
+    platform
+  },
   storage: {
     createSession: (input: CreateSessionInput): Promise<CreateSessionResult> =>
       ipcRenderer.invoke('storage:createSession', input),
@@ -22,6 +36,13 @@ const api = {
       ipcRenderer.invoke('storage:listTranscripts', input),
     listSessions: (input?: ListSessionsInput): Promise<ListSessionsResult> =>
       ipcRenderer.invoke('storage:listSessions', input)
+  },
+  shortcuts: {
+    getConfig: (): Promise<ShortcutConfigResponse> => ipcRenderer.invoke('shortcuts:getConfig'),
+    update: (input: ShortcutUpdateInput): Promise<ShortcutMutationResponse> =>
+      ipcRenderer.invoke('shortcuts:update', input),
+    reset: (input?: ShortcutResetInput): Promise<ShortcutMutationResponse> =>
+      ipcRenderer.invoke('shortcuts:reset', input)
   }
 }
 
