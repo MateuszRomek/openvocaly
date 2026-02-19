@@ -20,6 +20,14 @@ $ npm install
 $ npm run dev
 ```
 
+You can override the renderer dev server port in `.env.development` with:
+
+```bash
+RENDERER_DEV_SERVER_PORT=5180
+```
+
+Remove the variable to use Vite's default port behavior.
+
 ### Build
 
 ```bash

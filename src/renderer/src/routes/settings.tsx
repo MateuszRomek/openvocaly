@@ -6,9 +6,8 @@ export const Route = createFileRoute('/settings')({
 
 function Settings(): React.JSX.Element {
   return (
-    <section className="settings">
-      <h2 className="settings__title">Settings</h2>
-      <p className="settings__description">Settings live here.</p>
+    <section className="border-border/70 bg-card/90 w-full max-w-3xl rounded-3xl border p-8 shadow-sm backdrop-blur-sm">
+      <p className="text-muted-foreground text-sm">Settings page content.</p>
     </section>
   )
 }
