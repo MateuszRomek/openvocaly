@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { desc, eq } from 'drizzle-orm'
-import { getDb } from './db'
+import { getDb, initDb } from './db'
 import { sessions, transcripts } from '../shared/schema'
 import type {
   AddTranscriptInput,
@@ -25,6 +25,8 @@ const normalizeLimit = (value?: number): number => {
 }
 
 export const registerStorageIpc = (): void => {
+  initDb()
+
   ipcMain.handle(
     'storage:createSession',
     (_event, input: CreateSessionInput): CreateSessionResult => {
