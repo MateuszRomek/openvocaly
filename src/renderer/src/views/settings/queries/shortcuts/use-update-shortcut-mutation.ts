@@ -17,6 +17,7 @@ export function useUpdateShortcutMutation(
     onSuccess: async (response, variables, ...rest) => {
       if (response.ok) {
         await queryClient.invalidateQueries({ queryKey: shortcutsKeys.config() })
+        await queryClient.invalidateQueries({ queryKey: shortcutsKeys.runtimeStatus() })
       }
 
       if (options?.onSuccess) {

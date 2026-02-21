@@ -14,8 +14,15 @@ import type {
   ShortcutConfigResponse,
   ShortcutMutationResponse,
   ShortcutResetInput,
+  ShortcutRuntimeStatusResponse,
   ShortcutUpdateInput
 } from '../shared/shortcuts'
+import type {
+  AccessibilityRequestResponse,
+  MicrophoneRequestResponse,
+  OpenSystemSettingsResponse,
+  PermissionsStatusResponse
+} from '../shared/permissions'
 
 type DesktopPlatform = 'darwin' | 'win32' | 'linux'
 
@@ -39,10 +46,24 @@ const api = {
   },
   shortcuts: {
     getConfig: (): Promise<ShortcutConfigResponse> => ipcRenderer.invoke('shortcuts:getConfig'),
+    getRuntimeStatus: (): Promise<ShortcutRuntimeStatusResponse> =>
+      ipcRenderer.invoke('shortcuts:getRuntimeStatus'),
     update: (input: ShortcutUpdateInput): Promise<ShortcutMutationResponse> =>
       ipcRenderer.invoke('shortcuts:update', input),
     reset: (input?: ShortcutResetInput): Promise<ShortcutMutationResponse> =>
       ipcRenderer.invoke('shortcuts:reset', input)
+  },
+  permissions: {
+    getStatus: (): Promise<PermissionsStatusResponse> =>
+      ipcRenderer.invoke('permissions:getStatus'),
+    requestAccessibility: (): Promise<AccessibilityRequestResponse> =>
+      ipcRenderer.invoke('permissions:requestAccessibility'),
+    requestMicrophone: (): Promise<MicrophoneRequestResponse> =>
+      ipcRenderer.invoke('permissions:requestMicrophone'),
+    openAccessibilitySettings: (): Promise<OpenSystemSettingsResponse> =>
+      ipcRenderer.invoke('permissions:openAccessibilitySettings'),
+    openMicrophoneSettings: (): Promise<OpenSystemSettingsResponse> =>
+      ipcRenderer.invoke('permissions:openMicrophoneSettings')
   }
 }
 

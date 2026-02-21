@@ -1,4 +1,4 @@
-import { ERROR_MESSAGES } from '../constants'
+import { SHORTCUT_ERROR_MESSAGES } from '../constants/shortcuts'
 import type {
   KeyboardCaptureEvent,
   ShortcutErrorCode,
@@ -143,5 +143,5 @@ export const toErrorMessage = (errorCode: ShortcutErrorCode | undefined): string
     return null
   }
 
-  return ERROR_MESSAGES[errorCode] ?? 'Unknown shortcut error.'
+  return SHORTCUT_ERROR_MESSAGES[errorCode] ?? 'Unknown shortcut error.'
 }

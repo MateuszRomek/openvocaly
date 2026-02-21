@@ -165,6 +165,36 @@ code {
   min-height: 100vh;
 }
 
+.app-scroll-area {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) transparent;
+}
+
+.app-scroll-area::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.app-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-scroll-area::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.app-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--muted-foreground) 58%, transparent);
+}
+
+.app-scroll-area::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 .app-shell {
   min-height: 100vh;
   display: flex;

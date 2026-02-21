@@ -74,6 +74,41 @@
           "notNull": true,
           "autoincrement": false
         },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mod_cmd": {
+          "name": "mod_cmd",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mod_ctrl": {
+          "name": "mod_ctrl",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mod_alt": {
+          "name": "mod_alt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mod_shift": {
+          "name": "mod_shift",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "integer",
@@ -87,6 +122,17 @@
           "name": "shortcut_bindings_accelerator_unique",
           "columns": [
             "accelerator"
+          ],
+          "isUnique": true
+        },
+        "shortcut_bindings_key_modifiers_unique": {
+          "name": "shortcut_bindings_key_modifiers_unique",
+          "columns": [
+            "key",
+            "mod_cmd",
+            "mod_ctrl",
+            "mod_alt",
+            "mod_shift"
           ],
           "isUnique": true
         }

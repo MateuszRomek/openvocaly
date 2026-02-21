@@ -30,6 +30,7 @@
     "@base-ui/react": "1.2.0",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@wispr/ptt-hook-macos": "file:./native/ptt-hook-macos",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-router": "^1.161.1",
     "better-sqlite3": "^12.6.2",

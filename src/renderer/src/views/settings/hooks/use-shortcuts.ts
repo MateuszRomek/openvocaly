@@ -1,43 +1,43 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import { buildAcceleratorFromKeyEvent } from '../helpers/shortcut-accelerator'
 import { useResetShortcutMutation } from '../queries/shortcuts/use-reset-shortcut-mutation'
 import { useShortcutsConfigQuery } from '../queries/shortcuts/use-shortcuts-config-query'
+import { useShortcutsRuntimeStatusQuery } from '../queries/shortcuts/use-shortcuts-runtime-status-query'
 import { useUpdateShortcutMutation } from '../queries/shortcuts/use-update-shortcut-mutation'
-import { buildAcceleratorFromKeyEvent } from '../helpers/shortcut-accelerator'
 import type {
   ShortcutAction,
   ShortcutActionConfig,
   ShortcutConfigResponse,
   ShortcutErrorCode,
-  ShortcutPlatform
+  ShortcutPlatform,
+  ShortcutRuntimeStatusResponse
 } from '../queries/shortcuts/shortcuts.types'
 
-type UseShortcutSettingsArgs = {
+type UseShortcutsControllerArgs = {
   platform: ShortcutPlatform
 }
 
-type UseShortcutSettingsResult = {
+type UseShortcutsControllerResult = {
   config: ShortcutConfigResponse | null
   isLoading: boolean
   requestError: string | null
-  rowController: ShortcutRowController
-}
-
-export type ShortcutRowController = {
   isMutating: boolean
   editingAction: ShortcutAction | null
   draftAccelerator: string
   draftErrorCode: ShortcutErrorCode | undefined
+  runtimeStatus: ShortcutRuntimeStatusResponse | null
   beginEditing: (item: ShortcutActionConfig) => void
   cancelEditing: () => void
   captureKeyDown: (event: KeyboardEvent<HTMLButtonElement>, action: ShortcutAction) => void
   reset: (action: ShortcutAction) => void
 }
 
-export const useShortcutSettings = ({
+export function useShortcuts({
   platform
-}: UseShortcutSettingsArgs): UseShortcutSettingsResult => {
+}: UseShortcutsControllerArgs): UseShortcutsControllerResult {
   const shortcutsConfigQuery = useShortcutsConfigQuery()
+  const shortcutsRuntimeStatusQuery = useShortcutsRuntimeStatusQuery()
   const updateShortcutMutation = useUpdateShortcutMutation()
   const resetShortcutMutation = useResetShortcutMutation()
 
@@ -46,11 +46,17 @@ export const useShortcutSettings = ({
   const [draftErrorCode, setDraftErrorCode] = useState<ShortcutErrorCode | undefined>()
 
   const config = shortcutsConfigQuery.data ?? null
+  const runtimeStatus = shortcutsRuntimeStatusQuery.data ?? null
   const isLoading = shortcutsConfigQuery.isPending
   const isMutating = updateShortcutMutation.isPending || resetShortcutMutation.isPending
+
   const requestError = useMemo(() => {
     if (shortcutsConfigQuery.isError) {
       return 'Failed to load shortcut settings.'
+    }
+
+    if (shortcutsRuntimeStatusQuery.isError) {
+      return 'Failed to load push-to-talk runtime status.'
     }
 
     if (updateShortcutMutation.isError) {
@@ -62,7 +68,12 @@ export const useShortcutSettings = ({
     }
 
     return null
-  }, [resetShortcutMutation.isError, shortcutsConfigQuery.isError, updateShortcutMutation.isError])
+  }, [
+    resetShortcutMutation.isError,
+    shortcutsConfigQuery.isError,
+    shortcutsRuntimeStatusQuery.isError,
+    updateShortcutMutation.isError
+  ])
 
   const hasDuplicateDraft = useCallback(
     (action: ShortcutAction, accelerator: string): boolean => {
@@ -199,15 +210,14 @@ export const useShortcutSettings = ({
     config,
     isLoading,
     requestError,
-    rowController: {
-      isMutating,
-      editingAction,
-      draftAccelerator,
-      draftErrorCode,
-      beginEditing,
-      cancelEditing,
-      captureKeyDown,
-      reset: resetAction
-    }
+    isMutating,
+    editingAction,
+    draftAccelerator,
+    draftErrorCode,
+    runtimeStatus,
+    beginEditing,
+    cancelEditing,
+    captureKeyDown,
+    reset: resetAction
   }
 }

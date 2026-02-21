@@ -13,8 +13,15 @@ import type {
   ShortcutConfigResponse,
   ShortcutMutationResponse,
   ShortcutResetInput,
+  ShortcutRuntimeStatusResponse,
   ShortcutUpdateInput
 } from '../shared/shortcuts'
+import type {
+  AccessibilityRequestResponse,
+  MicrophoneRequestResponse,
+  OpenSystemSettingsResponse,
+  PermissionsStatusResponse
+} from '../shared/permissions'
 
 declare global {
   interface Window {
@@ -31,8 +38,16 @@ declare global {
       }
       shortcuts: {
         getConfig: () => Promise<ShortcutConfigResponse>
+        getRuntimeStatus: () => Promise<ShortcutRuntimeStatusResponse>
         update: (input: ShortcutUpdateInput) => Promise<ShortcutMutationResponse>
         reset: (input?: ShortcutResetInput) => Promise<ShortcutMutationResponse>
+      }
+      permissions: {
+        getStatus: () => Promise<PermissionsStatusResponse>
+        requestAccessibility: () => Promise<AccessibilityRequestResponse>
+        requestMicrophone: () => Promise<MicrophoneRequestResponse>
+        openAccessibilitySettings: () => Promise<OpenSystemSettingsResponse>
+        openMicrophoneSettings: () => Promise<OpenSystemSettingsResponse>
       }
     }
   }
