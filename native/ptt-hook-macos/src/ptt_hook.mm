@@ -7,20 +7,28 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <string>
 #include <thread>
 
 namespace {
 
-struct NativeKeyEvent {
-  bool isKeyDown;
+struct PttBinding {
   int32_t keyCode;
   bool cmd;
   bool ctrl;
   bool alt;
   bool shift;
-  bool isRepeat;
+};
+
+enum class PttHoldState {
+  kIdle,
+  kHolding,
+};
+
+struct NativePttEvent {
+  bool isStart;
 };
 
 napi_threadsafe_function g_tsfn = nullptr;
@@ -37,6 +45,11 @@ std::condition_variable g_startCv;
 bool g_startReady = false;
 bool g_startOk = false;
 std::string g_startError;
+
+std::mutex g_bindingMutex;
+PttBinding g_binding = { .keyCode = 0, .cmd = false, .ctrl = false, .alt = false, .shift = false };
+bool g_bindingConfigured = false;
+PttHoldState g_holdState = PttHoldState::kIdle;
 
 void CleanupTapResources() {
   if (g_eventTap != nullptr) {
@@ -72,6 +85,33 @@ void ResolveStartState(bool ok, const std::string& errorMessage) {
   g_startCv.notify_all();
 }
 
+bool DoModifiersMatchBinding(CGEventFlags flags, const PttBinding& binding) {
+  const bool cmd = static_cast<bool>(flags & kCGEventFlagMaskCommand);
+  const bool ctrl = static_cast<bool>(flags & kCGEventFlagMaskControl);
+  const bool alt = static_cast<bool>(flags & kCGEventFlagMaskAlternate);
+  const bool shift = static_cast<bool>(flags & kCGEventFlagMaskShift);
+
+  return
+    cmd == binding.cmd &&
+    ctrl == binding.ctrl &&
+    alt == binding.alt &&
+    shift == binding.shift;
+}
+
+void EmitPttEvent(bool isStart) {
+  if (g_tsfn == nullptr) {
+    return;
+  }
+
+  const auto* eventData = new NativePttEvent{ .isStart = isStart };
+  const napi_status status =
+    napi_call_threadsafe_function(g_tsfn, const_cast<NativePttEvent*>(eventData), napi_tsfn_nonblocking);
+
+  if (status != napi_ok) {
+    delete eventData;
+  }
+}
+
 CGEventRef HandleKeyboardEvent(CGEventTapProxy, CGEventType type, CGEventRef event, void*) {
   if (g_tsfn == nullptr) {
     return event;
@@ -81,19 +121,74 @@ CGEventRef HandleKeyboardEvent(CGEventTapProxy, CGEventType type, CGEventRef eve
     return event;
   }
 
-  const auto* eventData = new NativeKeyEvent{
-    .isKeyDown = type == kCGEventKeyDown,
-    .keyCode = static_cast<int32_t>(
-      CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
-    ),
-    .cmd = static_cast<bool>(CGEventGetFlags(event) & kCGEventFlagMaskCommand),
-    .ctrl = static_cast<bool>(CGEventGetFlags(event) & kCGEventFlagMaskControl),
-    .alt = static_cast<bool>(CGEventGetFlags(event) & kCGEventFlagMaskAlternate),
-    .shift = static_cast<bool>(CGEventGetFlags(event) & kCGEventFlagMaskShift),
-    .isRepeat = static_cast<bool>(CGEventGetIntegerValueField(event, kCGKeyboardEventAutorepeat))
-  };
+  const int32_t keyCode = static_cast<int32_t>(
+    CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode)
+  );
 
-  napi_call_threadsafe_function(g_tsfn, const_cast<NativeKeyEvent*>(eventData), napi_tsfn_nonblocking);
+  if (type == kCGEventKeyDown) {
+    const bool isRepeat = static_cast<bool>(
+      CGEventGetIntegerValueField(event, kCGKeyboardEventAutorepeat)
+    );
+
+    bool shouldEmitStart = false;
+
+    {
+      std::lock_guard<std::mutex> guard(g_bindingMutex);
+
+      if (!g_bindingConfigured) {
+        return event;
+      }
+
+      if (g_binding.keyCode != keyCode) {
+        return event;
+      }
+
+      if (isRepeat) {
+        return event;
+      }
+
+      if (!DoModifiersMatchBinding(CGEventGetFlags(event), g_binding)) {
+        return event;
+      }
+
+      if (g_holdState == PttHoldState::kIdle) {
+        g_holdState = PttHoldState::kHolding;
+        shouldEmitStart = true;
+      }
+    }
+
+    if (shouldEmitStart) {
+      EmitPttEvent(true);
+    }
+
+    return event;
+  }
+
+  bool shouldEmitStop = false;
+
+  {
+    std::lock_guard<std::mutex> guard(g_bindingMutex);
+
+    if (!g_bindingConfigured) {
+      return event;
+    }
+
+    if (g_holdState != PttHoldState::kHolding) {
+      return event;
+    }
+
+    if (g_binding.keyCode != keyCode) {
+      return event;
+    }
+
+    g_holdState = PttHoldState::kIdle;
+    shouldEmitStop = true;
+  }
+
+  if (shouldEmitStop) {
+    EmitPttEvent(false);
+  }
+
   return event;
 }
 
@@ -103,7 +198,7 @@ void CallJavaScript(
   void*,
   void* data
 ) {
-  auto* eventData = static_cast<NativeKeyEvent*>(data);
+  auto* eventData = static_cast<NativePttEvent*>(data);
 
   if (env == nullptr || jsCallback == nullptr || eventData == nullptr) {
     delete eventData;
@@ -116,40 +211,11 @@ void CallJavaScript(
   napi_value typeValue;
   napi_create_string_utf8(
     env,
-    eventData->isKeyDown ? "keydown" : "keyup",
+    eventData->isStart ? "push_to_talk_start" : "push_to_talk_stop",
     NAPI_AUTO_LENGTH,
     &typeValue
   );
   napi_set_named_property(env, eventObject, "type", typeValue);
-
-  napi_value keyCodeValue;
-  napi_create_int32(env, eventData->keyCode, &keyCodeValue);
-  napi_set_named_property(env, eventObject, "keyCode", keyCodeValue);
-
-  napi_value modifiers;
-  napi_create_object(env, &modifiers);
-
-  napi_value cmd;
-  napi_get_boolean(env, eventData->cmd, &cmd);
-  napi_set_named_property(env, modifiers, "cmd", cmd);
-
-  napi_value ctrl;
-  napi_get_boolean(env, eventData->ctrl, &ctrl);
-  napi_set_named_property(env, modifiers, "ctrl", ctrl);
-
-  napi_value alt;
-  napi_get_boolean(env, eventData->alt, &alt);
-  napi_set_named_property(env, modifiers, "alt", alt);
-
-  napi_value shift;
-  napi_get_boolean(env, eventData->shift, &shift);
-  napi_set_named_property(env, modifiers, "shift", shift);
-
-  napi_set_named_property(env, eventObject, "modifiers", modifiers);
-
-  napi_value repeat;
-  napi_get_boolean(env, eventData->isRepeat, &repeat);
-  napi_set_named_property(env, eventObject, "isRepeat", repeat);
 
   napi_value undefinedValue;
   napi_get_undefined(env, &undefinedValue);
@@ -168,7 +234,7 @@ void HookThreadMain() {
   g_eventTap = CGEventTapCreate(
     kCGSessionEventTap,
     kCGHeadInsertEventTap,
-    kCGEventTapOptionDefault,
+    kCGEventTapOptionListenOnly,
     eventMask,
     HandleKeyboardEvent,
     nullptr
@@ -195,6 +261,11 @@ void HookThreadMain() {
   CFRunLoopAddSource(g_runLoop, g_runLoopSource, kCFRunLoopCommonModes);
   CGEventTapEnable(g_eventTap, true);
 
+  {
+    std::lock_guard<std::mutex> guard(g_bindingMutex);
+    g_holdState = PttHoldState::kIdle;
+  }
+
   g_isRunning = true;
   g_isListening = true;
   ResolveStartState(true, "");
@@ -204,9 +275,14 @@ void HookThreadMain() {
   CleanupTapResources();
   g_isRunning = false;
   g_isListening = false;
+
+  {
+    std::lock_guard<std::mutex> guard(g_bindingMutex);
+    g_holdState = PttHoldState::kIdle;
+  }
 }
 
-napi_value MakeStartResult(napi_env env, bool ok, const std::string& error) {
+napi_value MakeResult(napi_env env, bool ok, const std::string& error) {
   napi_value result;
   napi_create_object(env, &result);
 
@@ -232,23 +308,119 @@ void ReleaseThreadsafeFunction() {
   g_tsfn = nullptr;
 }
 
+bool ReadBooleanProperty(
+  napi_env env,
+  napi_value object,
+  const char* name,
+  bool* out,
+  std::string* error
+) {
+  napi_value value;
+  if (napi_get_named_property(env, object, name, &value) != napi_ok) {
+    *error = std::string("Missing modifiers.") + name + " value";
+    return false;
+  }
+
+  napi_valuetype type;
+  if (napi_typeof(env, value, &type) != napi_ok || type != napi_boolean) {
+    *error = std::string("Modifier ") + name + " must be a boolean";
+    return false;
+  }
+
+  bool parsed = false;
+  if (napi_get_value_bool(env, value, &parsed) != napi_ok) {
+    *error = std::string("Failed to read modifier ") + name;
+    return false;
+  }
+
+  *out = parsed;
+  return true;
+}
+
+bool ParseBinding(
+  napi_env env,
+  napi_value value,
+  PttBinding* binding,
+  std::string* error
+) {
+  napi_valuetype valueType;
+  if (napi_typeof(env, value, &valueType) != napi_ok || valueType != napi_object) {
+    *error = "Binding must be an object";
+    return false;
+  }
+
+  napi_value keyCodeValue;
+  if (napi_get_named_property(env, value, "keyCode", &keyCodeValue) != napi_ok) {
+    *error = "Binding keyCode is required";
+    return false;
+  }
+
+  napi_valuetype keyCodeType;
+  if (napi_typeof(env, keyCodeValue, &keyCodeType) != napi_ok || keyCodeType != napi_number) {
+    *error = "Binding keyCode must be a number";
+    return false;
+  }
+
+  int32_t keyCode = 0;
+  if (napi_get_value_int32(env, keyCodeValue, &keyCode) != napi_ok) {
+    *error = "Binding keyCode must be an int32";
+    return false;
+  }
+
+  napi_value modifiersValue;
+  if (napi_get_named_property(env, value, "modifiers", &modifiersValue) != napi_ok) {
+    *error = "Binding modifiers are required";
+    return false;
+  }
+
+  napi_valuetype modifiersType;
+  if (napi_typeof(env, modifiersValue, &modifiersType) != napi_ok || modifiersType != napi_object) {
+    *error = "Binding modifiers must be an object";
+    return false;
+  }
+
+  bool cmd = false;
+  bool ctrl = false;
+  bool alt = false;
+  bool shift = false;
+
+  if (
+    !ReadBooleanProperty(env, modifiersValue, "cmd", &cmd, error) ||
+    !ReadBooleanProperty(env, modifiersValue, "ctrl", &ctrl, error) ||
+    !ReadBooleanProperty(env, modifiersValue, "alt", &alt, error) ||
+    !ReadBooleanProperty(env, modifiersValue, "shift", &shift, error)
+  ) {
+    return false;
+  }
+
+  *binding = {
+    .keyCode = keyCode,
+    .cmd = cmd,
+    .ctrl = ctrl,
+    .alt = alt,
+    .shift = shift,
+  };
+
+  return true;
+}
+
 napi_value StartHook(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value args[1];
   napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
 
   if (argc < 1) {
-    return MakeStartResult(env, false, "Listener callback is required");
+    return MakeResult(env, false, "Listener callback is required");
   }
 
   napi_valuetype type;
   napi_typeof(env, args[0], &type);
   if (type != napi_function) {
-    return MakeStartResult(env, false, "Listener callback must be a function");
+    return MakeResult(env, false, "Listener callback must be a function");
   }
 
   if (g_isListening.load()) {
-    return MakeStartResult(env, true, "");
+    return MakeResult(env, true, "");
   }
 
   ReleaseThreadsafeFunction();
@@ -272,7 +444,7 @@ napi_value StartHook(napi_env env, napi_callback_info info) {
 
   if (tsfnStatus != napi_ok) {
     g_tsfn = nullptr;
-    return MakeStartResult(env, false, "Failed to create thread-safe callback");
+    return MakeResult(env, false, "Failed to create thread-safe callback");
   }
 
   {
@@ -302,7 +474,7 @@ napi_value StartHook(napi_env env, napi_callback_info info) {
       g_hookThread.join();
     }
     ReleaseThreadsafeFunction();
-    return MakeStartResult(env, false, "Timed out while starting native hook");
+    return MakeResult(env, false, "Timed out while starting native hook");
   }
 
   if (!g_startOk) {
@@ -312,10 +484,10 @@ napi_value StartHook(napi_env env, napi_callback_info info) {
       g_hookThread.join();
     }
     ReleaseThreadsafeFunction();
-    return MakeStartResult(env, false, error);
+    return MakeResult(env, false, error);
   }
 
-  return MakeStartResult(env, true, "");
+  return MakeResult(env, true, "");
 }
 
 napi_value StopHook(napi_env env, napi_callback_info) {
@@ -327,7 +499,50 @@ napi_value StopHook(napi_env env, napi_callback_info) {
     g_hookThread.join();
   }
 
+  {
+    std::lock_guard<std::mutex> guard(g_bindingMutex);
+    g_holdState = PttHoldState::kIdle;
+  }
+
   ReleaseThreadsafeFunction();
+
+  napi_value undefinedValue;
+  napi_get_undefined(env, &undefinedValue);
+  return undefinedValue;
+}
+
+napi_value SetBinding(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value args[1];
+  napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
+
+  if (argc < 1) {
+    return MakeResult(env, false, "Binding object is required");
+  }
+
+  std::string parseError;
+  PttBinding parsedBinding;
+
+  if (!ParseBinding(env, args[0], &parsedBinding, &parseError)) {
+    return MakeResult(env, false, parseError);
+  }
+
+  {
+    std::lock_guard<std::mutex> guard(g_bindingMutex);
+    g_binding = parsedBinding;
+    g_bindingConfigured = true;
+    g_holdState = PttHoldState::kIdle;
+  }
+
+  return MakeResult(env, true, "");
+}
+
+napi_value ClearBinding(napi_env env, napi_callback_info) {
+  {
+    std::lock_guard<std::mutex> guard(g_bindingMutex);
+    g_bindingConfigured = false;
+    g_holdState = PttHoldState::kIdle;
+  }
 
   napi_value undefinedValue;
   napi_get_undefined(env, &undefinedValue);
@@ -365,6 +580,8 @@ napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor descriptors[] = {
     { "start", nullptr, StartHook, nullptr, nullptr, nullptr, napi_default, nullptr },
     { "stop", nullptr, StopHook, nullptr, nullptr, nullptr, napi_default, nullptr },
+    { "setBinding", nullptr, SetBinding, nullptr, nullptr, nullptr, napi_default, nullptr },
+    { "clearBinding", nullptr, ClearBinding, nullptr, nullptr, nullptr, napi_default, nullptr },
     { "isAccessibilityGranted", nullptr, IsAccessibilityGranted, nullptr, nullptr, nullptr, napi_default, nullptr },
     { "requestAccessibilityPrompt", nullptr, RequestAccessibilityPrompt, nullptr, nullptr, nullptr, napi_default, nullptr },
     { "openAccessibilitySettings", nullptr, OpenAccessibilitySettings, nullptr, nullptr, nullptr, napi_default, nullptr }

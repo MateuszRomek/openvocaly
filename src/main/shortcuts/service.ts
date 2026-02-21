@@ -32,9 +32,8 @@ import {
 import { NativePttHook } from './native-ptt-hook'
 import {
   createMacPttBinding,
-  doesMacPttEventMatchBinding,
   type MacPttBinding,
-  type NativePttKeyEvent
+  type NativePttEvent
 } from './ptt-matcher'
 import type { ShortcutActionStateMap } from './types'
 
@@ -68,6 +67,7 @@ class ShortcutService {
 
   private pttHoldState: PttHoldState = 'idle'
   private pttBinding: MacPttBinding | null = null
+  private pttEffectiveAccelerator: string | null = null
 
   private pttRuntimeStatus: ShortcutRuntimeStatusResponse['ptt'] = {
     availability: 'unsupported_platform',
@@ -86,6 +86,7 @@ class ShortcutService {
     this.startupFailure = false
     this.pttHoldState = 'idle'
     this.pttBinding = null
+    this.pttEffectiveAccelerator = null
 
     globalShortcut.unregisterAll()
     this.registerShortcutsOnStartup()
@@ -96,6 +97,7 @@ class ShortcutService {
 
   shutdown(): void {
     this.releasePushToTalkHoldIfNeeded()
+    this.nativePttHook.clearBinding()
     this.nativePttHook.stop()
     globalShortcut.unregisterAll()
     this.initialized = false
@@ -233,36 +235,31 @@ class ShortcutService {
   }
 
   private isPushToTalkReady(): boolean {
-    return this.pttRuntimeStatus.availability === 'ready' && this.nativePttHook.isListening()
+    return (
+      this.pttRuntimeStatus.availability === 'ready' &&
+      this.nativePttHook.isListening() &&
+      this.pttBinding !== null
+    )
   }
 
   private initializePushToTalkOnStartup(): void {
-    this.refreshPushToTalkRuntimeStatus()
-
     const state = this.shortcutState['recording.push_to_talk']
-    const desiredAccelerator = state.storedBinding.accelerator
-
     const desiredBinding = createMacPttBinding(state.storedBinding)
     if (desiredBinding) {
       this.pttBinding = desiredBinding
+      this.pttEffectiveAccelerator = state.storedBinding.accelerator
       state.registrationError = null
     } else {
       const defaultBindingSource = this.defaultBindingForAction('recording.push_to_talk')
       const defaultBinding = createMacPttBinding(defaultBindingSource)
 
       this.pttBinding = defaultBinding
+      this.pttEffectiveAccelerator = defaultBinding ? defaultBindingSource.accelerator : null
       state.registrationError = 'invalid_accelerator'
       this.startupFailure = true
     }
 
-    if (this.isPushToTalkReady() && this.pttBinding) {
-      state.effectiveAccelerator = desiredBinding
-        ? desiredAccelerator
-        : this.defaultBindingForAction('recording.push_to_talk').accelerator
-      return
-    }
-
-    state.effectiveAccelerator = null
+    this.refreshPushToTalkRuntimeStatus()
   }
 
   private refreshPushToTalkRuntimeStatus(): void {
@@ -270,6 +267,7 @@ class ShortcutService {
     const loadError = this.nativePttHook.getLoadError()
 
     if (process.platform !== 'darwin') {
+      this.nativePttHook.clearBinding()
       this.nativePttHook.stop()
       this.releasePushToTalkHoldIfNeeded()
       this.pttRuntimeStatus = {
@@ -285,6 +283,7 @@ class ShortcutService {
     }
 
     if (loadError) {
+      this.nativePttHook.clearBinding()
       this.nativePttHook.stop()
       this.releasePushToTalkHoldIfNeeded()
       this.pttRuntimeStatus = {
@@ -298,6 +297,7 @@ class ShortcutService {
     }
 
     if (!permissionsService.isAccessibilityGranted()) {
+      this.nativePttHook.clearBinding()
       this.nativePttHook.stop()
       this.releasePushToTalkHoldIfNeeded()
       this.pttRuntimeStatus = {
@@ -315,6 +315,7 @@ class ShortcutService {
     const startResult = this.nativePttHook.ensureStarted(this.handlePushToTalkEvent)
 
     if (!startResult.ok) {
+      this.nativePttHook.clearBinding()
       this.nativePttHook.stop()
       this.releasePushToTalkHoldIfNeeded()
       this.pttRuntimeStatus = {
@@ -327,6 +328,26 @@ class ShortcutService {
       return
     }
 
+    if (this.pttBinding) {
+      const setBindingResult = this.nativePttHook.setBinding(this.pttBinding)
+
+      if (!setBindingResult.ok) {
+        this.nativePttHook.clearBinding()
+        this.nativePttHook.stop()
+        this.releasePushToTalkHoldIfNeeded()
+        this.pttRuntimeStatus = {
+          availability: 'hook_init_failed',
+          message: setBindingResult.error ?? 'Failed to apply native push-to-talk binding.',
+          isListening: false
+        }
+        state.effectiveAccelerator = null
+        state.registrationError = 'hook_init_failed'
+        return
+      }
+    } else {
+      this.nativePttHook.clearBinding()
+    }
+
     this.pttRuntimeStatus = {
       availability: 'ready',
       isListening: true
@@ -336,20 +357,16 @@ class ShortcutService {
       state.registrationError = null
     }
 
-    state.effectiveAccelerator = this.pttBinding ? state.storedBinding.accelerator : null
+    state.effectiveAccelerator = this.pttBinding ? this.pttEffectiveAccelerator : null
   }
 
-  private handlePushToTalkEvent = (event: NativePttKeyEvent): void => {
+  private handlePushToTalkEvent = (event: NativePttEvent): void => {
     if (!this.isPushToTalkReady() || !this.pttBinding) {
       return
     }
 
-    if (event.type === 'keydown') {
-      if (!doesMacPttEventMatchBinding(event, this.pttBinding)) {
-        return
-      }
-
-      if (event.isRepeat || this.pttHoldState === 'holding') {
+    if (event.type === 'push_to_talk_start') {
+      if (this.pttHoldState === 'holding') {
         return
       }
 
@@ -359,10 +376,6 @@ class ShortcutService {
     }
 
     if (this.pttHoldState !== 'holding') {
-      return
-    }
-
-    if (event.keyCode !== this.pttBinding.keyCode) {
       return
     }
 
@@ -503,24 +516,57 @@ class ShortcutService {
 
   private applyPushToTalkBinding(nextBinding: PersistedShortcutBinding): ShortcutMutationResponse {
     const binding = createMacPttBinding(nextBinding)
+    const state = this.shortcutState['recording.push_to_talk']
 
     if (!binding) {
       return { ok: false, errorCode: 'invalid_accelerator' }
     }
 
+    const wasReady = this.isPushToTalkReady()
+    const previousBinding = this.pttBinding
+
+    if (wasReady) {
+      this.releasePushToTalkHoldIfNeeded()
+      const setBindingResult = this.nativePttHook.setBinding(binding)
+
+      if (!setBindingResult.ok) {
+        state.registrationError = 'hook_init_failed'
+        return { ok: false, errorCode: 'hook_init_failed' }
+      }
+    }
+
     const persistResult = this.persistBinding('recording.push_to_talk', nextBinding)
 
     if (!persistResult.ok) {
+      if (wasReady) {
+        if (previousBinding) {
+          const rollbackResult = this.nativePttHook.setBinding(previousBinding)
+
+          if (!rollbackResult.ok) {
+            this.nativePttHook.clearBinding()
+            this.nativePttHook.stop()
+            this.releasePushToTalkHoldIfNeeded()
+            this.pttRuntimeStatus = {
+              availability: 'hook_init_failed',
+              message: rollbackResult.error ?? 'Failed to restore previous native push-to-talk binding.',
+              isListening: false
+            }
+            state.effectiveAccelerator = null
+            state.registrationError = 'hook_init_failed'
+          }
+        } else {
+          this.nativePttHook.clearBinding()
+        }
+      }
+
       return persistResult
     }
 
-    this.releasePushToTalkHoldIfNeeded()
-
-    const state = this.shortcutState['recording.push_to_talk']
     state.storedBinding = nextBinding
     state.registrationError = null
-    state.effectiveAccelerator = this.isPushToTalkReady() ? nextBinding.accelerator : null
     this.pttBinding = binding
+    this.pttEffectiveAccelerator = nextBinding.accelerator
+    state.effectiveAccelerator = this.isPushToTalkReady() ? this.pttEffectiveAccelerator : null
 
     return { ok: true }
   }
@@ -542,6 +588,7 @@ class ShortcutService {
 
     if (action === 'recording.push_to_talk') {
       this.pttBinding = createMacPttBinding(binding)
+      this.pttEffectiveAccelerator = this.pttBinding ? binding.accelerator : null
     }
 
     return { ok: true }

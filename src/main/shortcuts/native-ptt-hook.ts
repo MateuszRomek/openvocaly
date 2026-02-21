@@ -1,15 +1,17 @@
 import { createRequire } from 'node:module'
 import type { ShortcutPttAvailability } from '../../shared/shortcuts'
-import type { NativePttKeyEvent } from './ptt-matcher'
+import type { MacPttBinding, NativePttEvent } from './ptt-matcher'
 
-type NativePttHookStartResult = {
+type NativePttHookResult = {
   ok: boolean
   error?: string
 }
 
 type NativePttHookModule = {
-  start: (listener: (event: NativePttKeyEvent) => void) => NativePttHookStartResult
+  start: (listener: (event: NativePttEvent) => void) => NativePttHookResult
   stop: () => void
+  setBinding: (binding: MacPttBinding) => NativePttHookResult
+  clearBinding: () => void
 }
 
 export type NativePttHookRuntime = {
@@ -32,7 +34,7 @@ export class NativePttHook {
     this.loadError = loadedModule.error
   }
 
-  ensureStarted(listener: (event: NativePttKeyEvent) => void): NativePttHookStartResult {
+  ensureStarted(listener: (event: NativePttEvent) => void): NativePttHookResult {
     if (!this.module) {
       return {
         ok: false,
@@ -50,9 +52,41 @@ export class NativePttHook {
     return result
   }
 
+  setBinding(binding: MacPttBinding): NativePttHookResult {
+    if (!this.module) {
+      return {
+        ok: false,
+        error: this.loadError ?? 'Native hook module unavailable'
+      }
+    }
+
+    if (!this.listening) {
+      return {
+        ok: false,
+        error: 'Native hook is not listening'
+      }
+    }
+
+    return this.module.setBinding(binding)
+  }
+
+  clearBinding(): void {
+    if (!this.module) {
+      return
+    }
+
+    this.module.clearBinding()
+  }
+
   stop(): void {
-    if (!this.module || !this.listening) {
+    if (!this.module) {
       this.listening = false
+      return
+    }
+
+    this.module.clearBinding()
+
+    if (!this.listening) {
       return
     }
 

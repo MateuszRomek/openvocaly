@@ -2,11 +2,8 @@ import type { CanonicalShortcut, ShortcutModifierState } from './accelerator'
 
 export type MacModifierState = ShortcutModifierState
 
-export type NativePttKeyEvent = {
-  type: 'keydown' | 'keyup'
-  keyCode: number
-  modifiers: MacModifierState
-  isRepeat: boolean
+export type NativePttEvent = {
+  type: 'push_to_talk_start' | 'push_to_talk_stop'
 }
 
 export type MacPttBinding = {
@@ -92,12 +89,6 @@ const MAC_KEY_CODES: Record<string, number> = {
   F12: 111
 }
 
-const areModifiersEqual = (left: MacModifierState, right: MacModifierState): boolean =>
-  left.cmd === right.cmd &&
-  left.ctrl === right.ctrl &&
-  left.alt === right.alt &&
-  left.shift === right.shift
-
 export const createMacPttBinding = (shortcut: CanonicalShortcut): MacPttBinding | null => {
   const keyCode = MAC_KEY_CODES[shortcut.key]
 
@@ -109,15 +100,4 @@ export const createMacPttBinding = (shortcut: CanonicalShortcut): MacPttBinding 
     keyCode,
     modifiers: shortcut.modifiers
   }
-}
-
-export const doesMacPttEventMatchBinding = (
-  event: NativePttKeyEvent,
-  binding: MacPttBinding
-): boolean => {
-  if (event.keyCode !== binding.keyCode) {
-    return false
-  }
-
-  return areModifiersEqual(event.modifiers, binding.modifiers)
 }
