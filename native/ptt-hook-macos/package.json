@@ -1,0 +1,7 @@
+{
+  "name": "@wispr/ptt-hook-macos",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.js",
+  "gypfile": true
+}

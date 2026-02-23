@@ -34,17 +34,19 @@ function SiteHeader(): React.JSX.Element {
   const isDark = theme === 'dark'
 
   return (
-    <header className="border-border/70 flex h-14 items-center justify-between border-b px-4">
-      <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-      <Button
-        type="button"
-        variant="secondary"
-        size="icon-sm"
-        onClick={() => setTheme(isDark ? 'light' : 'dark')}
-        aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
-      >
-        {isDark ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
-      </Button>
+    <header className="border-border/70 border-b">
+      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
+        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon-sm"
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
+          aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+        >
+          {isDark ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
+        </Button>
+      </div>
     </header>
   )
 }

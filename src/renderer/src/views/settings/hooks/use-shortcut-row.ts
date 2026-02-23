@@ -1,31 +1,50 @@
 import { useCallback } from 'react'
 import type { KeyboardEvent } from 'react'
 import {
-  ACTION_META,
+  PTT_STATUS_BADGE,
+  PTT_STATUS_MESSAGE,
+  SHORTCUT_ACTION_META,
   SHORTCUT_ROW_ACTIVE_CAPTURE_CLASS,
   SHORTCUT_ROW_DISABLED_SURFACE_CLASS,
   SHORTCUT_ROW_INTERACTIVE_SURFACE_CLASS,
-  UNSUPPORTED_GLOBAL_MESSAGE
-} from '../constants'
+  SHORTCUT_UNSUPPORTED_GLOBAL_MESSAGE
+} from '../constants/shortcuts'
 import { toErrorMessage } from '../helpers/shortcut-accelerator'
-import type { ShortcutActionConfig } from '../queries/shortcuts/shortcuts.types'
-import type { ShortcutRowController } from './use-shortcut-settings'
-
+import type {
+  ShortcutAction,
+  ShortcutActionConfig,
+  ShortcutErrorCode,
+  ShortcutPttAvailability,
+  ShortcutRuntimeStatusResponse
+} from '../queries/shortcuts/shortcuts.types'
 type UseShortcutRowArgs = {
   item: ShortcutActionConfig
   index: number
   total: number
-  rowController: ShortcutRowController
+  rowController: {
+    isMutating: boolean
+    editingAction: ShortcutAction | null
+    draftAccelerator: string
+    draftErrorCode: ShortcutErrorCode | undefined
+    runtimeStatus: ShortcutRuntimeStatusResponse | null
+    beginEditing: (item: ShortcutActionConfig) => void
+    cancelEditing: () => void
+    captureKeyDown: (event: KeyboardEvent<HTMLButtonElement>, action: ShortcutAction) => void
+    reset: (action: ShortcutAction) => void
+  }
 }
 
 type UseShortcutRowResult = {
   isLast: boolean
-  meta: (typeof ACTION_META)[keyof typeof ACTION_META]
+  meta: (typeof SHORTCUT_ACTION_META)[keyof typeof SHORTCUT_ACTION_META]
+  canEdit: boolean
   isEditingThisRow: boolean
   isMutating: boolean
   surfaceClass: string
   activeCaptureClass: string
   displayedAccelerator: string
+  statusBadge: { label: string; variant: 'secondary' | 'outline' | 'destructive' } | null
+  statusMessage: string | null
   runtimeError: string | null
   draftError: string | null
   unsupportedMessage: string | null
@@ -43,8 +62,26 @@ export const useShortcutRow = ({
 }: UseShortcutRowArgs): UseShortcutRowResult => {
   const isSupportedGlobal = item.isSupportedGlobal
   const isLast = index === total - 1
+  const isPushToTalk = item.action === 'recording.push_to_talk'
+  const runtimeStatus = rowController.runtimeStatus
+  const pttAvailability: ShortcutPttAvailability =
+    runtimeStatus?.ptt.availability ?? 'unsupported_platform'
+
+  const statusBadge = isPushToTalk
+    ? pttAvailability === 'ready'
+      ? null
+      : PTT_STATUS_BADGE[pttAvailability]
+    : null
+
+  const statusMessage = isPushToTalk
+    ? pttAvailability === 'ready'
+      ? null
+      : (runtimeStatus?.ptt.message ?? PTT_STATUS_MESSAGE[pttAvailability])
+    : null
+
+  const canEdit = isSupportedGlobal
   const isMutating = rowController.isMutating
-  const isEditingThisRow = rowController.editingAction === item.action && isSupportedGlobal
+  const isEditingThisRow = rowController.editingAction === item.action && canEdit
 
   const surfaceClass = isSupportedGlobal
     ? SHORTCUT_ROW_INTERACTIVE_SURFACE_CLASS
@@ -54,7 +91,11 @@ export const useShortcutRow = ({
 
   const runtimeError = toErrorMessage(item.registrationError)
   const draftError = isEditingThisRow ? toErrorMessage(rowController.draftErrorCode) : null
-  const unsupportedMessage = isSupportedGlobal ? null : UNSUPPORTED_GLOBAL_MESSAGE
+  const unsupportedMessage = isPushToTalk
+    ? statusMessage
+    : isSupportedGlobal
+      ? null
+      : SHORTCUT_UNSUPPORTED_GLOBAL_MESSAGE
   const displayedAccelerator = isEditingThisRow ? rowController.draftAccelerator : item.accelerator
 
   const onBeginEditing = useCallback((): void => {
@@ -84,12 +125,15 @@ export const useShortcutRow = ({
 
   return {
     isLast,
-    meta: ACTION_META[item.action],
+    meta: SHORTCUT_ACTION_META[item.action],
+    canEdit,
     isEditingThisRow,
     isMutating,
     surfaceClass,
     activeCaptureClass,
     displayedAccelerator,
+    statusBadge,
+    statusMessage,
     runtimeError,
     draftError,
     unsupportedMessage,

@@ -1,4 +1,4 @@
-import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const sessions = sqliteTable(
   'sessions',
@@ -31,8 +31,25 @@ export const transcripts = sqliteTable(
   ]
 )
 
-export const shortcutBindings = sqliteTable('shortcut_bindings', {
-  action: text('action').primaryKey(),
-  accelerator: text('accelerator').notNull().unique(),
-  updatedAt: integer('updated_at').notNull()
-})
+export const shortcutBindings = sqliteTable(
+  'shortcut_bindings',
+  {
+    action: text('action').primaryKey(),
+    accelerator: text('accelerator').notNull().unique(),
+    key: text('key').notNull(),
+    modCmd: integer('mod_cmd').notNull(),
+    modCtrl: integer('mod_ctrl').notNull(),
+    modAlt: integer('mod_alt').notNull(),
+    modShift: integer('mod_shift').notNull(),
+    updatedAt: integer('updated_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('shortcut_bindings_key_modifiers_unique').on(
+      table.key,
+      table.modCmd,
+      table.modCtrl,
+      table.modAlt,
+      table.modShift
+    )
+  ]
+)

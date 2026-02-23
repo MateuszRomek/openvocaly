@@ -6,3 +6,4 @@ out
 *.log*
 resources/db/dev.sqlite
 plans/
+native/ptt-hook-macos/build/

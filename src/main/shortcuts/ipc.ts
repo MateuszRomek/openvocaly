@@ -3,6 +3,7 @@ import type {
   ShortcutConfigResponse,
   ShortcutMutationResponse,
   ShortcutResetInput,
+  ShortcutRuntimeStatusResponse,
   ShortcutUpdateInput
 } from '../../shared/shortcuts'
 import { shortcutService } from './service'
@@ -28,6 +29,15 @@ export const registerShortcutsIpc = (): void => {
   ipcMain.handle(
     'shortcuts:reset',
     (_event, input?: ShortcutResetInput): ShortcutMutationResponse => shortcutService.reset(input)
+  )
+
+  ipcMain.handle(
+    'shortcuts:getRuntimeStatus',
+    /**
+     * Runtime status is separate from persisted shortcut config because
+     * permission/hook readiness can change while the app is running.
+     */
+    (): ShortcutRuntimeStatusResponse => shortcutService.getRuntimeStatus()
   )
 
   shortcutsIpcRegistered = true

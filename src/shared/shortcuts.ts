@@ -14,6 +14,9 @@ export type ShortcutErrorCode =
   | 'registration_failed'
   | 'unsupported_action'
   | 'requires_native_keyup_hook'
+  | 'permission_denied'
+  | 'hook_unavailable'
+  | 'hook_init_failed'
 
 export type ShortcutActionConfig = {
   action: ShortcutAction
@@ -42,6 +45,20 @@ export type ShortcutResetInput = {
 export type ShortcutMutationResponse = {
   ok: boolean
   errorCode?: ShortcutErrorCode
+}
+
+export type ShortcutPttAvailability =
+  | 'ready'
+  | 'permission_required'
+  | 'unsupported_platform'
+  | 'hook_init_failed'
+
+export type ShortcutRuntimeStatusResponse = {
+  ptt: {
+    availability: ShortcutPttAvailability
+    message?: string
+    isListening: boolean
+  }
 }
 
 export const isShortcutAction = (value: string): value is ShortcutAction =>
