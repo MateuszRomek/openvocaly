@@ -4,7 +4,7 @@ import type {
   RecordingPreferencesUpdateInput,
   RecordingRuntimeStateResponse
 } from '../../shared/recording'
-import { recordingService } from './service'
+import { recordingService } from './service/orchestrator'
 
 let recordingIpcRegistered = false
 

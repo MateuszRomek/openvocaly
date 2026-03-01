@@ -14,6 +14,11 @@ import { createOverlayWindow, loadOverlayWindow } from './window-lifecycle'
 import { isMacOS } from '../../helpers/platform'
 
 /**
+ * Module ownership:
+ * - Owns overlay BrowserWindow lifecycle, readiness, and display-follow loop.
+ * - Does not own bar rendering math (renderer) or macOS z-order retry policy internals.
+ */
+/**
  * Owns the overlay BrowserWindow lifecycle and macOS-specific visibility behavior.
  * Main process publishes state, renderer only renders it.
  */

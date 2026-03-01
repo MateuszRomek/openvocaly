@@ -22,6 +22,11 @@ const resolveCaptureRendererTarget = (): string => {
 }
 
 /**
+ * Module ownership:
+ * - Owns hidden capture window lifecycle and capture IPC bridge in main process.
+ * - Does not own recording state transitions or artifact/transcription policies.
+ */
+/**
  * Manages hidden capture BrowserWindow lifecycle and command/event IPC bridge.
  *
  * Ready handshake semantics:

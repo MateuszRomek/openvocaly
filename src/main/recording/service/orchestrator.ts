@@ -59,6 +59,11 @@ type TerminalStateOutcome =
     }
 
 /**
+ * Module ownership:
+ * - Owns recording session lifecycle orchestration and terminal-state resolution.
+ * - Does not own low-level capture IPC transport, overlay window internals, or DB schema logic.
+ */
+/**
  * Coordinates the full recording lifecycle in the main process.
  *
  * Invariants:
@@ -377,6 +382,10 @@ export class RecordingServiceOrchestrator {
     reason: RecordingFailureReason,
     message?: string
   ): Promise<void> {
+    // Failure path contract:
+    // - best-effort abort of active writer
+    // - best-effort failure artifact persistence
+    // - always settle machine to terminal failed state
     const activeArtifact = this.state.activeArtifact
     if (activeArtifact) {
       const activeSessionId = activeArtifact.artifact.sessionId
@@ -477,3 +486,5 @@ export class RecordingServiceOrchestrator {
     )
   }
 }
+
+export const recordingService = new RecordingServiceOrchestrator()

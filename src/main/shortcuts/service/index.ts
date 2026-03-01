@@ -33,6 +33,11 @@ import {
 } from './supported-shortcut-manager'
 
 /**
+ * Module ownership:
+ * - Owns shortcut service lifecycle and high-level mutation orchestration.
+ * - Does not own native PTT hook runtime internals or supported-global transaction internals.
+ */
+/**
  * Owns shortcut lifecycle: registration, persistence integration, and PTT runtime bridging.
  */
 class ShortcutService {
@@ -195,6 +200,8 @@ class ShortcutService {
     action: ShortcutAction,
     binding: PersistedShortcutBinding
   ): ShortcutMutationResponse {
+    // Persists action binding without touching OS/global registration.
+    // Used for actions that are currently unavailable at runtime (e.g. PTT not ready).
     const persistResult = persistBinding(action, binding)
 
     if (!persistResult.ok) {

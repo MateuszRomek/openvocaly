@@ -14,6 +14,11 @@ import { persistBinding } from './persistence'
 type PttHoldState = 'idle' | 'holding'
 
 /**
+ * Module ownership:
+ * - Owns native push-to-talk hook lifecycle/readiness and hold-state semantics.
+ * - Does not own user-level shortcut decision routing or supported global shortcuts.
+ */
+/**
  * Encapsulates push-to-talk native hook lifecycle, runtime readiness, and
  * transactional binding apply/rollback behavior.
  */
@@ -180,6 +185,12 @@ export class PttRuntimeManager {
     )
   }
 
+  /**
+   * Applies a new PTT binding transactionally:
+   * 1) set native binding (when active),
+   * 2) persist DB binding,
+   * 3) rollback native binding when persistence fails.
+   */
   applyBinding(nextBinding: PersistedShortcutBinding): ShortcutMutationResponse {
     const binding = createMacPttBinding(nextBinding)
     const state = this.getShortcutState()['recording.push_to_talk']
