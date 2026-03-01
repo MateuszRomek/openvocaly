@@ -93,7 +93,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('close', (event) => {
-    if (!isMacOS() || isQuitting) {
+    if (!isMacOS() || isQuitting || is.dev) {
       return
     }
 
@@ -160,11 +160,11 @@ app.whenReady().then(async () => {
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+// Quit when all windows are closed.
+// In production on macOS, keep the app active (standard behavior).
+// In development, quit to avoid a docked app bound to a dead dev server.
 app.on('window-all-closed', () => {
-  if (!isMacOS()) {
+  if (!isMacOS() || is.dev) {
     app.quit()
   }
 })
