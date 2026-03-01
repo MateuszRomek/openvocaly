@@ -23,10 +23,10 @@ export interface TranscriptionProvider {
  */
 class PlaceholderTranscriptionProvider implements TranscriptionProvider {
   async transcribe(): Promise<TranscriptionResult> {
-    if (process.env['WISPR_RECORDING_FORCE_TRANSCRIPTION_FAILURE'] === '1') {
+    if (process.env['OPENVOCALY_RECORDING_FORCE_TRANSCRIPTION_FAILURE'] === '1') {
       return {
         ok: false,
-        message: 'Forced transcription failure from WISPR_RECORDING_FORCE_TRANSCRIPTION_FAILURE=1'
+        message: 'Forced transcription failure from OPENVOCALY_RECORDING_FORCE_TRANSCRIPTION_FAILURE=1'
       }
     }
 

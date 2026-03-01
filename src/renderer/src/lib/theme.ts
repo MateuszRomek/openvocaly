@@ -1,6 +1,6 @@
 export type Theme = 'light' | 'dark'
 
-export const THEME_STORAGE_KEY = 'wispr-theme'
+export const THEME_STORAGE_KEY = 'openvocaly-theme'
 
 const isTheme = (value: string | null): value is Theme => value === 'light' || value === 'dark'
 

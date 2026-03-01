@@ -14,7 +14,7 @@ export const initDb = (): BetterSQLite3Database => {
   }
 
   const userDataPath = app.getPath('userData')
-  const dbPath = join(userDataPath, 'wispr.db')
+  const dbPath = join(userDataPath, 'openvocaly.db')
 
   sqlite = new Database(dbPath)
   sqlite.pragma('journal_mode = WAL')
