@@ -34,13 +34,23 @@ const performShutdownSequence = (): Promise<void> => {
   shutdownPromise = (async () => {
     try {
       await Promise.race([shutdownRecording(), createTimeout(GRACEFUL_QUIT_TIMEOUT_MS)])
+    } catch (error) {
+      console.error('[shutdown] recording teardown failed', error)
+    }
+
+    try {
       shutdownShortcuts()
+    } catch (error) {
+      console.error('[shutdown] shortcuts teardown failed', error)
+    }
+
+    try {
       closeDb()
     } catch (error) {
-      console.error('[shutdown] graceful shutdown failed', error)
-    } finally {
-      hasShutdownCompleted = true
+      console.error('[shutdown] database teardown failed', error)
     }
+
+    hasShutdownCompleted = true
   })()
 
   return shutdownPromise
