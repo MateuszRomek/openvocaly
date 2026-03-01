@@ -47,6 +47,10 @@ export const resolveRecordingCommandIntent = ({
       return { type: 'begin', mode: 'toggle' }
     }
 
+    if (machine.phase === 'starting' && machine.mode === 'toggle' && hasActiveArtifact) {
+      return { type: 'cancel' }
+    }
+
     if (canStopRecording(machine)) {
       return { type: 'stop' }
     }
@@ -63,6 +67,10 @@ export const resolveRecordingCommandIntent = ({
   }
 
   if (command.type === 'push_to_talk_stop') {
+    if (machine.phase === 'starting' && machine.mode === 'push_to_talk' && hasActiveArtifact) {
+      return { type: 'cancel' }
+    }
+
     if (machine.phase !== 'recording' || machine.mode !== 'push_to_talk') {
       return { type: 'ignore' }
     }

@@ -27,6 +27,7 @@ Main -> capture renderer:
 
 Capture renderer -> main:
 
+- `started` `{ sessionId }`
 - `chunk` `{ sessionId, chunk }`
 - `meter` `{ sessionId, level, bands }`
 - `stopped` `{ sessionId, durationMs }`

@@ -93,6 +93,9 @@ export class RecordingServiceOrchestrator {
     await this.artifactStore.initialize()
 
     this.captureRuntime.initialize()
+    void this.captureRuntime.warmup().catch((error) => {
+      console.error('[recording] failed to warm capture runtime', error)
+    })
     this.unsubscribeCapture = this.captureRuntime.onEvent((event) => {
       void this.handleCaptureEvent(event).catch((error) => {
         this.handleUnhandledAsyncError('capture event handling failed', error)
@@ -257,8 +260,6 @@ export class RecordingServiceOrchestrator {
         format: DEFAULT_OUTPUT_FORMAT,
         soundCues: this.preferencesStore.get().soundCues
       })
-      this.state.machine = moveToRecording(this.state.machine)
-      await this.publishOverlayImmediate()
     } catch (error) {
       const failure = toCaptureRuntimeCommandFailure('start', error)
       await this.handleCaptureFailure(this.state.machine.sessionId, failure.reason, failure.message)
@@ -302,6 +303,19 @@ export class RecordingServiceOrchestrator {
             const failure = toChunkWriteFailure(error)
             await this.handleCaptureFailure(sessionId, failure.reason, failure.message)
           }
+        },
+        onStarted: async ({ sessionId }) => {
+          const activeArtifact = this.state.activeArtifact
+          if (!activeArtifact || activeArtifact.artifact.sessionId !== sessionId) {
+            return
+          }
+
+          if (this.state.machine.phase !== 'starting') {
+            return
+          }
+
+          this.state.machine = moveToRecording(this.state.machine)
+          await this.publishOverlayImmediate()
         },
         onAudioLevels: async ({ sessionId, level, bands }) => {
           const activeArtifact = this.state.activeArtifact

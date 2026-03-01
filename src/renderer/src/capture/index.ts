@@ -1,5 +1,6 @@
 import type { RecordingCaptureCommand } from '../../../shared/recording'
 import { emitCaptureReady, onCaptureCommand } from './ipc'
+import { primeRecordingCueOutput } from './audio-cues'
 import { cancelCapture, startCapture, stopCapture } from './recorder'
 import { createCaptureRuntimeState } from './runtime-state'
 
@@ -20,3 +21,7 @@ onCaptureCommand((payload: RecordingCaptureCommand) => {
 })
 
 emitCaptureReady()
+
+void primeRecordingCueOutput().catch((error) => {
+  console.error('[recording] failed to prime cue output', error)
+})

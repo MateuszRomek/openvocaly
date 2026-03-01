@@ -21,6 +21,9 @@ sequenceDiagram
   O->>P: publish phase=starting
   O->>C: sendCommand(start, sessionId, soundCues)
   C->>R: recording:capture-command(start)
+  R-->>C: started(sessionId)
+  C-->>O: recording:capture-event(started)
+  O->>P: publish phase=recording
   R-->>C: chunk/meter events
   C-->>O: recording:capture-event(chunk/meter)
   O->>A: writeChunk(...)

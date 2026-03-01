@@ -1,18 +1,40 @@
 import type { RecordingSoundCueSettings } from '../../../shared/recording'
+import startCueAssetUrl from '../assets/audio/rec-start.wav'
+import cancelCueAssetUrl from '../assets/audio/rec-cancel.wav'
+import errorCueAssetUrl from '../assets/audio/rec-error.wav'
 
-type RecordingCueKind = 'start' | 'cancel'
+type RecordingCueKind = 'start' | 'cancel' | 'error'
 
 const START_CUE_COOLDOWN_MS = 85
 const CANCEL_CUE_COOLDOWN_MS = 140
-const NOTE_GAP_MS = 56
-const START_RETRY_DELAY_MS = 130
-const CANCEL_RETRY_DELAY_MS = 90
-const MAX_RETRY_ATTEMPTS = 10
+const RETRY_DELAY_MS = 120
+const MAX_RETRY_ATTEMPTS = 5
+const WARM_OUTPUT_START_DELAY_SEC = 0.06
+const COLD_OUTPUT_START_DELAY_SEC = 0.24
+const OUTPUT_WARM_TTL_MS = 25_000
+const PRIME_DURATION_SEC = 0.05
+
+const CUE_ASSET_URLS: Record<RecordingCueKind, string> = {
+  start: startCueAssetUrl,
+  cancel: cancelCueAssetUrl,
+  error: errorCueAssetUrl
+}
+
+const CUE_GAIN_SCALE: Record<RecordingCueKind, number> = {
+  start: 1,
+  cancel: 0.7,
+  error: 1
+}
 
 let cueAudioContext: AudioContext | null = null
 let lastStartCueAtMs = 0
 let lastCancelCueAtMs = 0
 let hasWarmOutput = false
+let lastOutputPrimeAtMs = 0
+let primeBuffer: AudioBuffer | null = null
+
+const cueBuffers: Partial<Record<RecordingCueKind, AudioBuffer>> = {}
+const cueBufferLoadPromises: Partial<Record<RecordingCueKind, Promise<void>>> = {}
 
 const wait = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
@@ -50,135 +72,157 @@ const ensureContextRunning = async (context: AudioContext): Promise<boolean> => 
   return isRunningContext(context)
 }
 
-const warmOutputOnce = (context: AudioContext): void => {
-  if (hasWarmOutput) {
-    return
+const getOrCreatePrimeBuffer = (context: AudioContext): AudioBuffer => {
+  if (primeBuffer) {
+    return primeBuffer
   }
+
+  const frameCount = Math.max(1, Math.round(context.sampleRate * PRIME_DURATION_SEC))
+  primeBuffer = context.createBuffer(1, frameCount, context.sampleRate)
+
+  return primeBuffer
+}
+
+const primeOutput = (context: AudioContext): void => {
+  const source = context.createBufferSource()
+  source.buffer = getOrCreatePrimeBuffer(context)
+
+  const gain = context.createGain()
+  gain.gain.setValueAtTime(0.00001, context.currentTime)
+
+  source.connect(gain)
+  gain.connect(context.destination)
 
   const at = context.currentTime + 0.012
-  const osc = context.createOscillator()
-  const gain = context.createGain()
-
-  osc.type = 'sine'
-  osc.frequency.setValueAtTime(220, at)
-
-  gain.gain.setValueAtTime(0.00001, at)
-  gain.gain.linearRampToValueAtTime(0.00002, at + 0.02)
-  gain.gain.exponentialRampToValueAtTime(0.00001, at + 0.045)
-
-  osc.connect(gain)
-  gain.connect(context.destination)
-  osc.start(at)
-  osc.stop(at + 0.05)
+  source.start(at)
+  source.stop(at + PRIME_DURATION_SEC)
 
   hasWarmOutput = true
+  lastOutputPrimeAtMs = Date.now()
 }
 
-const playChimeNote = (
+const ensureCueBufferReady = async (
   context: AudioContext,
-  startAt: number,
-  startFrequencyHz: number,
-  endFrequencyHz: number,
-  durationMs: number,
-  peakGain: number
-): void => {
-  const durationSec = durationMs / 1000
-
-  const body = context.createOscillator()
-  body.type = 'sine'
-  body.frequency.setValueAtTime(startFrequencyHz, startAt)
-  body.frequency.exponentialRampToValueAtTime(endFrequencyHz, startAt + durationSec)
-
-  const overtone = context.createOscillator()
-  overtone.type = 'triangle'
-  overtone.frequency.setValueAtTime(startFrequencyHz * 1.95, startAt)
-  overtone.frequency.exponentialRampToValueAtTime(endFrequencyHz * 1.92, startAt + durationSec)
-
-  const bodyGain = context.createGain()
-  bodyGain.gain.setValueAtTime(0.0001, startAt)
-  bodyGain.gain.linearRampToValueAtTime(peakGain, startAt + 0.016)
-  bodyGain.gain.exponentialRampToValueAtTime(0.0001, startAt + durationSec + 0.042)
-
-  const overtoneGain = context.createGain()
-  overtoneGain.gain.setValueAtTime(0.0001, startAt)
-  overtoneGain.gain.linearRampToValueAtTime(peakGain * 0.1, startAt + 0.012)
-  overtoneGain.gain.exponentialRampToValueAtTime(0.0001, startAt + durationSec + 0.02)
-
-  const highpass = context.createBiquadFilter()
-  highpass.type = 'highpass'
-  highpass.frequency.setValueAtTime(110, startAt)
-
-  const lowpass = context.createBiquadFilter()
-  lowpass.type = 'lowpass'
-  lowpass.frequency.setValueAtTime(1900, startAt)
-  lowpass.Q.setValueAtTime(0.42, startAt)
-
-  body.connect(bodyGain)
-  overtone.connect(overtoneGain)
-  bodyGain.connect(highpass)
-  overtoneGain.connect(highpass)
-  highpass.connect(lowpass)
-  lowpass.connect(context.destination)
-
-  body.start(startAt)
-  overtone.start(startAt)
-  body.stop(startAt + durationSec + 0.05)
-  overtone.stop(startAt + durationSec + 0.03)
-}
-
-const playSoftCancelCue = (context: AudioContext, startAt: number): void => {
-  const durationSec = 0.14
-  const stopAt = startAt + durationSec + 0.03
-
-  const oscillator = context.createOscillator()
-  oscillator.type = 'sine'
-  oscillator.frequency.setValueAtTime(520, startAt)
-  oscillator.frequency.exponentialRampToValueAtTime(430, startAt + durationSec)
-
-  const gain = context.createGain()
-  gain.gain.setValueAtTime(0.0001, startAt)
-  gain.gain.linearRampToValueAtTime(0.052, startAt + 0.01)
-  gain.gain.exponentialRampToValueAtTime(0.0001, stopAt)
-
-  const highpass = context.createBiquadFilter()
-  highpass.type = 'highpass'
-  highpass.frequency.setValueAtTime(110, startAt)
-
-  const lowpass = context.createBiquadFilter()
-  lowpass.type = 'lowpass'
-  lowpass.frequency.setValueAtTime(1300, startAt)
-  lowpass.Q.setValueAtTime(0.35, startAt)
-
-  oscillator.connect(gain)
-  gain.connect(highpass)
-  highpass.connect(lowpass)
-  lowpass.connect(context.destination)
-
-  oscillator.start(startAt)
-  oscillator.stop(stopAt)
-}
-
-const retryDelayMsForCue = (cue: RecordingCueKind): number =>
-  cue === 'start' ? START_RETRY_DELAY_MS : CANCEL_RETRY_DELAY_MS
-
-const playCueWithContext = (cue: RecordingCueKind, context: AudioContext): void => {
-  const wasWarm = hasWarmOutput
-  warmOutputOnce(context)
-
-  // Cold audio output paths can drop the very first scheduled sound on some systems.
-  // Delay the first cue slightly longer so device routing stabilizes.
-  const at = context.currentTime + (wasWarm ? 0.02 : 0.14)
-
-  if (cue === 'start') {
-    // Lower, softer two-note rise.
-    playChimeNote(context, at, 420, 435, 84, 0.12)
-    playChimeNote(context, at + NOTE_GAP_MS / 1000, 540, 565, 98, 0.135)
-    lastStartCueAtMs = Date.now()
+  cue: RecordingCueKind
+): Promise<void> => {
+  if (cueBuffers[cue]) {
     return
   }
 
-  playSoftCancelCue(context, at)
-  lastCancelCueAtMs = Date.now()
+  const inFlightLoad = cueBufferLoadPromises[cue]
+  if (inFlightLoad) {
+    await inFlightLoad
+    return
+  }
+
+  const url = CUE_ASSET_URLS[cue]
+  const loadPromise = (async () => {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        console.error(`[recording] failed to load ${cue} cue asset`, {
+          status: response.status,
+          statusText: response.statusText,
+          url
+        })
+        return
+      }
+
+      const arrayBuffer = await response.arrayBuffer()
+      cueBuffers[cue] = await context.decodeAudioData(arrayBuffer)
+    } catch (error) {
+      console.error(`[recording] failed to decode ${cue} cue asset`, error)
+    }
+  })()
+
+  cueBufferLoadPromises[cue] = loadPromise
+  try {
+    await loadPromise
+  } finally {
+    delete cueBufferLoadPromises[cue]
+  }
+}
+
+const playCueBuffer = (context: AudioContext, cue: RecordingCueKind, startAt: number): boolean => {
+  const cueBuffer = cueBuffers[cue]
+  if (!cueBuffer) {
+    console.error(`[recording] cue buffer is unavailable: ${cue}`)
+    return false
+  }
+
+  const source = context.createBufferSource()
+  const gain = context.createGain()
+  source.buffer = cueBuffer
+  gain.gain.setValueAtTime(CUE_GAIN_SCALE[cue], startAt)
+  source.connect(gain)
+  gain.connect(context.destination)
+  source.start(startAt)
+
+  return true
+}
+
+const markCuePlayed = (cue: RecordingCueKind): void => {
+  const now = Date.now()
+  if (cue === 'start') {
+    lastStartCueAtMs = now
+  }
+
+  if (cue === 'cancel') {
+    lastCancelCueAtMs = now
+  }
+
+  lastOutputPrimeAtMs = now
+}
+
+const playCueWithContext = async (
+  cue: RecordingCueKind,
+  context: AudioContext
+): Promise<boolean> => {
+  const now = Date.now()
+  const isLikelyWarm = hasWarmOutput && now - lastOutputPrimeAtMs <= OUTPUT_WARM_TTL_MS
+
+  if (cue === 'start' || !isLikelyWarm) {
+    // Re-prime before start to reduce dropped playback after idle/output switches.
+    primeOutput(context)
+  }
+
+  const at =
+    context.currentTime + (isLikelyWarm ? WARM_OUTPUT_START_DELAY_SEC : COLD_OUTPUT_START_DELAY_SEC)
+
+  await ensureCueBufferReady(context, cue)
+
+  const didPlay = playCueBuffer(context, cue, at)
+  if (didPlay) {
+    markCuePlayed(cue)
+  }
+
+  return didPlay
+}
+
+export const primeRecordingCueOutput = async (): Promise<void> => {
+  for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      const context = getOrCreateContext()
+      const isRunning = await ensureContextRunning(context)
+
+      if (isRunning) {
+        primeOutput(context)
+        await Promise.all([
+          ensureCueBufferReady(context, 'start'),
+          ensureCueBufferReady(context, 'cancel')
+        ])
+        return
+      }
+    } catch (error) {
+      if (attempt >= MAX_RETRY_ATTEMPTS) {
+        console.error('[recording] failed to prime cue output', error)
+      }
+    }
+
+    if (attempt < MAX_RETRY_ATTEMPTS) {
+      await wait(RETRY_DELAY_MS)
+    }
+  }
 }
 
 export const playRecordingCue = async (
@@ -204,18 +248,19 @@ export const playRecordingCue = async (
       const isRunning = await ensureContextRunning(context)
 
       if (isRunning) {
-        playCueWithContext(cue, context)
-        return
+        const didPlay = await playCueWithContext(cue, context)
+        if (didPlay) {
+          return
+        }
       }
     } catch (error) {
       if (attempt >= MAX_RETRY_ATTEMPTS) {
         console.error('[recording] failed to play cue', error)
-        return
       }
     }
 
     if (attempt < MAX_RETRY_ATTEMPTS) {
-      await wait(retryDelayMsForCue(cue))
+      await wait(RETRY_DELAY_MS)
     }
   }
 }

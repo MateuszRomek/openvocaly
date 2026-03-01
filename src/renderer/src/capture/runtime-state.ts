@@ -14,6 +14,7 @@ export type CaptureRuntimeState = {
   startedAt: number
   stopAsFailure: { reason: RecordingFailureReason; message?: string } | null
   pendingChunkWrites: Set<Promise<void>>
+  startReadyTimer: number | null
 }
 
 export const createCaptureRuntimeState = (): CaptureRuntimeState => ({
@@ -29,10 +30,16 @@ export const createCaptureRuntimeState = (): CaptureRuntimeState => ({
   bandPeaks: [],
   startedAt: 0,
   stopAsFailure: null,
-  pendingChunkWrites: new Set()
+  pendingChunkWrites: new Set(),
+  startReadyTimer: null
 })
 
 const teardownAudioGraph = (state: CaptureRuntimeState): void => {
+  if (state.startReadyTimer !== null) {
+    window.clearTimeout(state.startReadyTimer)
+    state.startReadyTimer = null
+  }
+
   if (state.meterTimer !== null) {
     window.clearInterval(state.meterTimer)
     state.meterTimer = null
@@ -70,6 +77,7 @@ export const finalizeCaptureState = (state: CaptureRuntimeState): void => {
   state.bandPeaks = []
   state.stopAsFailure = null
   state.pendingChunkWrites.clear()
+  state.startReadyTimer = null
 }
 
 export const flushPendingChunkWrites = async (state: CaptureRuntimeState): Promise<void> => {

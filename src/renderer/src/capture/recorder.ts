@@ -3,7 +3,13 @@ import type {
   RecordingFailureReason,
   RecordingSoundCueSettings
 } from '../../../shared/recording'
-import { emitCaptureChunk, emitCaptureError, emitCaptureMeter, emitCaptureStopped } from './ipc'
+import {
+  emitCaptureChunk,
+  emitCaptureError,
+  emitCaptureMeter,
+  emitCaptureStarted,
+  emitCaptureStopped
+} from './ipc'
 import { startAudioLevels } from './audio-levels'
 import { playRecordingCue } from './audio-cues'
 import {
@@ -20,7 +26,15 @@ import {
 
 type StartCommand = Extract<RecordingCaptureCommand, { type: 'start' }>
 
+const START_SIGNAL_DELAY_AFTER_CAPTURE_START_MS = 90
+const START_SIGNAL_FALLBACK_DELAY_MS = 1200
+
 export const stopCapture = (state: CaptureRuntimeState): void => {
+  if (state.startReadyTimer !== null) {
+    window.clearTimeout(state.startReadyTimer)
+    state.startReadyTimer = null
+  }
+
   if (!state.mediaRecorder || state.mediaRecorder.state === 'inactive') {
     return
   }
@@ -33,6 +47,11 @@ export const cancelCapture = (
   reason: RecordingFailureReason,
   soundCues?: RecordingSoundCueSettings
 ): void => {
+  if (state.startReadyTimer !== null) {
+    window.clearTimeout(state.startReadyTimer)
+    state.startReadyTimer = null
+  }
+
   void playRecordingCue('cancel', resolveCaptureSoundCueSettings(soundCues)).catch((error) => {
     console.error('[recording] failed to play cancel cue', error)
   })
@@ -141,6 +160,46 @@ export const startCapture = async (
       }
     }
 
+    const startCueSettings = resolveCaptureSoundCueSettings(command.soundCues)
+    let didSignalStarted = false
+
+    const signalStartedAndPlayCue = (): void => {
+      if (didSignalStarted) {
+        return
+      }
+
+      if (
+        state.sessionId !== command.sessionId ||
+        !state.mediaRecorder ||
+        state.mediaRecorder.state === 'inactive'
+      ) {
+        return
+      }
+
+      didSignalStarted = true
+      emitCaptureStarted(command.sessionId)
+      void playRecordingCue('start', startCueSettings).catch((error) => {
+        console.error('[recording] failed to play start cue', error)
+      })
+    }
+
+    const scheduleStartSignal = (delayMs: number): void => {
+      if (state.startReadyTimer !== null) {
+        window.clearTimeout(state.startReadyTimer)
+        state.startReadyTimer = null
+      }
+
+      state.startReadyTimer = window.setTimeout(() => {
+        state.startReadyTimer = null
+        signalStartedAndPlayCue()
+      }, delayMs)
+    }
+
+    mediaRecorder.onstart = () => {
+      // Trigger start-ready from actual recorder start to avoid race with slow device/profile init.
+      scheduleStartSignal(START_SIGNAL_DELAY_AFTER_CAPTURE_START_MS)
+    }
+
     mediaRecorder.onstop = () => {
       void (async () => {
         const stopFailure = state.stopAsFailure
@@ -163,8 +222,8 @@ export const startCapture = async (
     }
 
     mediaRecorder.start(250)
-
-    void playRecordingCue('start', resolveCaptureSoundCueSettings(command.soundCues))
+    // Fallback if `onstart` is delayed or not emitted by platform-specific backend.
+    scheduleStartSignal(START_SIGNAL_FALLBACK_DELAY_MS)
 
     startAudioLevels(state, ({ sessionId, level, bands }) => {
       emitCaptureMeter(sessionId, level, bands)

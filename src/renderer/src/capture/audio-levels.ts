@@ -175,7 +175,7 @@ export const startAudioLevels = (
   const timeDomainData = new Uint8Array(state.analyserNode.fftSize)
   const frequencyData = new Uint8Array(state.analyserNode.frequencyBinCount)
 
-  state.meterTimer = window.setInterval(() => {
+  const emitMeterSnapshot = (): void => {
     if (!state.analyserNode || !state.sessionId) {
       return
     }
@@ -205,8 +205,14 @@ export const startAudioLevels = (
       state.speechActivity = state.speechActivity * 0.84 + gatedSpeech * 0.16
     }
 
+    const warmupWindowMs = Math.max(0, Date.now() - state.startedAt)
+    const isEarlySession = warmupWindowMs < 900
+
     const rmsLevel = clamp01(rms * 2.2)
-    const nextLevel = clamp01(Math.max(rmsLevel * 0.4, state.speechActivity))
+    const boostedEarlyRmsLevel = clamp01(rms * 3.1)
+    const nextLevel = isEarlySession
+      ? clamp01(Math.max(boostedEarlyRmsLevel, state.speechActivity * 0.86))
+      : clamp01(Math.max(rmsLevel * 0.4, state.speechActivity))
 
     if (nextLevel > state.meterLevel) {
       state.meterLevel = state.meterLevel * 0.5 + nextLevel * 0.5
@@ -214,12 +220,16 @@ export const startAudioLevels = (
       state.meterLevel = state.meterLevel * 0.88 + nextLevel * 0.12
     }
 
+    const effectiveSpeechActivity = isEarlySession
+      ? Math.max(state.speechActivity, 0.72)
+      : state.speechActivity
+
     const bands = toLogBands(
       state,
       frequencyData,
       state.audioContext?.sampleRate ?? 44100,
       VISUALIZER_BAND_COUNT,
-      state.speechActivity
+      effectiveSpeechActivity
     )
 
     onMeter({
@@ -227,5 +237,9 @@ export const startAudioLevels = (
       level: state.meterLevel,
       bands: arrangeCenterOut(bands)
     })
-  }, 50)
+  }
+
+  // Emit immediately so overlay state reflects "listening" without waiting for the first interval tick.
+  emitMeterSnapshot()
+  state.meterTimer = window.setInterval(emitMeterSnapshot, 50)
 }

@@ -11,7 +11,7 @@ import {
 import { drainCaptureCommandQueue } from './command-queue'
 
 type CaptureEventListener = (event: RecordingCaptureEvent) => void
-const CAPTURE_IDLE_DESTROY_DELAY_MS = 1200
+const CAPTURE_IDLE_DESTROY_DELAY_MS = 60 * 1000
 
 const resolveCaptureRendererTarget = (): string => {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -56,6 +56,10 @@ export class RecordingCaptureRuntime {
     ipcMain.on(RECORDING_CAPTURE_READY_CHANNEL, this.handleReady)
     ipcMain.on(RECORDING_CAPTURE_EVENT_CHANNEL, this.handleCaptureEvent)
     this.listenersRegistered = true
+  }
+
+  async warmup(): Promise<void> {
+    await this.ensureWindow()
   }
 
   async shutdown(): Promise<void> {

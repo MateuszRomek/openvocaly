@@ -105,6 +105,11 @@ export type RecordingCaptureMeterEvent = {
   bands: number[]
 }
 
+export type RecordingCaptureStartedEvent = {
+  type: 'started'
+  sessionId: string
+}
+
 export type RecordingCaptureStoppedEvent = {
   type: 'stopped'
   sessionId: string
@@ -120,6 +125,7 @@ export type RecordingCaptureErrorEvent = {
 
 export type RecordingCaptureEvent =
   | RecordingCaptureChunkEvent
+  | RecordingCaptureStartedEvent
   | RecordingCaptureMeterEvent
   | RecordingCaptureStoppedEvent
   | RecordingCaptureErrorEvent

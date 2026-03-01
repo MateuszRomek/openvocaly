@@ -29,6 +29,13 @@ export const emitCaptureMeter = (sessionId: string, level: number, bands: number
   })
 }
 
+export const emitCaptureStarted = (sessionId: string): void => {
+  ipc.send(RECORDING_CAPTURE_EVENT_CHANNEL, {
+    type: 'started',
+    sessionId
+  })
+}
+
 export const emitCaptureStopped = (sessionId: string | null, durationMs: number): void => {
   ipc.send(RECORDING_CAPTURE_EVENT_CHANNEL, {
     type: 'stopped',

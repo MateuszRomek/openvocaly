@@ -11,6 +11,10 @@ type CaptureAudioLevelsInput = {
   bands: number[]
 }
 
+type CaptureStartedInput = {
+  sessionId: string
+}
+
 type CaptureStoppedInput = {
   sessionId: string
   durationMs: number
@@ -24,6 +28,7 @@ type CaptureFailureInput = {
 
 export type CaptureEventDelegates = {
   onChunk: (input: CaptureChunkInput) => Promise<void>
+  onStarted: (input: CaptureStartedInput) => Promise<void>
   onAudioLevels: (input: CaptureAudioLevelsInput) => Promise<void>
   onStopped: (input: CaptureStoppedInput) => Promise<void>
   onFailure: (input: CaptureFailureInput) => Promise<void>
@@ -65,6 +70,13 @@ export const routeCaptureEvent = async ({
       sessionId: event.sessionId,
       level: event.level,
       bands: event.bands
+    })
+    return
+  }
+
+  if (event.type === 'started') {
+    await delegates.onStarted({
+      sessionId: event.sessionId
     })
     return
   }

@@ -22,7 +22,7 @@ flowchart LR
   E --> F[renderer/capture/index.ts]
   F --> G[renderer/capture/recorder.ts]
 
-  G -->|chunk/meter/stopped/error| E
+  G -->|started/chunk/meter/stopped/error| E
   E --> D
 
   D --> H[main/recording/storage/artifact-store]
@@ -69,13 +69,14 @@ flowchart LR
 
 - `src/renderer/src/capture/recorder.ts`
   - owns media stream + MediaRecorder setup/teardown and command handling.
-  - emits chunks/audio-levels/stopped/error through capture IPC helpers.
+  - emits started/chunks/audio-levels/stopped/error through capture IPC helpers.
 
 - `src/renderer/src/capture/audio-levels.ts`
   - computes live audio level + 20 bars (IPC discriminator remains `meter`).
 
 - `src/renderer/src/capture/audio-cues.ts`
-  - synthesizes short start/cancel sounds when enabled.
+  - plays bundled WAV cues (`start`/`cancel`/`error`) via WebAudio buffers when enabled.
+  - prewarms output/context in capture renderer to improve first-play reliability after idle/output switches.
 
 ### Renderer (overlay runtime)
 
