@@ -36,7 +36,7 @@ export const createOverlayWindow = (): BrowserWindow =>
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      backgroundThrottling: false
+      backgroundThrottling: true
     }
   })
 

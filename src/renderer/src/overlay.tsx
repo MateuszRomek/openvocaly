@@ -62,11 +62,12 @@ export function OverlayVisualizer(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    let frameId = 0
+    let frameId: number | null = null
 
     // Single animation loop applies interpolated bar styles on each frame.
     const renderFrame = (): void => {
-      if (!mountedRef.current) {
+      if (!mountedRef.current || document.visibilityState !== 'visible') {
+        frameId = null
         return
       }
 
@@ -96,10 +97,38 @@ export function OverlayVisualizer(): React.JSX.Element {
       frameId = window.requestAnimationFrame(renderFrame)
     }
 
-    frameId = window.requestAnimationFrame(renderFrame)
+    const startAnimation = (): void => {
+      if (!mountedRef.current || document.visibilityState !== 'visible' || frameId !== null) {
+        return
+      }
+
+      frameId = window.requestAnimationFrame(renderFrame)
+    }
+
+    const stopAnimation = (): void => {
+      if (frameId === null) {
+        return
+      }
+
+      window.cancelAnimationFrame(frameId)
+      frameId = null
+    }
+
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === 'visible') {
+        startAnimation()
+        return
+      }
+
+      stopAnimation()
+    }
+
+    startAnimation()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
-      window.cancelAnimationFrame(frameId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      stopAnimation()
     }
   }, [])
 

@@ -132,10 +132,12 @@ export class RecordingOverlayController {
     this.macosVisibility.applyFullScreenVisibility()
 
     this.overlayWindow.on('show', () => {
+      this.applyOverlayPerformanceMode(false)
       this.startOverlayFollowActiveDisplay()
     })
 
     this.overlayWindow.on('hide', () => {
+      this.applyOverlayPerformanceMode(true)
       this.stopOverlayFollowActiveDisplay()
     })
 
@@ -167,6 +169,7 @@ export class RecordingOverlayController {
     })
 
     await loadOverlayWindow(this.overlayWindow)
+    this.applyOverlayPerformanceMode(true)
   }
 
   /**
@@ -288,5 +291,14 @@ export class RecordingOverlayController {
     }
 
     return overlayWindow
+  }
+
+  private applyOverlayPerformanceMode(throttleBackground: boolean): void {
+    const overlayWindow = this.getLiveOverlayWindow()
+    if (!overlayWindow) {
+      return
+    }
+
+    overlayWindow.webContents.setBackgroundThrottling(throttleBackground)
   }
 }
