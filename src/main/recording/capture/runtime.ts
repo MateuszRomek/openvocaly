@@ -8,6 +8,7 @@ import {
   type RecordingCaptureCommand,
   type RecordingCaptureEvent
 } from '../../../shared/recording'
+import { drainCaptureCommandQueue } from './command-queue'
 
 type CaptureEventListener = (event: RecordingCaptureEvent) => void
 const CAPTURE_IDLE_DESTROY_DELAY_MS = 1200
@@ -22,6 +23,16 @@ const resolveCaptureRendererTarget = (): string => {
 
 /**
  * Manages hidden capture BrowserWindow lifecycle and command/event IPC bridge.
+ *
+ * Ready handshake semantics:
+ * - Renderer emits `RECORDING_CAPTURE_READY_CHANNEL` after IPC listeners mount.
+ * - Commands sent before readiness are queued.
+ * - Queue replay is deterministic (FIFO) once ready arrives.
+ * - If the window disappears during replay, unsent suffix stays queued for next ready.
+ *
+ * Idle destroy policy:
+ * - After `stopped`/`error`, window is torn down after CAPTURE_IDLE_DESTROY_DELAY_MS.
+ * - Pending timers are unref-ed so they do not block app shutdown.
  */
 export class RecordingCaptureRuntime {
   private window: BrowserWindow | null = null
@@ -112,7 +123,6 @@ export class RecordingCaptureRuntime {
     this.window.on('closed', () => {
       this.window = null
       this.ready = false
-      this.commandQueue = []
       this.captureActive = false
     })
 
@@ -126,6 +136,10 @@ export class RecordingCaptureRuntime {
     await this.window.loadFile(target)
   }
 
+  /**
+   * Capture renderer ready signal.
+   * Replays queued commands in order and preserves unsent tail if replay halts.
+   */
   private handleReady = (event: IpcMainEvent): void => {
     if (!this.window || event.sender.id !== this.window.webContents.id) {
       return
@@ -137,17 +151,21 @@ export class RecordingCaptureRuntime {
       return
     }
 
-    const queued = [...this.commandQueue]
-    this.commandQueue = []
-
-    for (const command of queued) {
-      if (!this.window || this.window.isDestroyed()) {
-        this.commandQueue.push(command)
-        break
+    const drainResult = drainCaptureCommandQueue(this.commandQueue, (command) => {
+      const liveWindow = this.window
+      if (!liveWindow || liveWindow.isDestroyed()) {
+        return 'halt'
       }
 
-      this.window.webContents.send(RECORDING_CAPTURE_COMMAND_CHANNEL, command)
-    }
+      try {
+        liveWindow.webContents.send(RECORDING_CAPTURE_COMMAND_CHANNEL, command)
+        return 'sent'
+      } catch {
+        return 'halt'
+      }
+    })
+
+    this.commandQueue = drainResult.remaining
   }
 
   private handleCaptureEvent = (event: IpcMainEvent, payload: RecordingCaptureEvent): void => {
@@ -184,7 +202,6 @@ export class RecordingCaptureRuntime {
     const closingWindow = this.window
     this.window = null
     this.ready = false
-    this.commandQueue = []
 
     if (!closingWindow.isDestroyed()) {
       closingWindow.destroy()
