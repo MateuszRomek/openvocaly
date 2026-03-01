@@ -3,10 +3,15 @@ import type {
   RecordingFailureReason,
   RecordingSoundCueSettings
 } from '../../../shared/recording'
-import { DEFAULT_RECORDING_SOUND_CUE_SETTINGS } from '../../../shared/recording'
 import { emitCaptureChunk, emitCaptureError, emitCaptureMeter, emitCaptureStopped } from './ipc'
 import { startAudioLevels } from './audio-levels'
 import { playRecordingCue } from './audio-cues'
+import {
+  resolveCaptureSoundCueSettings,
+  resolveSupportedCaptureMimeType,
+  toCanceledRecordingMessage,
+  toCaptureStartFailure
+} from './recorder-helpers'
 import {
   finalizeCaptureState,
   flushPendingChunkWrites,
@@ -14,26 +19,6 @@ import {
 } from './runtime-state'
 
 type StartCommand = Extract<RecordingCaptureCommand, { type: 'start' }>
-
-const resolveSoundCueSettings = (
-  input: RecordingSoundCueSettings | undefined
-): RecordingSoundCueSettings => ({
-  enabled: input?.enabled ?? DEFAULT_RECORDING_SOUND_CUE_SETTINGS.enabled
-})
-
-const pickMimeType = (): string | null => {
-  const preferredType = 'audio/webm;codecs=opus'
-
-  if (MediaRecorder.isTypeSupported(preferredType)) {
-    return preferredType
-  }
-
-  if (MediaRecorder.isTypeSupported('audio/webm')) {
-    return 'audio/webm'
-  }
-
-  return null
-}
 
 export const stopCapture = (state: CaptureRuntimeState): void => {
   if (!state.mediaRecorder || state.mediaRecorder.state === 'inactive') {
@@ -48,7 +33,7 @@ export const cancelCapture = (
   reason: RecordingFailureReason,
   soundCues?: RecordingSoundCueSettings
 ): void => {
-  void playRecordingCue('cancel', resolveSoundCueSettings(soundCues)).catch((error) => {
+  void playRecordingCue('cancel', resolveCaptureSoundCueSettings(soundCues)).catch((error) => {
     console.error('[recording] failed to play cancel cue', error)
   })
 
@@ -60,7 +45,7 @@ export const cancelCapture = (
 
   state.stopAsFailure = {
     reason,
-    message: reason === 'aborted' ? 'Recording was cancelled.' : undefined
+    message: toCanceledRecordingMessage(reason)
   }
 
   stopCapture(state)
@@ -81,7 +66,7 @@ export const startCapture = async (
     return
   }
 
-  const mimeType = pickMimeType()
+  const mimeType = resolveSupportedCaptureMimeType()
 
   if (!mimeType) {
     emitCaptureError(state.sessionId, 'capture_error', 'MediaRecorder does not support WebM audio.')
@@ -179,25 +164,14 @@ export const startCapture = async (
 
     mediaRecorder.start(250)
 
-    void playRecordingCue('start', resolveSoundCueSettings(command.soundCues))
+    void playRecordingCue('start', resolveCaptureSoundCueSettings(command.soundCues))
 
     startAudioLevels(state, ({ sessionId, level, bands }) => {
       emitCaptureMeter(sessionId, level, bands)
     })
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'NotAllowedError') {
-      emitCaptureError(
-        state.sessionId,
-        'microphone_permission_denied',
-        'Microphone permission is denied.'
-      )
-    } else {
-      emitCaptureError(
-        state.sessionId,
-        'capture_error',
-        error instanceof Error ? error.message : 'Failed to start audio capture.'
-      )
-    }
+    const failure = toCaptureStartFailure(error)
+    emitCaptureError(state.sessionId, failure.reason, failure.message)
 
     finalizeCaptureState(state)
   }

@@ -7,7 +7,6 @@ import {
   BAR_COUNT,
   IDLE_OPACITY_BASE,
   IDLE_SCALE_FLOOR,
-  clamp01,
   createBarIndexes,
   createBars,
   getBarSmoothing,
@@ -23,9 +22,16 @@ if (import.meta.hot) {
   })
 }
 
+/**
+ * Overlay renderer for live recording feedback.
+ *
+ * This component intentionally keeps high-frequency visualization state in refs
+ * and mutates DOM styles in a single RAF loop to avoid React re-render churn.
+ */
 export function OverlayVisualizer(): React.JSX.Element {
+  // IPC updates and frame-to-frame interpolation run at high frequency.
+  // Refs keep this loop off React state updates for smoother animation.
   const currentPhaseRef = useRef<RecordingOverlayState['phase']>('starting')
-  const targetLevelRef = useRef(0)
   const targetBarsRef = useRef<number[]>(createBars(0))
   const renderedBarsRef = useRef<number[]>(createBars(0.08))
   const barElementsRef = useRef<Array<HTMLSpanElement | null>>(createBars(0).map(() => null))
@@ -45,7 +51,6 @@ export function OverlayVisualizer(): React.JSX.Element {
       RECORDING_OVERLAY_STATE_CHANNEL,
       (_event, state: RecordingOverlayState) => {
         currentPhaseRef.current = state.phase
-        targetLevelRef.current = clamp01(state.meterLevel)
         targetBarsRef.current = toTargetBars(state)
       }
     )
@@ -59,6 +64,7 @@ export function OverlayVisualizer(): React.JSX.Element {
   useEffect(() => {
     let frameId = 0
 
+    // Single animation loop applies interpolated bar styles on each frame.
     const renderFrame = (): void => {
       if (!mountedRef.current) {
         return
