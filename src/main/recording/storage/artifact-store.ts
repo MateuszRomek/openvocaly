@@ -1,7 +1,6 @@
-import { createWriteStream, existsSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
-import { app } from 'electron'
 import { createUuid } from '../../helpers/id'
 import type {
   RecordingArtifact,
@@ -10,17 +9,14 @@ import type {
   RecordingMode,
   RecordingOutputFormat
 } from '../../../shared/recording'
-
-const RECORDINGS_ROOT_DIR = 'recordings'
-const ACTIVE_DIR = 'active'
-const FAILED_DIR = 'failed'
-const FAILED_RETENTION_MS = 7 * 24 * 60 * 60 * 1000
-
-type ArtifactPaths = {
-  rootDir: string
-  activeDir: string
-  failedDir: string
-}
+import { ActiveArtifactWriter } from './active-artifact-writer'
+import {
+  isMissingFileError,
+  isOldEnoughToDelete,
+  metadataPathForSession,
+  resolveArtifactPaths,
+  toFailedAudioPath
+} from './artifact-store-helpers'
 
 export type ActiveArtifact = {
   artifact: RecordingArtifact
@@ -28,156 +24,6 @@ export type ActiveArtifact = {
   finalize: (durationMs: number) => Promise<RecordingArtifact>
   abort: () => Promise<void>
 }
-
-const resolveArtifactPaths = (): ArtifactPaths => {
-  const rootDir = join(app.getPath('userData'), RECORDINGS_ROOT_DIR)
-
-  return {
-    rootDir,
-    activeDir: join(rootDir, ACTIVE_DIR),
-    failedDir: join(rootDir, FAILED_DIR)
-  }
-}
-
-/**
- * Serializes writes to a single active recording artifact and owns stream
- * lifecycle until finalize/abort is called.
- */
-class ActiveArtifactWriter {
-  private readonly artifact: RecordingArtifact
-  private readonly stream: ReturnType<typeof createWriteStream>
-
-  private chain = Promise.resolve()
-  private closed = false
-  private streamError: Error | null = null
-
-  constructor(
-    private readonly filePath: string,
-    sessionId: string,
-    mode: RecordingMode,
-    format: RecordingOutputFormat,
-    private readonly startedAt: number
-  ) {
-    this.stream = createWriteStream(this.filePath, {
-      flags: 'w'
-    })
-    this.stream.on('error', (error) => {
-      this.streamError = error
-    })
-
-    this.artifact = {
-      sessionId,
-      mode,
-      format,
-      filePath: this.filePath,
-      startedAt: this.startedAt
-    }
-  }
-
-  getArtifact(): RecordingArtifact {
-    return this.artifact
-  }
-
-  writeChunk(chunk: Uint8Array): Promise<void> {
-    if (this.closed) {
-      return Promise.resolve()
-    }
-
-    if (this.streamError) {
-      return Promise.reject(this.streamError)
-    }
-
-    this.chain = this.chain.then(async () => {
-      if (this.streamError) {
-        throw this.streamError
-      }
-
-      await new Promise<void>((resolve, reject) => {
-        this.stream.write(Buffer.from(chunk), (error) => {
-          if (error) {
-            this.streamError = error
-            reject(error)
-            return
-          }
-
-          resolve()
-        })
-      })
-    })
-
-    return this.chain
-  }
-
-  async finalize(durationMs: number): Promise<RecordingArtifact> {
-    if (this.closed) {
-      return {
-        ...this.artifact,
-        stoppedAt: Date.now(),
-        durationMs
-      }
-    }
-
-    await this.chain
-
-    if (this.streamError) {
-      throw this.streamError
-    }
-
-    await new Promise<void>((resolve, reject) => {
-      this.stream.end((error) => {
-        if (error) {
-          reject(error)
-          return
-        }
-
-        resolve()
-      })
-    })
-
-    this.closed = true
-
-    return {
-      ...this.artifact,
-      stoppedAt: Date.now(),
-      durationMs
-    }
-  }
-
-  async abort(): Promise<void> {
-    if (this.closed) {
-      return
-    }
-
-    this.closed = true
-
-    await this.chain.catch(() => undefined)
-
-    await new Promise<void>((resolve) => {
-      this.stream.end(() => {
-        if (!this.stream.destroyed) {
-          this.stream.destroy()
-        }
-        resolve()
-      })
-    })
-
-    if (!this.stream.destroyed) {
-      this.stream.destroy()
-    }
-  }
-}
-
-const metadataPathForSession = (failedDir: string, sessionId: string): string =>
-  join(failedDir, `${sessionId}.json`)
-
-const toFailedAudioPath = (failedDir: string, sessionId: string): string =>
-  join(failedDir, `${sessionId}.webm`)
-
-const isOldEnoughToDelete = (timestamp: number, now: number): boolean =>
-  now - timestamp > FAILED_RETENTION_MS
-
-const isMissingFileError = (error: unknown): boolean =>
-  Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
 
 /**
  * Persists active capture artifacts and failure metadata under userData/recordings.
