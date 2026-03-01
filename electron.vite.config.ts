@@ -15,6 +15,15 @@ export default defineConfig(({ mode }) => {
     preload: {},
     renderer: {
       server: rendererPort ? { port: rendererPort } : undefined,
+      build: {
+        rollupOptions: {
+          input: {
+            index: resolve('src/renderer/index.html'),
+            overlay: resolve('src/renderer/overlay.html'),
+            capture: resolve('src/renderer/capture.html')
+          }
+        }
+      },
       resolve: {
         alias: {
           '@renderer': resolve('src/renderer/src')

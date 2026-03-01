@@ -71,7 +71,7 @@ export const buildAcceleratorFromKeyEvent = (
   }
 
   if (modifiers.length === 0) {
-    return null
+    return key
   }
 
   return [...modifiers, key].join('+')

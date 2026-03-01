@@ -1,9 +1,14 @@
-export const SHORTCUT_ACTIONS = ['recording.toggle', 'recording.push_to_talk'] as const
+export const SHORTCUT_ACTIONS = [
+  'recording.toggle',
+  'recording.cancel',
+  'recording.push_to_talk'
+] as const
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number]
 
 export const DEFAULT_SHORTCUT_BINDINGS: Record<ShortcutAction, string> = {
   'recording.toggle': 'CommandOrControl+Shift+Space',
+  'recording.cancel': 'Escape',
   'recording.push_to_talk': 'CommandOrControl+Shift+L'
 }
 

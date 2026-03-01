@@ -157,7 +157,8 @@ export function useShortcuts({
         !event.metaKey &&
         !event.ctrlKey &&
         !event.altKey &&
-        !event.shiftKey
+        !event.shiftKey &&
+        action !== 'recording.cancel'
       ) {
         cancelEditing()
         return

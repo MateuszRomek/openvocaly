@@ -18,6 +18,11 @@ import type {
   ShortcutUpdateInput
 } from '../shared/shortcuts'
 import type {
+  RecordingPreferencesResponse,
+  RecordingPreferencesUpdateInput,
+  RecordingRuntimeStateResponse
+} from '../shared/recording'
+import type {
   AccessibilityRequestResponse,
   MicrophoneRequestResponse,
   OpenSystemSettingsResponse,
@@ -52,6 +57,16 @@ const api = {
       ipcRenderer.invoke('shortcuts:update', input),
     reset: (input?: ShortcutResetInput): Promise<ShortcutMutationResponse> =>
       ipcRenderer.invoke('shortcuts:reset', input)
+  },
+  recording: {
+    getRuntimeState: (): Promise<RecordingRuntimeStateResponse> =>
+      ipcRenderer.invoke('recording:getRuntimeState'),
+    getPreferences: (): Promise<RecordingPreferencesResponse> =>
+      ipcRenderer.invoke('recording:getPreferences'),
+    updatePreferences: (
+      input: RecordingPreferencesUpdateInput
+    ): Promise<RecordingPreferencesResponse> =>
+      ipcRenderer.invoke('recording:updatePreferences', input)
   },
   permissions: {
     getStatus: (): Promise<PermissionsStatusResponse> =>

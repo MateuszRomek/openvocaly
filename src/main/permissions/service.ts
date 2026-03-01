@@ -1,4 +1,5 @@
 import { shell, systemPreferences } from 'electron'
+import { isMacOS } from '../helpers/platform'
 import type {
   AccessibilityRequestResponse,
   MicrophoneRequestResponse,
@@ -11,6 +12,9 @@ const ACCESSIBILITY_SETTINGS_URL =
 const MICROPHONE_SETTINGS_URL =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'
 
+/**
+ * Main-process facade for platform permission checks/requests and settings deep-links.
+ */
 class PermissionsService {
   getPermissionsStatus(): PermissionsStatusResponse {
     return {
@@ -20,7 +24,7 @@ class PermissionsService {
   }
 
   isAccessibilityGranted(): boolean {
-    if (process.platform !== 'darwin') {
+    if (!isMacOS()) {
       return false
     }
 
@@ -32,7 +36,7 @@ class PermissionsService {
   }
 
   requestAccessibility(): AccessibilityRequestResponse {
-    if (process.platform !== 'darwin') {
+    if (!isMacOS()) {
       return {
         ok: false,
         granted: false
@@ -54,7 +58,7 @@ class PermissionsService {
   }
 
   async requestMicrophone(): Promise<MicrophoneRequestResponse> {
-    if (process.platform !== 'darwin') {
+    if (!isMacOS()) {
       return {
         ok: false,
         granted: false
@@ -76,7 +80,7 @@ class PermissionsService {
   }
 
   openAccessibilitySettings(): OpenSystemSettingsResponse {
-    if (process.platform !== 'darwin') {
+    if (!isMacOS()) {
       return { ok: false }
     }
 
@@ -86,7 +90,7 @@ class PermissionsService {
   }
 
   openMicrophoneSettings(): OpenSystemSettingsResponse {
-    if (process.platform !== 'darwin') {
+    if (!isMacOS()) {
       return { ok: false }
     }
 
@@ -96,7 +100,7 @@ class PermissionsService {
   }
 
   private getMicrophonePermissionState(): PermissionsStatusResponse['microphone'] {
-    if (process.platform !== 'darwin') {
+    if (!isMacOS()) {
       return {
         state: 'unsupported_platform',
         message: 'Microphone permission checks are currently implemented for macOS.'
@@ -137,7 +141,7 @@ class PermissionsService {
   }
 
   private getAccessibilityPermissionState(): PermissionsStatusResponse['accessibility'] {
-    if (process.platform !== 'darwin') {
+    if (!isMacOS()) {
       return {
         state: 'unsupported_platform',
         message: 'Accessibility permission checks are currently implemented for macOS.'

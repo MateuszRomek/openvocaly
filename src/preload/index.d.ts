@@ -17,6 +17,11 @@ import type {
   ShortcutUpdateInput
 } from '../shared/shortcuts'
 import type {
+  RecordingPreferencesResponse,
+  RecordingPreferencesUpdateInput,
+  RecordingRuntimeStateResponse
+} from '../shared/recording'
+import type {
   AccessibilityRequestResponse,
   MicrophoneRequestResponse,
   OpenSystemSettingsResponse,
@@ -41,6 +46,13 @@ declare global {
         getRuntimeStatus: () => Promise<ShortcutRuntimeStatusResponse>
         update: (input: ShortcutUpdateInput) => Promise<ShortcutMutationResponse>
         reset: (input?: ShortcutResetInput) => Promise<ShortcutMutationResponse>
+      }
+      recording: {
+        getRuntimeState: () => Promise<RecordingRuntimeStateResponse>
+        getPreferences: () => Promise<RecordingPreferencesResponse>
+        updatePreferences: (
+          input: RecordingPreferencesUpdateInput
+        ) => Promise<RecordingPreferencesResponse>
       }
       permissions: {
         getStatus: () => Promise<PermissionsStatusResponse>

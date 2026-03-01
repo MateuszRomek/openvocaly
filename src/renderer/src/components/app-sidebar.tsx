@@ -74,10 +74,11 @@ function AppSidebar(): React.JSX.Element {
                       type="button"
                       onClick={() => navigate({ to: item.to })}
                       isActive={pathname === item.to}
+                      size="lg"
                       tooltip={item.label}
                       className="group-data-[collapsible=icon]:justify-center"
                     >
-                      <Icon className="size-4" />
+                      <Icon className="size-8" />
                       <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -94,10 +95,11 @@ function AppSidebar(): React.JSX.Element {
               type="button"
               onClick={() => navigate({ to: settingsItem.to })}
               isActive={pathname === settingsItem.to}
+              size="lg"
               tooltip={settingsItem.label}
               className="group-data-[collapsible=icon]:justify-center"
             >
-              <SettingsIcon className="size-4" />
+              <SettingsIcon className="size-8" />
               <span className="group-data-[collapsible=icon]:hidden">{settingsItem.label}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
