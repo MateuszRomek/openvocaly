@@ -9,13 +9,12 @@ import type {
   RecordingPreferencesUpdateInput,
   RecordingRuntimeStateResponse
 } from '../../../shared/recording'
+import { isMacOS } from '../../helpers/platform'
 import { permissionsService } from '../../permissions/service'
 import { recordingCommandBus, type RecordingCommand } from '../command-bus'
 import { RecordingCaptureRuntime } from '../capture/runtime'
 import { clamp01, normalizeBands } from '../core/math'
 import {
-  canBeginRecording,
-  canStopRecording,
   moveToComplete,
   moveToFailed,
   moveToRecording,
@@ -25,6 +24,18 @@ import {
 } from '../core/state-machine'
 import { RecordingArtifactStore } from '../storage/artifact-store'
 import { transcriptionProvider } from '../transcription-provider'
+import { resolveRecordingCommandIntent } from './command-handler'
+import { routeCaptureEvent } from './capture-event-handler'
+import {
+  resolveCompleteDisplayDelayMs,
+  resolveFailureDisplayDelayMs,
+  toArtifactCreationFailure,
+  toCaptureRuntimeCommandFailure,
+  toChunkWriteFailure,
+  toFinalizeArtifactFailure,
+  toTranscriptionFailureFromResult,
+  toTranscriptionFailureFromThrow
+} from './failure-policy'
 import { RecordingOverlayPublisher } from './overlay-publisher'
 import { RecordingPreferencesStore } from './preferences-store'
 import {
@@ -38,9 +49,14 @@ import {
 
 const DEFAULT_OUTPUT_FORMAT: RecordingOutputFormat = 'webm_opus'
 const CLEANUP_INTERVAL_MS = 12 * 60 * 60 * 1000
-const COMPLETE_DISPLAY_MS = 650
-const FAILURE_DISPLAY_MS = 1900
-const CANCEL_DISPLAY_MS = 120
+
+type TerminalStateOutcome =
+  | { type: 'complete' }
+  | {
+      type: 'failed'
+      reason: RecordingFailureReason
+      message?: string
+    }
 
 /**
  * Coordinates the full recording lifecycle in the main process.
@@ -155,53 +171,39 @@ export class RecordingServiceOrchestrator {
   }
 
   private async handleShortcutCommand(command: RecordingCommand): Promise<void> {
-    if (!this.initialized || process.platform !== 'darwin') {
+    const intent = resolveRecordingCommandIntent({
+      command,
+      machine: this.state.machine,
+      hasActiveArtifact: this.state.activeArtifact !== null,
+      isInitialized: this.initialized,
+      isMacOS: isMacOS()
+    })
+
+    if (intent.type === 'ignore') {
       return
     }
 
-    if (command.type === 'cancel') {
+    if (intent.type === 'cancel') {
       await this.cancelRecording()
       return
     }
 
-    if (command.type === 'toggle') {
-      if (canBeginRecording(this.state.machine)) {
-        await this.beginRecording('toggle')
-        return
-      }
-
-      if (canStopRecording(this.state.machine)) {
-        await this.stopRecording()
-      }
-
+    if (intent.type === 'begin') {
+      await this.beginRecording(intent.mode)
       return
     }
 
-    if (command.type === 'push_to_talk_start') {
-      if (!canBeginRecording(this.state.machine)) {
-        return
-      }
-
-      await this.beginRecording('push_to_talk')
-      return
-    }
-
-    if (
-      command.type === 'push_to_talk_stop' &&
-      this.state.machine.phase === 'recording' &&
-      this.state.machine.mode === 'push_to_talk'
-    ) {
-      await this.stopRecording()
-    }
+    await this.stopRecording()
   }
 
   private async cancelRecording(): Promise<void> {
+    const activeArtifact = this.state.activeArtifact
     const isCancelablePhase =
       this.state.machine.phase === 'starting' ||
       this.state.machine.phase === 'recording' ||
       this.state.machine.phase === 'stopping'
 
-    if (!isCancelablePhase || !this.state.activeArtifact) {
+    if (!isCancelablePhase || !activeArtifact) {
       return
     }
 
@@ -214,11 +216,8 @@ export class RecordingServiceOrchestrator {
         soundCues: this.preferencesStore.get().soundCues
       })
     } catch (error) {
-      await this.handleCaptureFailure(
-        this.state.machine.sessionId,
-        'aborted',
-        error instanceof Error ? error.message : 'Failed to cancel capture runtime.'
-      )
+      const failure = toCaptureRuntimeCommandFailure('cancel', error)
+      await this.handleCaptureFailure(this.state.machine.sessionId, failure.reason, failure.message)
     }
   }
 
@@ -238,10 +237,8 @@ export class RecordingServiceOrchestrator {
         DEFAULT_OUTPUT_FORMAT
       )
     } catch (error) {
-      await this.failAndReset(
-        'capture_error',
-        error instanceof Error ? error.message : 'Failed to create recording artifact.'
-      )
+      const failure = toArtifactCreationFailure(error)
+      await this.failAndReset(failure.reason, failure.message)
       return
     }
 
@@ -258,16 +255,13 @@ export class RecordingServiceOrchestrator {
       this.state.machine = moveToRecording(this.state.machine)
       await this.publishOverlayImmediate()
     } catch (error) {
-      await this.handleCaptureFailure(
-        this.state.machine.sessionId,
-        'capture_error',
-        error instanceof Error ? error.message : 'Failed to start capture runtime.'
-      )
+      const failure = toCaptureRuntimeCommandFailure('start', error)
+      await this.handleCaptureFailure(this.state.machine.sessionId, failure.reason, failure.message)
     }
   }
 
   private async stopRecording(): Promise<void> {
-    if (!canStopRecording(this.state.machine)) {
+    if (this.state.machine.phase !== 'recording') {
       return
     }
 
@@ -277,11 +271,8 @@ export class RecordingServiceOrchestrator {
     try {
       await this.captureRuntime.sendCommand({ type: 'stop' })
     } catch (error) {
-      await this.handleCaptureFailure(
-        this.state.machine.sessionId,
-        'capture_error',
-        error instanceof Error ? error.message : 'Failed to stop capture runtime.'
-      )
+      const failure = toCaptureRuntimeCommandFailure('stop', error)
+      await this.handleCaptureFailure(this.state.machine.sessionId, failure.reason, failure.message)
     }
   }
 
@@ -290,47 +281,41 @@ export class RecordingServiceOrchestrator {
       return
     }
 
-    if (event.type === 'chunk') {
-      if (
-        !this.state.activeArtifact ||
-        this.state.activeArtifact.artifact.sessionId !== event.sessionId
-      ) {
-        return
+    await routeCaptureEvent({
+      event,
+      activeSessionId: this.state.activeArtifact?.artifact.sessionId ?? null,
+      delegates: {
+        onChunk: async ({ sessionId, chunk }) => {
+          const activeArtifact = this.state.activeArtifact
+          if (!activeArtifact || activeArtifact.artifact.sessionId !== sessionId) {
+            return
+          }
+
+          try {
+            await activeArtifact.writeChunk(chunk)
+          } catch (error) {
+            const failure = toChunkWriteFailure(error)
+            await this.handleCaptureFailure(sessionId, failure.reason, failure.message)
+          }
+        },
+        onAudioLevels: async ({ sessionId, level, bands }) => {
+          const activeArtifact = this.state.activeArtifact
+          if (!activeArtifact || activeArtifact.artifact.sessionId !== sessionId) {
+            return
+          }
+
+          this.state.meterLevel = clamp01(level)
+          this.state.meterBands = normalizeBands(bands)
+          await this.publishOverlayAudioLevels()
+        },
+        onStopped: async ({ sessionId, durationMs }) => {
+          await this.finalizeAndTranscribe(sessionId, durationMs)
+        },
+        onFailure: async ({ sessionId, reason, message }) => {
+          await this.handleCaptureFailure(sessionId, reason, message)
+        }
       }
-
-      try {
-        await this.state.activeArtifact.writeChunk(event.chunk)
-      } catch (error) {
-        await this.handleCaptureFailure(
-          event.sessionId,
-          'capture_error',
-          error instanceof Error ? error.message : 'Failed to write captured chunk.'
-        )
-      }
-
-      return
-    }
-
-    if (event.type === 'meter') {
-      if (
-        !this.state.activeArtifact ||
-        this.state.activeArtifact.artifact.sessionId !== event.sessionId
-      ) {
-        return
-      }
-
-      this.state.meterLevel = clamp01(event.level)
-      this.state.meterBands = normalizeBands(event.bands)
-      await this.publishOverlayAudioLevels()
-      return
-    }
-
-    if (event.type === 'stopped') {
-      await this.finalizeAndTranscribe(event.sessionId, event.durationMs)
-      return
-    }
-
-    await this.handleCaptureFailure(event.sessionId, event.reason, event.message)
+    })
   }
 
   /**
@@ -352,15 +337,10 @@ export class RecordingServiceOrchestrator {
     try {
       finalizedArtifact = await this.state.activeArtifact.finalize(durationMs)
     } catch (error) {
-      await this.handleCaptureFailure(
-        sessionId,
-        'capture_error',
-        error instanceof Error ? error.message : 'Failed to finalize audio file.'
-      )
+      const failure = toFinalizeArtifactFailure(error)
+      await this.handleCaptureFailure(sessionId, failure.reason, failure.message)
       return
     }
-
-    let transcriptionMessage: string | undefined
 
     try {
       const transcriptionResult = await transcriptionProvider.transcribe(finalizedArtifact)
@@ -368,33 +348,28 @@ export class RecordingServiceOrchestrator {
       if (transcriptionResult.ok) {
         await this.artifactStore.markTranscriptionSuccess(finalizedArtifact)
         this.state.activeArtifact = null
-        this.state.machine = moveToComplete(this.state.machine)
-        resetSessionLevels(this.state)
-        await this.publishOverlayImmediate()
-        this.scheduleIdleReset(COMPLETE_DISPLAY_MS)
+        await this.settleTerminalState({ type: 'complete' })
         return
       }
 
-      transcriptionMessage = transcriptionResult.message
+      const failure = toTranscriptionFailureFromResult(transcriptionResult)
+      await this.persistFailureArtifact(finalizedArtifact, failure.reason, failure.message)
+      this.state.activeArtifact = null
+      await this.settleTerminalState({
+        type: 'failed',
+        reason: failure.reason,
+        message: failure.message
+      })
     } catch (error) {
-      transcriptionMessage =
-        error instanceof Error ? error.message : 'Transcription pipeline failed.'
+      const failure = toTranscriptionFailureFromThrow(error)
+      await this.persistFailureArtifact(finalizedArtifact, failure.reason, failure.message)
+      this.state.activeArtifact = null
+      await this.settleTerminalState({
+        type: 'failed',
+        reason: failure.reason,
+        message: failure.message
+      })
     }
-
-    await this.persistFailureArtifact(
-      finalizedArtifact,
-      'transcription_error',
-      transcriptionMessage
-    )
-    this.state.activeArtifact = null
-    this.state.machine = moveToFailed(
-      this.state.machine,
-      'transcription_error',
-      transcriptionMessage
-    )
-    resetSessionLevels(this.state)
-    await this.publishOverlayImmediate()
-    this.scheduleIdleReset(FAILURE_DISPLAY_MS)
   }
 
   private async handleCaptureFailure(
@@ -404,9 +379,9 @@ export class RecordingServiceOrchestrator {
   ): Promise<void> {
     const activeArtifact = this.state.activeArtifact
     if (activeArtifact) {
-      const activeSession = activeArtifact.artifact.sessionId
+      const activeSessionId = activeArtifact.artifact.sessionId
 
-      if (!sessionId || sessionId === activeSession) {
+      if (!sessionId || sessionId === activeSessionId) {
         this.state.activeArtifact = null
 
         try {
@@ -419,17 +394,30 @@ export class RecordingServiceOrchestrator {
       }
     }
 
-    this.state.machine = moveToFailed(this.state.machine, reason, message)
-    resetSessionLevels(this.state)
-    await this.publishOverlayImmediate()
-    this.scheduleIdleReset(this.failureDisplayMs(reason))
+    await this.settleTerminalState({ type: 'failed', reason, message })
   }
 
   private async failAndReset(reason: RecordingFailureReason, message?: string): Promise<void> {
-    this.state.machine = moveToFailed(this.state.machine, reason, message)
+    await this.settleTerminalState({ type: 'failed', reason, message })
+  }
+
+  /**
+   * Centralized terminal transition: updates machine, resets levels, publishes overlay,
+   * and schedules return to idle according to success/failure policy.
+   */
+  private async settleTerminalState(outcome: TerminalStateOutcome): Promise<void> {
+    if (outcome.type === 'complete') {
+      this.state.machine = moveToComplete(this.state.machine)
+      resetSessionLevels(this.state)
+      await this.publishOverlayImmediate()
+      this.scheduleIdleReset(resolveCompleteDisplayDelayMs())
+      return
+    }
+
+    this.state.machine = moveToFailed(this.state.machine, outcome.reason, outcome.message)
     resetSessionLevels(this.state)
     await this.publishOverlayImmediate()
-    this.scheduleIdleReset(this.failureDisplayMs(reason))
+    this.scheduleIdleReset(resolveFailureDisplayDelayMs(outcome.reason))
   }
 
   private scheduleIdleReset(delayMs: number): void {
@@ -451,14 +439,6 @@ export class RecordingServiceOrchestrator {
 
     clearTimeout(this.idleResetTimeout)
     this.idleResetTimeout = null
-  }
-
-  private failureDisplayMs(reason: RecordingFailureReason): number {
-    if (reason === 'aborted') {
-      return CANCEL_DISPLAY_MS
-    }
-
-    return FAILURE_DISPLAY_MS
   }
 
   private async publishOverlayImmediate(): Promise<void> {

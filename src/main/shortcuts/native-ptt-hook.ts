@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { isMacOS } from '../helpers/platform'
 import type { MacPttBinding, NativePttEvent } from './ptt-matcher'
 
 type NativePttHookResult = {
@@ -99,7 +100,7 @@ export class NativePttHook {
   }
 
   private loadModule(): { module: NativePttHookModule | null; error: string | null } {
-    if (process.platform !== 'darwin') {
+    if (!isMacOS()) {
       return {
         module: null,
         error: 'Native PTT hook is only available on macOS'

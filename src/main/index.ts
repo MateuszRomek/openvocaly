@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { closeDb } from './db'
+import { isLinux, isMacOS, isWindows } from './helpers/platform'
 import { registerPermissionsIpc } from './permissions/ipc'
 import { initializeRecording, registerRecordingIpc, shutdownRecording } from './recording/ipc'
 import { initializeShortcuts, registerShortcutsIpc, shutdownShortcuts } from './shortcuts/ipc'
@@ -62,7 +63,7 @@ function createWindow(): void {
     minHeight: 550,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    ...(isLinux() ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -82,7 +83,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('close', (event) => {
-    if (process.platform !== 'darwin' || isQuitting) {
+    if (!isMacOS() || isQuitting) {
       return
     }
 
@@ -153,7 +154,7 @@ app.whenReady().then(async () => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (!isMacOS()) {
     app.quit()
   }
 })
@@ -174,7 +175,7 @@ app.on('before-quit', (event) => {
 
 // In development, ensure Ctrl+C / dev server stop terminates Electron cleanly.
 if (is.dev) {
-  if (process.platform === 'win32') {
+  if (isWindows()) {
     process.on('message', (data) => {
       if (data === 'graceful-exit') {
         app.quit()

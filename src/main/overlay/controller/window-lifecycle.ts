@@ -1,6 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'node:path'
+import { isMacOS } from '../../helpers/platform'
 import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from './positioning'
 
 export const resolveOverlayRendererTarget = (): string => {
@@ -25,11 +26,11 @@ export const createOverlayWindow = (): BrowserWindow =>
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    focusable: process.platform === 'darwin' ? true : false,
+    focusable: isMacOS(),
     roundedCorners: true,
     acceptFirstMouse: false,
     alwaysOnTop: true,
-    ...(process.platform === 'darwin' ? { type: 'panel' as const } : {}),
+    ...(isMacOS() ? { type: 'panel' as const } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

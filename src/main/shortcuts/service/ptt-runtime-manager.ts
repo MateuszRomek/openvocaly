@@ -1,4 +1,5 @@
 import { permissionsService } from '../../permissions/service'
+import { isMacOS } from '../../helpers/platform'
 import { emitRecordingShortcutEvent } from '../recording-events'
 import { createMacPttBinding, type NativePttEvent } from '../ptt-matcher'
 import { NativePttHook } from '../native-ptt-hook'
@@ -71,7 +72,7 @@ export class PttRuntimeManager {
     const state = this.getShortcutState()['recording.push_to_talk']
     const loadError = this.nativePttHook.getLoadError()
 
-    if (process.platform !== 'darwin') {
+    if (!isMacOS()) {
       this.nativePttHook.clearBinding()
       this.nativePttHook.stop()
       this.releasePushToTalkHoldIfNeeded()

@@ -1,3 +1,4 @@
+import { isMacOS } from '../helpers/platform'
 import { VALID_MODIFIERS } from './constants'
 
 export type ShortcutModifierState = {
@@ -77,7 +78,7 @@ const toModifiers = (tokens: string[]): ShortcutModifierState | null => {
     }
 
     if (isAlias(token, ['CommandOrControl'])) {
-      if (process.platform === 'darwin') {
+      if (isMacOS()) {
         modifiers.cmd = true
       } else {
         modifiers.ctrl = true
