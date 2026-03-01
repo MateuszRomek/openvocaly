@@ -3,7 +3,7 @@ import type { RecordingSoundCueSettings } from '../../../shared/recording'
 type RecordingCueKind = 'start' | 'cancel'
 
 const START_CUE_COOLDOWN_MS = 85
-const CANCEL_CUE_COOLDOWN_MS = 30
+const CANCEL_CUE_COOLDOWN_MS = 140
 const NOTE_GAP_MS = 56
 const START_RETRY_DELAY_MS = 130
 const CANCEL_RETRY_DELAY_MS = 90
@@ -126,6 +126,38 @@ const playChimeNote = (
   overtone.stop(startAt + durationSec + 0.03)
 }
 
+const playSoftCancelCue = (context: AudioContext, startAt: number): void => {
+  const durationSec = 0.14
+  const stopAt = startAt + durationSec + 0.03
+
+  const oscillator = context.createOscillator()
+  oscillator.type = 'sine'
+  oscillator.frequency.setValueAtTime(520, startAt)
+  oscillator.frequency.exponentialRampToValueAtTime(430, startAt + durationSec)
+
+  const gain = context.createGain()
+  gain.gain.setValueAtTime(0.0001, startAt)
+  gain.gain.linearRampToValueAtTime(0.052, startAt + 0.01)
+  gain.gain.exponentialRampToValueAtTime(0.0001, stopAt)
+
+  const highpass = context.createBiquadFilter()
+  highpass.type = 'highpass'
+  highpass.frequency.setValueAtTime(110, startAt)
+
+  const lowpass = context.createBiquadFilter()
+  lowpass.type = 'lowpass'
+  lowpass.frequency.setValueAtTime(1300, startAt)
+  lowpass.Q.setValueAtTime(0.35, startAt)
+
+  oscillator.connect(gain)
+  gain.connect(highpass)
+  highpass.connect(lowpass)
+  lowpass.connect(context.destination)
+
+  oscillator.start(startAt)
+  oscillator.stop(stopAt)
+}
+
 const retryDelayMsForCue = (cue: RecordingCueKind): number =>
   cue === 'start' ? START_RETRY_DELAY_MS : CANCEL_RETRY_DELAY_MS
 
@@ -145,8 +177,7 @@ const playCueWithContext = (cue: RecordingCueKind, context: AudioContext): void 
     return
   }
 
-  // Same family as start, but short reversed single cue.
-  playChimeNote(context, at, 540, 420, 92, 0.13)
+  playSoftCancelCue(context, at)
   lastCancelCueAtMs = Date.now()
 }
 
