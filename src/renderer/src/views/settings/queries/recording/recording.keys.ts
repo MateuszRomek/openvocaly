@@ -1,0 +1,4 @@
+export const recordingKeys = {
+  all: ['recording'] as const,
+  preferences: () => [...recordingKeys.all, 'preferences'] as const
+}

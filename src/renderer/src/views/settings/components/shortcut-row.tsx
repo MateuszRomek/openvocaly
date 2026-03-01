@@ -46,6 +46,14 @@ export function ShortcutRow({
     total,
     rowController
   })
+  const editingHint =
+    item.action === 'recording.cancel' ? (
+      'Listening now. Click outside to cancel editing.'
+    ) : (
+      <>
+        Listening now. Press <Kbd className="mx-1 h-5 min-w-6 px-2.5">Esc</Kbd> to cancel.
+      </>
+    )
 
   const left = (
     <div className="space-y-2">
@@ -107,7 +115,7 @@ export function ShortcutRow({
           row.isEditingThisRow ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        Listening now. Press <Kbd className="mx-1 h-5 min-w-6 px-2.5">Esc</Kbd> to cancel.
+        {editingHint}
       </p>
     </div>
   )

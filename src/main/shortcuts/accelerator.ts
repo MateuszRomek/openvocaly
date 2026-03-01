@@ -35,6 +35,14 @@ const normalizeKeyToken = (token: string): string => {
 const isAlias = (token: string, aliases: readonly string[]): boolean =>
   aliases.some((alias) => alias.toLowerCase() === token.toLowerCase())
 
+const isModifierToken = (token: string): boolean =>
+  VALID_MODIFIERS.has(token) ||
+  isAlias(token, ['Command', 'Cmd', 'Meta', 'Super']) ||
+  isAlias(token, ['Control', 'Ctrl']) ||
+  isAlias(token, ['Alt', 'Option']) ||
+  isAlias(token, ['Shift']) ||
+  isAlias(token, ['CommandOrControl'])
+
 const toModifiers = (tokens: string[]): ShortcutModifierState | null => {
   const modifiers: ShortcutModifierState = {
     cmd: false,
@@ -78,10 +86,6 @@ const toModifiers = (tokens: string[]): ShortcutModifierState | null => {
     }
   }
 
-  if (!modifiers.cmd && !modifiers.ctrl && !modifiers.alt && !modifiers.shift) {
-    return null
-  }
-
   return modifiers
 }
 
@@ -92,14 +96,27 @@ export const parseAccelerator = (value: string): CanonicalShortcut | null => {
     .map((token) => token.trim())
     .filter(Boolean)
 
-  if (tokens.length < 2) {
+  if (tokens.length < 1) {
     return null
   }
 
   const key = normalizeKeyToken(tokens[tokens.length - 1])
-  const modifiers = toModifiers(tokens.slice(0, -1))
+  if (!key || isModifierToken(key)) {
+    return null
+  }
 
-  if (!key || !modifiers) {
+  const modifierTokens = tokens.slice(0, -1)
+  const modifiers =
+    modifierTokens.length > 0
+      ? toModifiers(modifierTokens)
+      : {
+          cmd: false,
+          ctrl: false,
+          alt: false,
+          shift: false
+        }
+
+  if (!modifiers) {
     return null
   }
 
@@ -147,9 +164,3 @@ export const areCanonicalShortcutsEqual = (
   left.modifiers.ctrl === right.modifiers.ctrl &&
   left.modifiers.alt === right.modifiers.alt &&
   left.modifiers.shift === right.modifiers.shift
-
-/**
- * Validates accelerator syntax before attempting OS registration.
- * This catches malformed values early and keeps error handling deterministic.
- */
-export const isValidAccelerator = (value: string): boolean => parseAccelerator(value) !== null

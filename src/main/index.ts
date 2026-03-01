@@ -4,12 +4,58 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { closeDb } from './db'
 import { registerPermissionsIpc } from './permissions/ipc'
+import { initializeRecording, registerRecordingIpc, shutdownRecording } from './recording/ipc'
 import { initializeShortcuts, registerShortcutsIpc, shutdownShortcuts } from './shortcuts/ipc'
 import { registerStorageIpc } from './storage'
 
+const GRACEFUL_QUIT_TIMEOUT_MS = 2500
+
+let mainWindow: BrowserWindow | null = null
+let hasShutdownCompleted = false
+let shutdownPromise: Promise<void> | null = null
+let isQuitting = false
+
+const createTimeout = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => {
+    const timer = setTimeout(resolve, delayMs)
+    timer.unref()
+  })
+
+const performShutdownSequence = (): Promise<void> => {
+  if (hasShutdownCompleted) {
+    return Promise.resolve()
+  }
+
+  if (shutdownPromise) {
+    return shutdownPromise
+  }
+
+  shutdownPromise = (async () => {
+    try {
+      await Promise.race([shutdownRecording(), createTimeout(GRACEFUL_QUIT_TIMEOUT_MS)])
+      shutdownShortcuts()
+      closeDb()
+    } catch (error) {
+      console.error('[shutdown] graceful shutdown failed', error)
+    } finally {
+      hasShutdownCompleted = true
+    }
+  })()
+
+  return shutdownPromise
+}
+
 function createWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (!mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+    mainWindow.focus()
+    return
+  }
+
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
     minWidth: 768,
@@ -19,18 +65,33 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
       sandbox: false,
       backgroundThrottling: true
     }
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+    mainWindow?.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+
+  mainWindow.on('close', (event) => {
+    if (process.platform !== 'darwin' || isQuitting) {
+      return
+    }
+
+    event.preventDefault()
+    mainWindow?.hide()
+  })
+
+  mainWindow.on('closed', () => {
+    mainWindow = null
   })
 
   // HMR for renderer base on electron-vite cli.
@@ -45,7 +106,7 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -62,14 +123,29 @@ app.whenReady().then(() => {
   registerStorageIpc()
   registerPermissionsIpc()
   registerShortcutsIpc()
+  registerRecordingIpc()
   initializeShortcuts()
+  try {
+    await initializeRecording()
+  } catch (error) {
+    console.error('[recording] failed to initialize recording subsystem', error)
+  }
 
   createWindow()
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow()
+      return
+    }
+
+    if (!mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+
+    mainWindow.focus()
   })
 })
 
@@ -78,15 +154,41 @@ app.whenReady().then(() => {
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    closeDb()
     app.quit()
   }
 })
 
-app.on('before-quit', () => {
-  shutdownShortcuts()
-  closeDb()
+app.on('before-quit', (event) => {
+  if (hasShutdownCompleted) {
+    isQuitting = true
+    return
+  }
+
+  event.preventDefault()
+
+  void performShutdownSequence().finally(() => {
+    isQuitting = true
+    app.quit()
+  })
 })
+
+// In development, ensure Ctrl+C / dev server stop terminates Electron cleanly.
+if (is.dev) {
+  if (process.platform === 'win32') {
+    process.on('message', (data) => {
+      if (data === 'graceful-exit') {
+        app.quit()
+      }
+    })
+  } else {
+    process.on('SIGTERM', () => {
+      app.quit()
+    })
+    process.on('SIGINT', () => {
+      app.quit()
+    })
+  }
+}
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.

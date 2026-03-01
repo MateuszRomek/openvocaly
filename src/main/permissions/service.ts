@@ -11,6 +11,9 @@ const ACCESSIBILITY_SETTINGS_URL =
 const MICROPHONE_SETTINGS_URL =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'
 
+/**
+ * Main-process facade for platform permission checks/requests and settings deep-links.
+ */
 class PermissionsService {
   getPermissionsStatus(): PermissionsStatusResponse {
     return {

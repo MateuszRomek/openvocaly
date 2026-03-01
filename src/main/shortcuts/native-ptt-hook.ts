@@ -1,5 +1,4 @@
 import { createRequire } from 'node:module'
-import type { ShortcutPttAvailability } from '../../shared/shortcuts'
 import type { MacPttBinding, NativePttEvent } from './ptt-matcher'
 
 type NativePttHookResult = {
@@ -14,15 +13,12 @@ type NativePttHookModule = {
   clearBinding: () => void
 }
 
-export type NativePttHookRuntime = {
-  availability: ShortcutPttAvailability
-  message?: string
-  isListening: boolean
-}
-
 const isNodeModuleMissingError = (error: unknown): boolean =>
   error instanceof Error && error.message.includes('Cannot find module')
 
+/**
+ * Thin adapter over the native macOS PTT module with runtime safety guards.
+ */
 export class NativePttHook {
   private readonly module: NativePttHookModule | null
   private readonly loadError: string | null

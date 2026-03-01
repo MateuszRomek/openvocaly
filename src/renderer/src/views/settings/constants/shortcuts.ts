@@ -10,6 +10,10 @@ export const SHORTCUT_ACTION_META: Record<ShortcutAction, { label: string; descr
       label: 'Toggle recording',
       description: 'Press once to start recording and press again to stop.'
     },
+    'recording.cancel': {
+      label: 'Cancel recording',
+      description: 'Abort an active recording session without transcribing.'
+    },
     'recording.push_to_talk': {
       label: 'Push-to-talk',
       description: 'Hold to record, then release to stop.'
@@ -17,7 +21,7 @@ export const SHORTCUT_ACTION_META: Record<ShortcutAction, { label: string; descr
   }
 
 export const SHORTCUT_ERROR_MESSAGES: Record<ShortcutErrorCode, string> = {
-  invalid_accelerator: 'Shortcut format is invalid. Press a modifier plus another key.',
+  invalid_accelerator: 'Shortcut format is invalid. Press a key with optional modifiers.',
   duplicate_accelerator: 'That shortcut is already assigned to another action.',
   registration_conflict:
     'Shortcut could not be registered. It may be reserved by the OS or another app.',

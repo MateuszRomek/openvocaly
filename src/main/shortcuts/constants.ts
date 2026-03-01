@@ -2,7 +2,10 @@ import type { ShortcutAction } from '../../shared/shortcuts'
 import type { PersistedShortcutBinding } from './accelerator'
 import type { ShortcutActionStateMap } from './types'
 
-export const SUPPORTED_GLOBAL_ACTIONS = new Set<ShortcutAction>(['recording.toggle'])
+export const SUPPORTED_GLOBAL_ACTIONS = new Set<ShortcutAction>([
+  'recording.toggle',
+  'recording.cancel'
+])
 
 export const VALID_MODIFIERS = new Set([
   'CommandOrControl',
@@ -22,6 +25,11 @@ export const createInitialShortcutState = (
 ): ShortcutActionStateMap => ({
   'recording.toggle': {
     storedBinding: bindings['recording.toggle'],
+    effectiveAccelerator: null,
+    registrationError: null
+  },
+  'recording.cancel': {
+    storedBinding: bindings['recording.cancel'],
     effectiveAccelerator: null,
     registrationError: null
   },
