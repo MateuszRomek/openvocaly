@@ -109,7 +109,7 @@ export class NativePttHook {
 
     try {
       const requireForNative = createRequire(__filename)
-      const loaded = requireForNative('@wispr/ptt-hook-macos') as NativePttHookModule
+      const loaded = requireForNative('@openvocaly/ptt-hook-macos') as NativePttHookModule
       return {
         module: loaded,
         error: null

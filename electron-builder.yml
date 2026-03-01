@@ -1,5 +1,5 @@
 appId: com.electron.app
-productName: wispr
+productName: OpenVocaly
 directories:
   buildResources: build
 files:
@@ -11,9 +11,9 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
-  - node_modules/@wispr/ptt-hook-macos/build/**/*.node
+  - node_modules/@openvocaly/ptt-hook-macos/build/**/*.node
 win:
-  executableName: wispr
+  executableName: openvocaly
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

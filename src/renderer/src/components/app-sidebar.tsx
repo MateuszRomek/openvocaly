@@ -41,10 +41,10 @@ function AppSidebar(): React.JSX.Element {
             )}
           >
             <span className="bg-sidebar-primary text-sidebar-primary-foreground dark:bg-sidebar-foreground dark:text-sidebar flex size-7 shrink-0 items-center justify-center rounded-md text-sm font-semibold">
-              W
+              O
             </span>
             <span className="text-sidebar-foreground truncate text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
-              Wispr
+              OpenVocaly
             </span>
           </div>
           <button

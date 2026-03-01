@@ -1,5 +1,5 @@
 {
-  "name": "wispr",
+  "name": "openvocaly",
   "version": "1.0.0",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
@@ -32,7 +32,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@tanstack/react-query": "^5.90.21",
     "@tanstack/react-router": "^1.161.1",
-    "@wispr/ptt-hook-macos": "file:./native/ptt-hook-macos",
+    "@openvocaly/ptt-hook-macos": "file:./native/ptt-hook-macos",
     "better-sqlite3": "^12.6.2",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
