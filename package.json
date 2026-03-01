@@ -5,6 +5,7 @@
   "main": "./out/main/index.js",
   "author": "example.com",
   "homepage": "https://electron-vite.org",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
