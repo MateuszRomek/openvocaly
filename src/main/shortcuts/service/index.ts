@@ -3,28 +3,29 @@ import { initDb } from '../../db'
 import { emitRecordingShortcutEvent } from '../recording-events'
 import { ensureDefaultShortcutBindings, listShortcutBindings } from '../repository'
 import {
-  DEFAULT_SHORTCUT_BINDINGS,
-  SHORTCUT_ACTIONS,
-  isShortcutAction,
   type ShortcutAction,
-  type ShortcutActionConfig,
   type ShortcutConfigResponse,
   type ShortcutMutationResponse,
   type ShortcutResetInput,
   type ShortcutRuntimeStatusResponse,
   type ShortcutUpdateInput
 } from '../../../shared/shortcuts'
-import { SUPPORTED_GLOBAL_ACTIONS, createInitialShortcutState } from '../constants'
+import { createInitialShortcutState } from '../constants'
 import {
   parseAccelerator,
   toPersistedShortcutBinding,
   type PersistedShortcutBinding
 } from '../accelerator'
 import type { ShortcutActionStateMap } from '../types'
+import { selectShortcutConfigResponse } from './shortcut-config-selector'
 import { createDefaultBindings, defaultBindingForAction } from './defaults'
 import { tryRegisterAction, type SupportedGlobalShortcutAction } from './global-shortcut'
 import { hasDuplicateAccelerator, persistBinding } from './persistence'
-import { mapPttAvailabilityToMutationError } from './ptt-errors'
+import {
+  decideShortcutReset,
+  decideShortcutUpdate,
+  type ShortcutResetOperation
+} from './shortcut-service-reducer'
 import { PttRuntimeManager } from './ptt-runtime-manager'
 import {
   applySupportedGlobalBinding,
@@ -79,26 +80,11 @@ class ShortcutService {
   getConfig(): ShortcutConfigResponse {
     this.ensureInitialized()
     this.pttRuntime.refreshRuntimeStatus()
-
-    const actions: ShortcutActionConfig[] = SHORTCUT_ACTIONS.map((action) => {
-      const isSupportedGlobal = this.isSupportedGlobalAction(action)
-      const state = this.shortcutState[action]
-
-      return {
-        action,
-        accelerator: state.storedBinding.accelerator,
-        defaultAccelerator: DEFAULT_SHORTCUT_BINDINGS[action],
-        effectiveAccelerator: state.effectiveAccelerator,
-        isRegistered: isSupportedGlobal ? state.effectiveAccelerator !== null : false,
-        isSupportedGlobal,
-        registrationError: state.registrationError ?? undefined
-      }
-    })
-
-    return {
-      actions,
-      hasStartupFailure: this.startupFailure
-    }
+    return selectShortcutConfigResponse(
+      this.shortcutState,
+      this.pttRuntime.isReady(),
+      this.startupFailure
+    )
   }
 
   getRuntimeStatus(): ShortcutRuntimeStatusResponse {
@@ -112,44 +98,32 @@ class ShortcutService {
 
   update(input: ShortcutUpdateInput): ShortcutMutationResponse {
     this.ensureInitialized()
-
-    const action = input.action
-
-    if (!isShortcutAction(action)) {
-      return { ok: false, errorCode: 'unsupported_action' }
-    }
+    this.pttRuntime.refreshRuntimeStatus()
 
     const parsedShortcut = parseAccelerator(input.accelerator)
+    const binding = parsedShortcut ? toPersistedShortcutBinding(parsedShortcut) : null
+    const decision = decideShortcutUpdate({
+      action: input.action,
+      binding,
+      hasDuplicateAccelerator: parsedShortcut
+        ? hasDuplicateAccelerator(this.shortcutState, input.action, parsedShortcut)
+        : false,
+      pttReady: this.pttRuntime.isReady(),
+      pttAvailability: this.pttRuntime.getRuntimeStatus().availability
+    })
 
-    if (!parsedShortcut) {
-      return { ok: false, errorCode: 'invalid_accelerator' }
+    if (decision.type === 'error') {
+      return { ok: false, errorCode: decision.errorCode }
     }
 
-    const binding = toPersistedShortcutBinding(parsedShortcut)
-
-    if (hasDuplicateAccelerator(this.shortcutState, action, parsedShortcut)) {
-      return { ok: false, errorCode: 'duplicate_accelerator' }
-    }
-
-    if (action === 'recording.push_to_talk') {
-      this.pttRuntime.refreshRuntimeStatus()
-
-      if (!this.pttRuntime.isReady()) {
-        return {
-          ok: false,
-          errorCode: mapPttAvailabilityToMutationError(
-            this.pttRuntime.getRuntimeStatus().availability
-          )
-        }
-      }
-
-      return this.pttRuntime.applyBinding(binding)
+    if (decision.type === 'apply_ptt') {
+      return this.pttRuntime.applyBinding(decision.binding)
     }
 
     return applySupportedGlobalBinding({
       shortcutState: this.shortcutState,
-      action,
-      nextBinding: binding,
+      action: decision.action,
+      nextBinding: decision.binding,
       registerAction: this.registerSupportedGlobalAction,
       persistBinding
     })
@@ -157,69 +131,33 @@ class ShortcutService {
 
   reset(input?: ShortcutResetInput): ShortcutMutationResponse {
     this.ensureInitialized()
+    this.pttRuntime.refreshRuntimeStatus()
 
-    if (!input?.action) {
-      const toggleReset = this.applySupportedBinding(
-        'recording.toggle',
-        defaultBindingForAction('recording.toggle')
-      )
+    const decision = decideShortcutReset({
+      action: input?.action,
+      pttReady: this.pttRuntime.isReady(),
+      defaultBindingForAction
+    })
 
-      if (!toggleReset.ok) {
-        return toggleReset
-      }
-
-      const cancelReset = this.applySupportedBinding(
-        'recording.cancel',
-        defaultBindingForAction('recording.cancel')
-      )
-
-      if (!cancelReset.ok) {
-        return cancelReset
-      }
-
-      this.pttRuntime.refreshRuntimeStatus()
-
-      if (this.pttRuntime.isReady()) {
-        return this.pttRuntime.applyBinding(defaultBindingForAction('recording.push_to_talk'))
-      }
-
-      return this.persistStoredOnlyBinding(
-        'recording.push_to_talk',
-        defaultBindingForAction('recording.push_to_talk')
-      )
+    if (decision.type === 'error') {
+      return { ok: false, errorCode: decision.errorCode }
     }
 
-    const action = input.action
+    for (const operation of decision.operations) {
+      const result = this.executeResetOperation(operation)
 
-    if (!isShortcutAction(action)) {
-      return { ok: false, errorCode: 'unsupported_action' }
-    }
-
-    if (action === 'recording.push_to_talk') {
-      this.pttRuntime.refreshRuntimeStatus()
-
-      if (this.pttRuntime.isReady()) {
-        return this.pttRuntime.applyBinding(defaultBindingForAction(action))
+      if (!result.ok) {
+        return result
       }
-
-      return this.persistStoredOnlyBinding(action, defaultBindingForAction(action))
     }
 
-    return this.applySupportedBinding(action, defaultBindingForAction(action))
+    return { ok: true }
   }
 
   private ensureInitialized(): void {
     if (!this.initialized) {
       this.initialize()
     }
-  }
-
-  private isSupportedGlobalAction(action: ShortcutAction): boolean {
-    if (action === 'recording.push_to_talk') {
-      return this.pttRuntime.isReady()
-    }
-
-    return SUPPORTED_GLOBAL_ACTIONS.has(action)
   }
 
   private applySupportedBinding(
@@ -233,6 +171,18 @@ class ShortcutService {
       registerAction: this.registerSupportedGlobalAction,
       persistBinding
     })
+  }
+
+  private executeResetOperation(operation: ShortcutResetOperation): ShortcutMutationResponse {
+    if (operation.type === 'apply_supported') {
+      return this.applySupportedBinding(operation.action, operation.binding)
+    }
+
+    if (operation.type === 'apply_ptt') {
+      return this.pttRuntime.applyBinding(operation.binding)
+    }
+
+    return this.persistStoredOnlyBinding('recording.push_to_talk', operation.binding)
   }
 
   private registerSupportedGlobalAction = (
@@ -259,7 +209,7 @@ class ShortcutService {
     const state = this.shortcutState[action]
     state.storedBinding = binding
     state.registrationError = null
-    state.effectiveAccelerator = this.isSupportedGlobalAction(action) ? binding.accelerator : null
+    state.effectiveAccelerator = binding.accelerator
 
     return { ok: true }
   }
