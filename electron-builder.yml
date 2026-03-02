@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: OpenVocaly
+appId: com.openvocally.app
+productName: OpenVocally
 directories:
   buildResources: build
 files:

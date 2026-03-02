@@ -31,8 +31,8 @@ function AppSidebar(): React.JSX.Element {
 
   return (
     <Sidebar collapsible="icon" className="group/sidebar">
-      <SidebarHeader className="border-sidebar-border h-14 border-b px-2">
-        <div className="group/brand relative flex h-full items-center gap-2 group-data-[collapsible=icon]:justify-center">
+      <SidebarHeader className="border-sidebar-border h-14 border-b p-0 group-data-[collapsible=icon]:p-0">
+        <div className="group/brand relative flex h-full items-center gap-2 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
           <div
             className={cn(
               'flex min-w-0 items-center gap-2',
@@ -74,11 +74,10 @@ function AppSidebar(): React.JSX.Element {
                       type="button"
                       onClick={() => navigate({ to: item.to })}
                       isActive={pathname === item.to}
-                      size="lg"
                       tooltip={item.label}
                       className="group-data-[collapsible=icon]:justify-center"
                     >
-                      <Icon className="size-8" />
+                      <Icon className="size-4" />
                       <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -95,11 +94,10 @@ function AppSidebar(): React.JSX.Element {
               type="button"
               onClick={() => navigate({ to: settingsItem.to })}
               isActive={pathname === settingsItem.to}
-              size="lg"
               tooltip={settingsItem.label}
               className="group-data-[collapsible=icon]:justify-center"
             >
-              <SettingsIcon className="size-8" />
+              <SettingsIcon className="size-4" />
               <span className="group-data-[collapsible=icon]:hidden">{settingsItem.label}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
