@@ -10,11 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ModelsRouteRouteImport } from './routes/models/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ModelsIndexRouteImport } from './routes/models/index'
+import { Route as ModelsLocalRouteImport } from './routes/models/local'
+import { Route as ModelsCloudRouteImport } from './routes/models/cloud'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsRouteRoute = ModelsRouteRouteImport.update({
+  id: '/models',
+  path: '/models',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -22,30 +31,70 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ModelsIndexRoute = ModelsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ModelsRouteRoute,
+} as any)
+const ModelsLocalRoute = ModelsLocalRouteImport.update({
+  id: '/local',
+  path: '/local',
+  getParentRoute: () => ModelsRouteRoute,
+} as any)
+const ModelsCloudRoute = ModelsCloudRouteImport.update({
+  id: '/cloud',
+  path: '/cloud',
+  getParentRoute: () => ModelsRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/models': typeof ModelsRouteRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/models/cloud': typeof ModelsCloudRoute
+  '/models/local': typeof ModelsLocalRoute
+  '/models/': typeof ModelsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/models/cloud': typeof ModelsCloudRoute
+  '/models/local': typeof ModelsLocalRoute
+  '/models': typeof ModelsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/models': typeof ModelsRouteRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/models/cloud': typeof ModelsCloudRoute
+  '/models/local': typeof ModelsLocalRoute
+  '/models/': typeof ModelsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings'
+  fullPaths:
+    | '/'
+    | '/models'
+    | '/settings'
+    | '/models/cloud'
+    | '/models/local'
+    | '/models/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings'
-  id: '__root__' | '/' | '/settings'
+  to: '/' | '/settings' | '/models/cloud' | '/models/local' | '/models'
+  id:
+    | '__root__'
+    | '/'
+    | '/models'
+    | '/settings'
+    | '/models/cloud'
+    | '/models/local'
+    | '/models/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ModelsRouteRoute: typeof ModelsRouteRouteWithChildren
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -58,6 +107,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/models': {
+      id: '/models'
+      path: '/models'
+      fullPath: '/models'
+      preLoaderRoute: typeof ModelsRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -65,11 +121,49 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/models/': {
+      id: '/models/'
+      path: '/'
+      fullPath: '/models/'
+      preLoaderRoute: typeof ModelsIndexRouteImport
+      parentRoute: typeof ModelsRouteRoute
+    }
+    '/models/local': {
+      id: '/models/local'
+      path: '/local'
+      fullPath: '/models/local'
+      preLoaderRoute: typeof ModelsLocalRouteImport
+      parentRoute: typeof ModelsRouteRoute
+    }
+    '/models/cloud': {
+      id: '/models/cloud'
+      path: '/cloud'
+      fullPath: '/models/cloud'
+      preLoaderRoute: typeof ModelsCloudRouteImport
+      parentRoute: typeof ModelsRouteRoute
+    }
   }
 }
 
+interface ModelsRouteRouteChildren {
+  ModelsCloudRoute: typeof ModelsCloudRoute
+  ModelsLocalRoute: typeof ModelsLocalRoute
+  ModelsIndexRoute: typeof ModelsIndexRoute
+}
+
+const ModelsRouteRouteChildren: ModelsRouteRouteChildren = {
+  ModelsCloudRoute: ModelsCloudRoute,
+  ModelsLocalRoute: ModelsLocalRoute,
+  ModelsIndexRoute: ModelsIndexRoute,
+}
+
+const ModelsRouteRouteWithChildren = ModelsRouteRoute._addFileChildren(
+  ModelsRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ModelsRouteRoute: ModelsRouteRouteWithChildren,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport

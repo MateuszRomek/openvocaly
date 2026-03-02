@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { MoonIcon, SunIcon } from 'lucide-react'
 import { Button } from '@renderer/ui/button'
@@ -6,14 +6,17 @@ import { readPreferredTheme, setThemePreference, type Theme } from '@renderer/li
 
 const routeTitles: Record<string, string> = {
   '/': 'Home',
-  '/settings': 'Settings'
+  '/settings': 'Settings',
+  '/models': 'Models',
+  '/models/cloud': 'Models',
+  '/models/local': 'Models'
 }
 
 function SiteHeader(): React.JSX.Element {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const [theme, setTheme] = useState<Theme>(() => readPreferredTheme())
 
-  const title = useMemo(() => routeTitles[pathname] ?? 'Page', [pathname])
+  const title = routeTitles[pathname] ?? 'Page'
   const isDark = theme === 'dark'
   const handleThemeToggle = (): void => {
     const nextTheme: Theme = isDark ? 'light' : 'dark'
