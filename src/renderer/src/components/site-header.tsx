@@ -22,13 +22,14 @@ function SiteHeader(): React.JSX.Element {
   }
 
   return (
-    <header className="border-border/70 border-b">
-      <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
+    <header className="border-border/70 h-14 border-b">
+      <div className="mx-auto flex h-full w-full max-w-5xl items-center justify-between px-4 sm:px-6">
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
         <Button
           type="button"
-          variant="secondary"
+          variant="ghost"
           size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
           onClick={handleThemeToggle}
           aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
         >
