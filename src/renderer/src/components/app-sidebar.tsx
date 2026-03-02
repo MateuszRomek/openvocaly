@@ -1,5 +1,5 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { HomeIcon, PanelLeftIcon, SettingsIcon, type LucideIcon } from 'lucide-react'
+import { BlocksIcon, HomeIcon, PanelLeftIcon, SettingsIcon, type LucideIcon } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import {
   Sidebar,
@@ -17,12 +17,23 @@ import {
 type NavigationItem = {
   icon: LucideIcon
   label: string
-  to: '/' | '/settings'
+  to: '/' | '/models' | '/settings'
 }
 
-const navigation: NavigationItem[] = [{ icon: HomeIcon, label: 'Home', to: '/' }]
+const navigation: NavigationItem[] = [
+  { icon: HomeIcon, label: 'Home', to: '/' },
+  { icon: BlocksIcon, label: 'Models', to: '/models' }
+]
 
 const settingsItem: NavigationItem = { icon: SettingsIcon, label: 'Settings', to: '/settings' }
+
+const isRouteActive = (pathname: string, route: NavigationItem['to']): boolean => {
+  if (route === '/') {
+    return pathname === '/'
+  }
+
+  return pathname === route || pathname.startsWith(`${route}/`)
+}
 
 function AppSidebar(): React.JSX.Element {
   const navigate = useNavigate()
@@ -64,7 +75,7 @@ function AppSidebar(): React.JSX.Element {
       <SidebarContent className="py-2">
         <SidebarGroup className="py-0">
           <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
+            <SidebarMenu className="gap-2">
               {navigation.map((item) => {
                 const Icon = item.icon
 
@@ -73,9 +84,10 @@ function AppSidebar(): React.JSX.Element {
                     <SidebarMenuButton
                       type="button"
                       onClick={() => navigate({ to: item.to })}
-                      isActive={pathname === item.to}
+                      isActive={isRouteActive(pathname, item.to)}
                       tooltip={item.label}
                       className="group-data-[collapsible=icon]:justify-center"
+                      size="lg"
                     >
                       <Icon className="size-4" />
                       <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
@@ -88,14 +100,15 @@ function AppSidebar(): React.JSX.Element {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="pb-3">
-        <SidebarMenu className="gap-1">
+        <SidebarMenu className="gap-2">
           <SidebarMenuItem key={settingsItem.to}>
             <SidebarMenuButton
               type="button"
               onClick={() => navigate({ to: settingsItem.to })}
-              isActive={pathname === settingsItem.to}
+              isActive={isRouteActive(pathname, settingsItem.to)}
               tooltip={settingsItem.label}
               className="group-data-[collapsible=icon]:justify-center"
+              size="lg"
             >
               <SettingsIcon className="size-4" />
               <span className="group-data-[collapsible=icon]:hidden">{settingsItem.label}</span>
