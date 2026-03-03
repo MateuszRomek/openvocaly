@@ -1,6 +1,7 @@
-import { StrictMode, useEffect, useRef } from 'react'
+import { StrictMode, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { DICTATION_OVERLAY_STATE_CHANNEL, type DictationOverlayState } from '../../shared/dictation'
+import { resolveOverlayMessage } from '../../shared/overlay-presentation'
 import './assets/main.css'
 import { startThemeSync } from './lib/theme'
 import {
@@ -36,6 +37,8 @@ export function OverlayVisualizer(): React.JSX.Element {
   const renderedBarsRef = useRef<number[]>(createBars(0.08))
   const barElementsRef = useRef<Array<HTMLSpanElement | null>>(createBars(0).map(() => null))
   const mountedRef = useRef(false)
+  const hasMessageRef = useRef(false)
+  const [message, setMessage] = useState<string | null>(null)
 
   const barIndexes = createBarIndexes()
 
@@ -52,6 +55,9 @@ export function OverlayVisualizer(): React.JSX.Element {
       (_event, state: DictationOverlayState) => {
         currentPhaseRef.current = state.phase
         targetBarsRef.current = toTargetBars(state)
+        const nextMessage = resolveOverlayMessage(state)
+        hasMessageRef.current = Boolean(nextMessage)
+        setMessage(nextMessage)
       }
     )
 
@@ -73,6 +79,11 @@ export function OverlayVisualizer(): React.JSX.Element {
 
       const phase = currentPhaseRef.current
       const now = performance.now() / 1000
+
+      if (hasMessageRef.current) {
+        frameId = window.requestAnimationFrame(renderFrame)
+        return
+      }
 
       for (let index = 0; index < BAR_COUNT; index += 1) {
         const element = barElementsRef.current[index]
@@ -135,20 +146,35 @@ export function OverlayVisualizer(): React.JSX.Element {
   return (
     <div className="pointer-events-none flex h-full w-full items-center justify-center select-none">
       <div
-        className="h-full w-full rounded-full border border-border/60 bg-background/95 px-5 py-2.5"
+        className="relative h-full w-full overflow-hidden rounded-full border border-border/60 bg-background/95"
         role="presentation"
       >
-        <div className="flex h-full w-full items-center justify-between">
-          {barIndexes.map((index) => (
-            <span
-              key={index}
-              ref={(element) => {
-                barElementsRef.current[index] = element
-              }}
-              className="h-full min-h-[2px] w-[4px] origin-center rounded-full bg-foreground will-change-transform"
-              style={{ transform: `scaleY(${IDLE_SCALE_FLOOR})`, opacity: IDLE_OPACITY_BASE }}
-            />
-          ))}
+        <div
+          className={`absolute inset-0 px-5 py-2.5 transition-opacity duration-180 ease-out ${
+            message ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
+          <div className="flex h-full w-full items-center justify-between">
+            {barIndexes.map((index) => (
+              <span
+                key={index}
+                ref={(element) => {
+                  barElementsRef.current[index] = element
+                }}
+                className="h-full min-h-[2px] w-[4px] origin-center rounded-full bg-foreground will-change-transform"
+                style={{ transform: `scaleY(${IDLE_SCALE_FLOOR})`, opacity: IDLE_OPACITY_BASE }}
+              />
+            ))}
+          </div>
+        </div>
+        <div
+          className={`absolute inset-0 flex items-center justify-center px-4 text-center text-[13px] font-medium tracking-[0.01em] text-foreground transition-opacity duration-180 ease-out ${
+            message ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <span className="max-h-[48px] max-w-[92%] overflow-hidden break-words whitespace-pre-wrap leading-[1.22]">
+            {message ?? ''}
+          </span>
         </div>
       </div>
     </div>

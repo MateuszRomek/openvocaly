@@ -20,7 +20,12 @@ export const isSameOverlayState = (
     return false
   }
 
-  if (left.phase !== right.phase || left.mode !== right.mode || left.message !== right.message) {
+  if (
+    left.phase !== right.phase ||
+    left.mode !== right.mode ||
+    left.failureReason !== right.failureReason ||
+    left.message !== right.message
+  ) {
     return false
   }
 

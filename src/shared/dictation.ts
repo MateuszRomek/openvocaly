@@ -24,5 +24,6 @@ export type DictationOverlayState = {
   mode: RecordingMode | null
   meterLevel: number
   bands: number[]
+  failureReason?: DictationFailureReason
   message?: string
 }
