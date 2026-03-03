@@ -1,12 +1,14 @@
 # Recording Docs
 
-This folder documents the recording subsystem end-to-end (main process, preload bridge, renderer capture runtime, overlay runtime, and persisted artifacts).
+This folder documents the recording subsystem (capture/runtime/artifact domain).
+
+For top-level dictation/transcription lifecycle, see `docs/dictation`.
 
 ## Files
 
 - `architecture.md` - component ownership, boundaries, and module map.
-- `flows.md` - runtime sequence flows for success, cancel, failure, and shutdown.
-- `contracts.md` - IPC channels, preload/public APIs, and state contracts.
+- `flows.md` - capture-domain runtime sequence flows.
+- `contracts.md` - capture IPC channels, recording preload APIs, and recording state contracts.
 
 ## Fast path for new contributors
 

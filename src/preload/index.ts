@@ -19,9 +19,9 @@ import type {
 } from '../shared/shortcuts'
 import type {
   RecordingPreferencesResponse,
-  RecordingPreferencesUpdateInput,
-  RecordingRuntimeStateResponse
+  RecordingPreferencesUpdateInput
 } from '../shared/recording'
+import type { DictationRuntimeStateResponse } from '../shared/dictation'
 import type {
   TranscriptionPreferencesResponse,
   TranscriptionPreferencesUpdateInput,
@@ -66,8 +66,6 @@ const api = {
       ipcRenderer.invoke('shortcuts:reset', input)
   },
   recording: {
-    getRuntimeState: (): Promise<RecordingRuntimeStateResponse> =>
-      ipcRenderer.invoke('recording:getRuntimeState'),
     getPreferences: (): Promise<RecordingPreferencesResponse> =>
       ipcRenderer.invoke('recording:getPreferences'),
     updatePreferences: (
@@ -90,6 +88,10 @@ const api = {
       input: TranscriptionProviderApiKeyClearInput
     ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
       ipcRenderer.invoke('transcription:clearProviderApiKey', input)
+  },
+  dictation: {
+    getRuntimeState: (): Promise<DictationRuntimeStateResponse> =>
+      ipcRenderer.invoke('dictation:getRuntimeState')
   },
   permissions: {
     getStatus: (): Promise<PermissionsStatusResponse> =>

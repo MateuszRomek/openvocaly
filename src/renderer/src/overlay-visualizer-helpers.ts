@@ -1,4 +1,4 @@
-import type { RecordingOverlayState } from '../../shared/recording'
+import type { DictationOverlayState } from '../../shared/dictation'
 
 const IDLE_BAR_BASE = 0.06
 const IDLE_BAR_PULSE = 0.01
@@ -47,7 +47,7 @@ const getProcessingWave = (index: number, now: number): number => {
   return 0.16 + wave * 0.34
 }
 
-export const toTargetBars = (state: RecordingOverlayState): number[] => {
+export const toTargetBars = (state: DictationOverlayState): number[] => {
   const level = clamp01(state.meterLevel)
 
   if (!state.bands.length) {
@@ -61,7 +61,7 @@ export const toTargetBars = (state: RecordingOverlayState): number[] => {
 }
 
 export const resolveBarTarget = (
-  phase: RecordingOverlayState['phase'],
+  phase: DictationOverlayState['phase'],
   index: number,
   now: number,
   target: number
@@ -78,7 +78,7 @@ export const resolveBarTarget = (
   return target
 }
 
-export const getBarSmoothing = (phase: RecordingOverlayState['phase']): number =>
+export const getBarSmoothing = (phase: DictationOverlayState['phase']): number =>
   phase === 'recording' ? 0.24 : 0.16
 
 export const toBarVisuals = (current: number): { scale: number; opacity: number } => ({

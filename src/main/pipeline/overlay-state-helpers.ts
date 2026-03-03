@@ -1,16 +1,16 @@
-import type { RecordingOverlayState } from '../../../shared/recording'
+import type { DictationOverlayState } from '../../shared/dictation'
 
 const LEVEL_EPSILON = 0.01
 const BAND_EPSILON = 0.02
 
-export const cloneOverlayState = (state: RecordingOverlayState): RecordingOverlayState => ({
+export const cloneOverlayState = (state: DictationOverlayState): DictationOverlayState => ({
   ...state,
   bands: [...state.bands]
 })
 
 export const isSameOverlayState = (
-  left: RecordingOverlayState | null,
-  right: RecordingOverlayState | null
+  left: DictationOverlayState | null,
+  right: DictationOverlayState | null
 ): boolean => {
   if (left === right) {
     return true

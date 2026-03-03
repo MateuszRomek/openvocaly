@@ -18,9 +18,9 @@ import type {
 } from '../shared/shortcuts'
 import type {
   RecordingPreferencesResponse,
-  RecordingPreferencesUpdateInput,
-  RecordingRuntimeStateResponse
+  RecordingPreferencesUpdateInput
 } from '../shared/recording'
+import type { DictationRuntimeStateResponse } from '../shared/dictation'
 import type {
   TranscriptionPreferencesResponse,
   TranscriptionPreferencesUpdateInput,
@@ -55,7 +55,6 @@ declare global {
         reset: (input?: ShortcutResetInput) => Promise<ShortcutMutationResponse>
       }
       recording: {
-        getRuntimeState: () => Promise<RecordingRuntimeStateResponse>
         getPreferences: () => Promise<RecordingPreferencesResponse>
         updatePreferences: (
           input: RecordingPreferencesUpdateInput
@@ -72,6 +71,9 @@ declare global {
         clearProviderApiKey: (
           input: TranscriptionProviderApiKeyClearInput
         ) => Promise<TranscriptionProviderApiKeyMutationResponse>
+      }
+      dictation: {
+        getRuntimeState: () => Promise<DictationRuntimeStateResponse>
       }
       permissions: {
         getStatus: () => Promise<PermissionsStatusResponse>

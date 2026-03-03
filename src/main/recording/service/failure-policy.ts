@@ -1,9 +1,5 @@
 import type { RecordingFailureReason } from '../../../shared/recording'
 
-const COMPLETE_DISPLAY_MS = 650
-const FAILURE_DISPLAY_MS = 1900
-const CANCEL_DISPLAY_MS = 120
-
 type CaptureRuntimeOperation = 'start' | 'stop' | 'cancel'
 
 export type RecordingFailureDescriptor = {
@@ -13,11 +9,6 @@ export type RecordingFailureDescriptor = {
 
 const toErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message : fallback
-
-export const resolveCompleteDisplayDelayMs = (): number => COMPLETE_DISPLAY_MS
-
-export const resolveFailureDisplayDelayMs = (reason: RecordingFailureReason): number =>
-  reason === 'aborted' ? CANCEL_DISPLAY_MS : FAILURE_DISPLAY_MS
 
 export const toArtifactCreationFailure = (error: unknown): RecordingFailureDescriptor => ({
   reason: 'capture_error',

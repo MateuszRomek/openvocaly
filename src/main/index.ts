@@ -4,7 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { closeDb } from './db'
 import { isLinux, isMacOS, isWindows } from './helpers/platform'
-import { dictationPipelineOrchestrator } from './pipeline/dictation-pipeline-orchestrator'
+import { initializePipeline, registerPipelineIpc, shutdownPipeline } from './pipeline/ipc'
 import { registerPermissionsIpc } from './permissions/ipc'
 import { initializeRecording, registerRecordingIpc, shutdownRecording } from './recording/ipc'
 import { initializeShortcuts, registerShortcutsIpc, shutdownShortcuts } from './shortcuts/ipc'
@@ -39,7 +39,7 @@ const performShutdownSequence = (): Promise<void> => {
 
   shutdownPromise = (async () => {
     try {
-      await dictationPipelineOrchestrator.shutdown()
+      await shutdownPipeline()
     } catch (error) {
       console.error('[shutdown] pipeline teardown failed', error)
     }
@@ -158,6 +158,7 @@ app.whenReady().then(async () => {
   registerShortcutsIpc()
   registerRecordingIpc()
   registerTranscriptionIpc()
+  registerPipelineIpc()
   initializeShortcuts()
 
   try {
@@ -173,7 +174,7 @@ app.whenReady().then(async () => {
   }
 
   try {
-    await dictationPipelineOrchestrator.initialize()
+    await initializePipeline()
   } catch (error) {
     console.error('[pipeline] failed to initialize dictation pipeline', error)
   }

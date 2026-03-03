@@ -1,8 +1,7 @@
 import { ipcMain } from 'electron'
 import type {
   RecordingPreferencesResponse,
-  RecordingPreferencesUpdateInput,
-  RecordingRuntimeStateResponse
+  RecordingPreferencesUpdateInput
 } from '../../shared/recording'
 import { recordingService } from './service/orchestrator'
 
@@ -12,11 +11,6 @@ export const registerRecordingIpc = (): void => {
   if (recordingIpcRegistered) {
     return
   }
-
-  ipcMain.handle(
-    'recording:getRuntimeState',
-    (): RecordingRuntimeStateResponse => recordingService.getRuntimeState()
-  )
 
   ipcMain.handle(
     'recording:getPreferences',

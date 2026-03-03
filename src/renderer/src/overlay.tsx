@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
-import { RECORDING_OVERLAY_STATE_CHANNEL, type RecordingOverlayState } from '../../shared/recording'
+import { DICTATION_OVERLAY_STATE_CHANNEL, type DictationOverlayState } from '../../shared/dictation'
 import './assets/main.css'
 import { startThemeSync } from './lib/theme'
 import {
@@ -31,7 +31,7 @@ if (import.meta.hot) {
 export function OverlayVisualizer(): React.JSX.Element {
   // IPC updates and frame-to-frame interpolation run at high frequency.
   // Refs keep this loop off React state updates for smoother animation.
-  const currentPhaseRef = useRef<RecordingOverlayState['phase']>('starting')
+  const currentPhaseRef = useRef<DictationOverlayState['phase']>('starting')
   const targetBarsRef = useRef<number[]>(createBars(0))
   const renderedBarsRef = useRef<number[]>(createBars(0.08))
   const barElementsRef = useRef<Array<HTMLSpanElement | null>>(createBars(0).map(() => null))
@@ -48,8 +48,8 @@ export function OverlayVisualizer(): React.JSX.Element {
     mountedRef.current = true
 
     const detach = window.electron.ipcRenderer.on(
-      RECORDING_OVERLAY_STATE_CHANNEL,
-      (_event, state: RecordingOverlayState) => {
+      DICTATION_OVERLAY_STATE_CHANNEL,
+      (_event, state: DictationOverlayState) => {
         currentPhaseRef.current = state.phase
         targetBarsRef.current = toTargetBars(state)
       }

@@ -5,7 +5,7 @@ import { createUuid } from '../../helpers/id'
 import type {
   RecordingArtifact,
   RecordingFailureMetadata,
-  RecordingFailureReason,
+  RecordingArtifactFailureReason,
   RecordingMode,
   RecordingOutputFormat
 } from '../../../shared/recording'
@@ -72,7 +72,7 @@ export class RecordingArtifactStore {
 
   async markFailure(
     artifact: RecordingArtifact,
-    failureReason: RecordingFailureReason,
+    failureReason: RecordingArtifactFailureReason,
     message?: string
   ): Promise<RecordingFailureMetadata> {
     await this.ensureDirectories()
