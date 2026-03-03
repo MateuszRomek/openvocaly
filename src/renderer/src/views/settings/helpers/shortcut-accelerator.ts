@@ -1,4 +1,5 @@
 import { SHORTCUT_ERROR_MESSAGES } from '../constants/shortcuts'
+import { SETTINGS_COPY } from '../constants/copy'
 import type {
   KeyboardCaptureEvent,
   ShortcutErrorCode,
@@ -143,5 +144,5 @@ export const toErrorMessage = (errorCode: ShortcutErrorCode | undefined): string
     return null
   }
 
-  return SHORTCUT_ERROR_MESSAGES[errorCode] ?? 'Could not save shortcut. Try again.'
+  return SHORTCUT_ERROR_MESSAGES[errorCode] ?? SETTINGS_COPY.errors.saveShortcut
 }

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { MODELS_COPY } from '../constants/copy'
 import {
   type TranscriptionProviderId,
   useTranscriptionProviderCatalog,
@@ -23,11 +24,11 @@ export function useTranscriptionProviderSettings(): UseTranscriptionProviderSett
 
   const requestError = useMemo(() => {
     if (providerCatalog.hasError) {
-      return 'Could not load transcription settings.'
+      return MODELS_COPY.errors.loadSettings
     }
 
     if (selectionActions.hasError) {
-      return 'Could not save transcription provider.'
+      return MODELS_COPY.errors.saveProviderSettings
     }
 
     return null

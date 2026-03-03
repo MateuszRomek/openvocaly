@@ -20,6 +20,7 @@ import {
   SheetTitle
 } from '@renderer/ui/sheet'
 import { toast } from 'sonner'
+import { MODELS_COPY } from '../constants/copy'
 import { useClearTranscriptionProviderApiKey } from '../hooks/use-clear-transcription-provider-api-key'
 import { useTranscriptionProviderConfigSheet } from '../hooks/use-transcription-provider-config-sheet'
 import { useSaveTranscriptionProviderApiKey } from '../hooks/use-save-transcription-provider-api-key'
@@ -77,14 +78,14 @@ export function TranscriptionProviderConfigSheet({
       try {
         const result = await clearProviderApiKey.clear(provider.id)
         if (!result.ok) {
-          toast.error('Could not remove API key.')
+          toast.error(MODELS_COPY.errors.removeApiKey)
           return
         }
 
         resetApiKeyDraft()
         toast.success('API key removed.')
       } catch {
-        toast.error('Could not remove API key.')
+        toast.error(MODELS_COPY.errors.removeApiKey)
       }
     })()
   }
@@ -98,7 +99,7 @@ export function TranscriptionProviderConfigSheet({
       try {
         const result = await saveProviderApiKey.save(provider.id, sheetApiKeyDraft)
         if (!result.ok) {
-          toast.error('Could not save API key.')
+          toast.error(MODELS_COPY.errors.saveApiKey)
           return
         }
 
@@ -106,7 +107,7 @@ export function TranscriptionProviderConfigSheet({
         toast.success('API key saved.')
         onOpenChange(false)
       } catch {
-        toast.error('Could not save API key.')
+        toast.error(MODELS_COPY.errors.saveApiKey)
       }
     })()
   }
@@ -185,18 +186,18 @@ export function TranscriptionProviderConfigSheet({
           </div>
 
           <SheetFooter className="border-border/60 border-t bg-background p-4">
-              {!provider.isConfigured ? (
-                <Button
-                  type="button"
-                  className="w-full"
-                  onClick={handleSaveChanges}
-                  disabled={!canSaveChanges}
-                >
+            {!provider.isConfigured ? (
+              <Button
+                type="button"
+                className="w-full"
+                onClick={handleSaveChanges}
+                disabled={!canSaveChanges}
+              >
                 {saveProviderApiKey.isPending ? 'Saving...' : 'Save API key'}
-                </Button>
-              ) : null}
+              </Button>
+            ) : null}
             <SheetClose render={<Button type="button" variant="outline" className="w-full" />}>
-              Close
+              Close panel
             </SheetClose>
           </SheetFooter>
         </SheetContent>

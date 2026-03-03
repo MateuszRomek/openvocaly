@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react'
+import { SETTINGS_COPY } from '../constants/copy'
 import { useRecordingPreferencesQuery } from '../queries/recording/use-recording-preferences-query'
 import { useUpdateRecordingPreferencesMutation } from '../queries/recording/use-update-recording-preferences-mutation'
 
@@ -21,11 +22,11 @@ export function useRecordingPreferences(): UseRecordingPreferencesResult {
 
   const requestError = useMemo(() => {
     if (preferencesQuery.isError) {
-      return 'Could not load recording settings.'
+      return SETTINGS_COPY.errors.loadRecordingSettings
     }
 
     if (updatePreferencesMutation.isError) {
-      return 'Could not save recording settings. Try again.'
+      return SETTINGS_COPY.errors.saveRecordingSettings
     }
 
     return null

@@ -1,6 +1,7 @@
 import { CheckCircle2Icon, Clock3Icon, Settings2Icon } from 'lucide-react'
 import { Badge } from '@renderer/ui/badge'
 import { Button } from '@renderer/ui/button'
+import { MODELS_COPY } from '../constants/copy'
 import type {
   TranscriptionProviderId,
   TranscriptionProviderSettingsProvider
@@ -57,7 +58,7 @@ export function TranscriptionProviderListItem({
           <p className="text-muted-foreground text-sm">
             {isAvailable
               ? 'Use this provider for transcription.'
-              : 'Preview only. This provider is coming soon.'}
+              : MODELS_COPY.providers.unavailableDescription}
           </p>
         </div>
 
@@ -83,9 +84,9 @@ export function TranscriptionProviderListItem({
                 onConfigure(provider.id)
               }}
               disabled={isSelectionMutating}
-              >
+            >
                 <Settings2Icon className="mr-1.5 size-4" />
-                Set up
+                Set up provider
               </Button>
             </div>
           ) : null}

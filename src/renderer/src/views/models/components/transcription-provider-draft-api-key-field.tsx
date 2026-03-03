@@ -41,7 +41,7 @@ export function TranscriptionProviderDraftApiKeyField({
             id={`transcription-api-key-${provider.id}`}
             type={hasDraftApiKey && isDraftApiKeyVisible ? 'text' : 'password'}
             autoComplete="off"
-            placeholder={`Enter ${provider.label} API key`}
+            placeholder={`Paste your ${provider.label} API key`}
             value={sheetApiKeyDraft}
             onChange={(event) => {
               onApiKeyDraftChange(event.target.value)
@@ -57,9 +57,7 @@ export function TranscriptionProviderDraftApiKeyField({
                     <InputGroupButton
                       variant="ghost"
                       size="icon-xs"
-                      aria-label={
-                        isDraftApiKeyVisible ? 'Hide API key draft' : 'Show API key draft'
-                      }
+                      aria-label={isDraftApiKeyVisible ? 'Hide API key' : 'Show API key'}
                     />
                   }
                   onClick={onToggleApiKeyVisibility}
@@ -78,7 +76,7 @@ export function TranscriptionProviderDraftApiKeyField({
           ) : null}
         </InputGroup>
 
-        <FieldDescription>API key is stored securely on this device only.</FieldDescription>
+        <FieldDescription>Stored securely on this device only.</FieldDescription>
       </div>
     </Field>
   )

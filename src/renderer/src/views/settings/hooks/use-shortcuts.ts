@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import { SETTINGS_COPY } from '../constants/copy'
 import { buildAcceleratorFromKeyEvent } from '../helpers/shortcut-accelerator'
 import { useResetShortcutMutation } from '../queries/shortcuts/use-reset-shortcut-mutation'
 import { useShortcutsConfigQuery } from '../queries/shortcuts/use-shortcuts-config-query'
@@ -52,19 +53,19 @@ export function useShortcuts({
 
   const requestError = useMemo(() => {
     if (shortcutsConfigQuery.isError) {
-      return 'Could not load shortcuts.'
+      return SETTINGS_COPY.errors.loadShortcuts
     }
 
     if (shortcutsRuntimeStatusQuery.isError) {
-      return 'Could not load push-to-talk status.'
+      return SETTINGS_COPY.errors.loadPushToTalkStatus
     }
 
     if (updateShortcutMutation.isError) {
-      return 'Could not save shortcut. Try again.'
+      return SETTINGS_COPY.errors.saveShortcut
     }
 
     if (resetShortcutMutation.isError) {
-      return 'Could not reset shortcut. Try again.'
+      return SETTINGS_COPY.errors.resetShortcut
     }
 
     return null
