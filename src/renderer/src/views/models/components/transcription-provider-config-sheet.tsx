@@ -120,70 +120,72 @@ export function TranscriptionProviderConfigSheet({
             <SheetDescription>Configure model and API key for this provider.</SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
-            {!secureStorageAvailable ? (
-              <Alert variant="destructive">
-                <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-                <AlertTitle>Secure storage unavailable</AlertTitle>
-                <AlertDescription>
-                  This device does not provide secure key encryption, so cloud provider API keys
-                  cannot be saved.
-                </AlertDescription>
-              </Alert>
-            ) : null}
+          <div className="flex-1 overflow-y-auto">
+            <div className="space-y-4 px-4 pb-4">
+              {!secureStorageAvailable ? (
+                <Alert variant="destructive">
+                  <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
+                  <AlertTitle>Secure storage unavailable</AlertTitle>
+                  <AlertDescription>
+                    This device does not provide secure key encryption, so cloud provider API keys
+                    cannot be saved.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
-            <div className="space-y-1.5">
-              <label className="text-sm leading-none font-medium">Model</label>
-              <Select
-                value={sheetModelValue}
-                onValueChange={handleModelChange}
-                disabled={isSelectionMutating || provider.models.length <= 1}
-              >
-                <SelectTrigger className="w-full" aria-label={`${provider.label} model`}>
-                  <SelectValue placeholder="Select model" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {provider.models.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <div className="space-y-1.5">
+                <label className="text-sm leading-none font-medium">Model</label>
+                <Select
+                  value={sheetModelValue}
+                  onValueChange={handleModelChange}
+                  disabled={isSelectionMutating || provider.models.length <= 1}
+                >
+                  <SelectTrigger className="w-full" aria-label={`${provider.label} model`}>
+                    <SelectValue placeholder="Select model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {provider.models.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {provider.isConfigured ? (
+                <TranscriptionProviderConfiguredApiKeyField
+                  provider={provider}
+                  isApiKeyMutating={isApiKeyMutating}
+                  isRemovingApiKey={isRemovingApiKey}
+                  onRemoveApiKeyConfirm={handleRemoveApiKeyConfirm}
+                />
+              ) : (
+                <TranscriptionProviderDraftApiKeyField
+                  provider={provider}
+                  secureStorageAvailable={secureStorageAvailable}
+                  isApiKeyMutating={isApiKeyMutating}
+                  sheetApiKeyDraft={sheetApiKeyDraft}
+                  hasDraftApiKey={hasDraftApiKey}
+                  isDraftApiKeyVisible={isDraftApiKeyVisible}
+                  onApiKeyDraftChange={setApiKeyDraft}
+                  onToggleApiKeyVisibility={toggleApiKeyVisibility}
+                />
+              )}
+
+              {!provider.isConfigured ? (
+                <Alert>
+                  <KeyRoundIcon className="mt-0.5 size-4 shrink-0" />
+                  <AlertTitle>Provider requires configuration</AlertTitle>
+                  <AlertDescription>
+                    Save an API key before recording. Otherwise transcription will fail for this
+                    provider.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
             </div>
-
-            {provider.isConfigured ? (
-              <TranscriptionProviderConfiguredApiKeyField
-                provider={provider}
-                isApiKeyMutating={isApiKeyMutating}
-                isRemovingApiKey={isRemovingApiKey}
-                onRemoveApiKeyConfirm={handleRemoveApiKeyConfirm}
-              />
-            ) : (
-              <TranscriptionProviderDraftApiKeyField
-                provider={provider}
-                secureStorageAvailable={secureStorageAvailable}
-                isApiKeyMutating={isApiKeyMutating}
-                sheetApiKeyDraft={sheetApiKeyDraft}
-                hasDraftApiKey={hasDraftApiKey}
-                isDraftApiKeyVisible={isDraftApiKeyVisible}
-                onApiKeyDraftChange={setApiKeyDraft}
-                onToggleApiKeyVisibility={toggleApiKeyVisibility}
-              />
-            )}
-
-            {!provider.isConfigured ? (
-              <Alert>
-                <KeyRoundIcon className="mt-0.5 size-4 shrink-0" />
-                <AlertTitle>Provider requires configuration</AlertTitle>
-                <AlertDescription>
-                  Save an API key before recording. Otherwise transcription will fail for this
-                  provider.
-                </AlertDescription>
-              </Alert>
-            ) : null}
           </div>
 
           <SheetFooter className="border-border/60 border-t bg-background p-4">

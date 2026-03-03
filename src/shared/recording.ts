@@ -6,6 +6,10 @@ export const DEFAULT_RECORDING_SOUND_CUE_SETTINGS = {
   enabled: true
 } as const
 
+export const DEFAULT_RECORDING_MICROPHONE_SETTINGS = {
+  selectedDeviceId: null
+} as const
+
 export type RecordingShortcutCommandType =
   | 'toggle'
   | 'cancel'
@@ -26,10 +30,15 @@ export type RecordingSoundCueSettings = {
   enabled: boolean
 }
 
+export type RecordingMicrophoneSettings = {
+  selectedDeviceId: string | null
+}
+
 export type RecordingCueKind = 'start' | 'cancel' | 'error'
 
 export type RecordingPreferences = {
   soundCues: RecordingSoundCueSettings
+  microphone: RecordingMicrophoneSettings
 }
 
 export type RecordingPreferencesResponse = {
@@ -38,6 +47,7 @@ export type RecordingPreferencesResponse = {
 
 export type RecordingPreferencesUpdateInput = {
   soundCues?: Partial<RecordingSoundCueSettings>
+  microphone?: Partial<RecordingMicrophoneSettings>
 }
 
 export type RecordingRuntimeState = {
@@ -55,6 +65,7 @@ export type RecordingCaptureStartCommand = {
   sessionId: string
   format: RecordingOutputFormat
   soundCues: RecordingSoundCueSettings
+  preferredMicrophoneDeviceId: string | null
 }
 
 export type RecordingCaptureStopCommand = {
@@ -101,6 +112,12 @@ export type RecordingCaptureStartedEvent = {
   sessionId: string
 }
 
+export type RecordingCaptureDeviceResolvedEvent = {
+  type: 'deviceResolved'
+  sessionId: string
+  deviceId: string | null
+}
+
 export type RecordingCaptureStoppedEvent = {
   type: 'stopped'
   sessionId: string
@@ -117,6 +134,7 @@ export type RecordingCaptureErrorEvent = {
 export type RecordingCaptureEvent =
   | RecordingCaptureChunkEvent
   | RecordingCaptureStartedEvent
+  | RecordingCaptureDeviceResolvedEvent
   | RecordingCaptureMeterEvent
   | RecordingCaptureStoppedEvent
   | RecordingCaptureErrorEvent

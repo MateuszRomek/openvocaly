@@ -36,6 +36,14 @@ export const emitCaptureStarted = (sessionId: string): void => {
   })
 }
 
+export const emitCaptureDeviceResolved = (sessionId: string, deviceId: string | null): void => {
+  ipc.send(RECORDING_CAPTURE_EVENT_CHANNEL, {
+    type: 'deviceResolved',
+    sessionId,
+    deviceId
+  })
+}
+
 export const emitCaptureStopped = (sessionId: string | null, durationMs: number): void => {
   ipc.send(RECORDING_CAPTURE_EVENT_CHANNEL, {
     type: 'stopped',

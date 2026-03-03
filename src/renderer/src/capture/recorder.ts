@@ -5,11 +5,13 @@ import type {
 } from '../../../shared/recording'
 import {
   emitCaptureChunk,
+  emitCaptureDeviceResolved,
   emitCaptureError,
   emitCaptureMeter,
   emitCaptureStarted,
   emitCaptureStopped
 } from './ipc'
+import { resolvePreferredMicrophoneDevice } from './microphone-devices'
 import { startAudioLevels } from './audio-levels'
 import { playRecordingCue } from './audio-cues'
 import {
@@ -93,12 +95,22 @@ export const startCapture = async (
   }
 
   try {
+    const deviceResolution = await resolvePreferredMicrophoneDevice(
+      command.preferredMicrophoneDeviceId
+    )
+    emitCaptureDeviceResolved(command.sessionId, deviceResolution.resolvedDeviceId)
+
+    const audioConstraints: MediaTrackConstraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      ...(deviceResolution.resolvedDeviceId
+        ? { deviceId: { exact: deviceResolution.resolvedDeviceId } }
+        : {})
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false
-      }
+      audio: audioConstraints
     })
 
     const mediaRecorder = new MediaRecorder(stream, {

@@ -32,7 +32,8 @@ export class RecordingPreferencesStore {
 
   get(): RecordingPreferences {
     return {
-      soundCues: { ...this.preferences.soundCues }
+      soundCues: { ...this.preferences.soundCues },
+      microphone: { ...this.preferences.microphone }
     }
   }
 

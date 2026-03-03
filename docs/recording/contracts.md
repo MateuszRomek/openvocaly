@@ -16,7 +16,7 @@ All recording protocol types/channels are defined in:
 
 Main -> capture renderer:
 
-- `start` `{ sessionId, format, soundCues }`
+- `start` `{ sessionId, format, soundCues, preferredMicrophoneDeviceId }`
 - `stop` `{}`
 - `cancel` `{ reason, soundCues }`
 - `playCue` `{ cue, soundCues }`
@@ -26,6 +26,7 @@ Main -> capture renderer:
 Capture renderer -> main:
 
 - `started` `{ sessionId }`
+- `deviceResolved` `{ sessionId, deviceId }`
 - `chunk` `{ sessionId, chunk }`
 - `meter` `{ sessionId, level, bands }`
 - `stopped` `{ sessionId, durationMs }`

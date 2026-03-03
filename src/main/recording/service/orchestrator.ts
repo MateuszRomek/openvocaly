@@ -178,11 +178,13 @@ export class RecordingServiceOrchestrator {
     this.publishSessionSnapshot()
 
     try {
+      const preferences = this.preferencesStore.get()
       await this.captureRuntime.sendCommand({
         type: 'start',
         sessionId: this.state.activeArtifact.artifact.sessionId,
         format: DEFAULT_OUTPUT_FORMAT,
-        soundCues: this.preferencesStore.get().soundCues
+        soundCues: preferences.soundCues,
+        preferredMicrophoneDeviceId: preferences.microphone.selectedDeviceId
       })
     } catch (error) {
       const failure = toCaptureRuntimeCommandFailure('start', error)
@@ -293,6 +295,13 @@ export class RecordingServiceOrchestrator {
           this.state.machine = moveToRecording(this.state.machine)
           this.publishSessionSnapshot()
         },
+        onDeviceResolved: async ({ sessionId, deviceId }) => {
+          const activeArtifact = this.state.activeArtifact
+          if (!activeArtifact || activeArtifact.artifact.sessionId !== sessionId) {
+            return
+          }
+          await this.persistResolvedMicrophoneDevice(deviceId)
+        },
         onAudioLevels: async ({ sessionId, level, bands }) => {
           const activeArtifact = this.state.activeArtifact
           if (!activeArtifact || activeArtifact.artifact.sessionId !== sessionId) {
@@ -380,6 +389,24 @@ export class RecordingServiceOrchestrator {
       await this.artifactStore.markFailure(artifact, reason, message)
     } catch (error) {
       console.error('[recording] failed to persist failure artifact', error)
+    }
+  }
+
+  private async persistResolvedMicrophoneDevice(deviceId: string | null): Promise<void> {
+    const currentDeviceId = this.preferencesStore.get().microphone.selectedDeviceId
+
+    if (currentDeviceId === deviceId) {
+      return
+    }
+
+    try {
+      await this.preferencesStore.update({
+        microphone: {
+          selectedDeviceId: deviceId
+        }
+      })
+    } catch (error) {
+      console.error('[recording] failed to persist resolved microphone device', error)
     }
   }
 

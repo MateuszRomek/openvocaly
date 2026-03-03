@@ -8,11 +8,14 @@ type UseRecordingPreferencesResult = {
   requestError: string | null
   soundCuesEnabled: boolean
   setSoundCuesEnabled: (enabled: boolean) => void
+  selectedMicrophoneDeviceId: string | null
+  setSelectedMicrophoneDeviceId: (deviceId: string | null) => void
 }
 
 export function useRecordingPreferences(): UseRecordingPreferencesResult {
   const preferencesQuery = useRecordingPreferencesQuery()
   const updatePreferencesMutation = useUpdateRecordingPreferencesMutation()
+  const mutatePreferences = updatePreferencesMutation.mutate
 
   const preferences = preferencesQuery.data?.preferences
 
@@ -30,11 +33,20 @@ export function useRecordingPreferences(): UseRecordingPreferencesResult {
 
   const setSoundCuesEnabled = useCallback(
     (enabled: boolean): void => {
-      updatePreferencesMutation.mutate({
+      mutatePreferences({
         soundCues: { enabled }
       })
     },
-    [updatePreferencesMutation]
+    [mutatePreferences]
+  )
+
+  const setSelectedMicrophoneDeviceId = useCallback(
+    (deviceId: string | null): void => {
+      mutatePreferences({
+        microphone: { selectedDeviceId: deviceId }
+      })
+    },
+    [mutatePreferences]
   )
 
   return {
@@ -42,6 +54,8 @@ export function useRecordingPreferences(): UseRecordingPreferencesResult {
     isMutating: updatePreferencesMutation.isPending,
     requestError,
     soundCuesEnabled: preferences?.soundCues.enabled ?? true,
-    setSoundCuesEnabled
+    setSoundCuesEnabled,
+    selectedMicrophoneDeviceId: preferences?.microphone.selectedDeviceId ?? null,
+    setSelectedMicrophoneDeviceId
   }
 }
