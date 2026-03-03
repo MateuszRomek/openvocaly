@@ -49,15 +49,15 @@ export function TranscriptionProviderListItem({
 
             {isAvailable && provider.isConfigured ? (
               <Badge variant="outline" className="h-5 px-2 text-[11px]">
-                Configured
+                Ready
               </Badge>
             ) : null}
           </div>
 
           <p className="text-muted-foreground text-sm">
             {isAvailable
-              ? 'Use this provider for recording transcription.'
-              : 'UI preview only. Provider integration will be added in a future PR.'}
+              ? 'Use this provider for transcription.'
+              : 'Preview only. This provider is coming soon.'}
           </p>
         </div>
 
@@ -72,7 +72,7 @@ export function TranscriptionProviderListItem({
                 }}
                 disabled={isSelectionMutating}
               >
-                Select
+                Use provider
               </Button>
             ) : null}
 
@@ -83,12 +83,12 @@ export function TranscriptionProviderListItem({
                 onConfigure(provider.id)
               }}
               disabled={isSelectionMutating}
-            >
-              <Settings2Icon className="mr-1.5 size-4" />
-              Configure
-            </Button>
-          </div>
-        ) : null}
+              >
+                <Settings2Icon className="mr-1.5 size-4" />
+                Set up
+              </Button>
+            </div>
+          ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">

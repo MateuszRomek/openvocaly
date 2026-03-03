@@ -77,7 +77,7 @@ export function TranscriptionProviderConfigSheet({
       try {
         const result = await clearProviderApiKey.clear(provider.id)
         if (!result.ok) {
-          toast.error(result.message ?? 'Could not remove API key.')
+          toast.error('Could not remove API key.')
           return
         }
 
@@ -98,7 +98,7 @@ export function TranscriptionProviderConfigSheet({
       try {
         const result = await saveProviderApiKey.save(provider.id, sheetApiKeyDraft)
         if (!result.ok) {
-          toast.error(result.message ?? 'Could not save API key.')
+          toast.error('Could not save API key.')
           return
         }
 
@@ -116,8 +116,8 @@ export function TranscriptionProviderConfigSheet({
       {provider ? (
         <SheetContent side="right" className="w-full p-0 sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>{provider.label} configuration</SheetTitle>
-            <SheetDescription>Set model and API key for this provider.</SheetDescription>
+            <SheetTitle>{provider.label} settings</SheetTitle>
+            <SheetDescription>Choose a model and manage your API key.</SheetDescription>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto">
@@ -125,10 +125,8 @@ export function TranscriptionProviderConfigSheet({
               {!secureStorageAvailable ? (
                 <Alert variant="destructive">
                   <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-                  <AlertTitle>Secure storage is unavailable</AlertTitle>
-                  <AlertDescription>
-                    API keys cannot be saved securely on this device.
-                  </AlertDescription>
+                  <AlertTitle>Cannot store API keys securely</AlertTitle>
+                  <AlertDescription>This device can&apos;t securely store API keys.</AlertDescription>
                 </Alert>
               ) : null}
 
@@ -140,7 +138,7 @@ export function TranscriptionProviderConfigSheet({
                   disabled={isSelectionMutating || provider.models.length <= 1}
                 >
                   <SelectTrigger className="w-full" aria-label={`${provider.label} model`}>
-                    <SelectValue placeholder="Select model" />
+                    <SelectValue placeholder="Choose model" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
@@ -187,16 +185,16 @@ export function TranscriptionProviderConfigSheet({
           </div>
 
           <SheetFooter className="border-border/60 border-t bg-background p-4">
-            {!provider.isConfigured ? (
-              <Button
-                type="button"
-                className="w-full"
-                onClick={handleSaveChanges}
-                disabled={!canSaveChanges}
-              >
-                {saveProviderApiKey.isPending ? 'Saving...' : 'Save changes'}
-              </Button>
-            ) : null}
+              {!provider.isConfigured ? (
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={handleSaveChanges}
+                  disabled={!canSaveChanges}
+                >
+                {saveProviderApiKey.isPending ? 'Saving...' : 'Save API key'}
+                </Button>
+              ) : null}
             <SheetClose render={<Button type="button" variant="outline" className="w-full" />}>
               Close
             </SheetClose>

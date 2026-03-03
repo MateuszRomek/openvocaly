@@ -37,10 +37,8 @@ export function TranscriptionProviderSection(): React.JSX.Element {
 
   return (
     <section className="space-y-3">
-      <h3 className="text-lg font-semibold">Transcription providers</h3>
-      <p className="text-muted-foreground text-sm">
-        Choose a provider, then set model and API key.
-      </p>
+      <h3 className="text-lg font-semibold">Providers</h3>
+      <p className="text-muted-foreground text-sm">Choose a provider and set it up.</p>
 
       {requestError ? (
         <Alert variant="destructive">
