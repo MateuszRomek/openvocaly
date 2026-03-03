@@ -1,5 +1,4 @@
 import type { RecordingFailureReason } from '../../../shared/recording'
-import type { TranscriptionResult } from '../transcription-provider'
 
 const COMPLETE_DISPLAY_MS = 650
 const FAILURE_DISPLAY_MS = 1900
@@ -9,11 +8,6 @@ type CaptureRuntimeOperation = 'start' | 'stop' | 'cancel'
 
 export type RecordingFailureDescriptor = {
   reason: RecordingFailureReason
-  message?: string
-}
-
-export type TranscriptionFailureDescriptor = {
-  reason: 'transcription_error'
   message?: string
 }
 
@@ -63,23 +57,3 @@ export const toCaptureRuntimeCommandFailure = (
     message: toErrorMessage(error, 'Failed to stop capture runtime.')
   }
 }
-
-/**
- * Ensures all provider-reported transcription failures map to a single public reason.
- */
-export const toTranscriptionFailureFromResult = (
-  result: Extract<TranscriptionResult, { ok: false }>
-): TranscriptionFailureDescriptor => ({
-  reason: 'transcription_error',
-  message: result.message
-})
-
-/**
- * Ensures thrown transcription exceptions are normalized to `transcription_error`.
- */
-export const toTranscriptionFailureFromThrow = (
-  error: unknown
-): TranscriptionFailureDescriptor => ({
-  reason: 'transcription_error',
-  message: toErrorMessage(error, 'Transcription pipeline failed.')
-})

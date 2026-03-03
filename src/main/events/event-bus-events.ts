@@ -1,4 +1,4 @@
-import type { RecordingShortcutCommandType } from '../../shared/recording'
+import type { RecordingArtifact, RecordingShortcutCommandType } from '../../shared/recording'
 
 export type RecordingCommandEvent = {
   type: RecordingShortcutCommandType
@@ -7,4 +7,8 @@ export type RecordingCommandEvent = {
 
 export type EventBusEvents = {
   'recording.command': RecordingCommandEvent
+  'recording.artifact-ready': {
+    artifact: RecordingArtifact
+    emittedAt: number
+  }
 }

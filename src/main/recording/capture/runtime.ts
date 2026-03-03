@@ -124,7 +124,8 @@ export class RecordingCaptureRuntime {
         nodeIntegration: false,
         sandbox: false,
         autoplayPolicy: 'no-user-gesture-required',
-        backgroundThrottling: true
+        backgroundThrottling: true,
+        devTools: is.dev
       }
     })
     this.applyCapturePerformanceMode()

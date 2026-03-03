@@ -19,11 +19,10 @@ import {
   moveToFailed,
   moveToRecording,
   moveToStarting,
-  moveToStopping,
-  moveToTranscribing
+  moveToStopping
 } from '../core/state-machine'
+import { recordingArtifactBus } from '../artifact-bus'
 import { RecordingArtifactStore } from '../storage/artifact-store'
-import { transcriptionProvider } from '../transcription-provider'
 import { resolveRecordingCommandIntent } from './command-handler'
 import { routeCaptureEvent } from './capture-event-handler'
 import {
@@ -32,9 +31,7 @@ import {
   toArtifactCreationFailure,
   toCaptureRuntimeCommandFailure,
   toChunkWriteFailure,
-  toFinalizeArtifactFailure,
-  toTranscriptionFailureFromResult,
-  toTranscriptionFailureFromThrow
+  toFinalizeArtifactFailure
 } from './failure-policy'
 import { RecordingOverlayPublisher } from './overlay-publisher'
 import { RecordingPreferencesStore } from './preferences-store'
@@ -175,7 +172,9 @@ export class RecordingServiceOrchestrator {
   ): Promise<RecordingPreferencesResponse> {
     const preferences = await this.preferencesStore.update(input)
 
-    return { preferences }
+    return {
+      preferences
+    }
   }
 
   private async handleShortcutCommand(command: RecordingCommand): Promise<void> {
@@ -328,7 +327,7 @@ export class RecordingServiceOrchestrator {
           await this.publishOverlayAudioLevels()
         },
         onStopped: async ({ sessionId, durationMs }) => {
-          await this.finalizeAndTranscribe(sessionId, durationMs)
+          await this.finalizeAndPublishArtifact(sessionId, durationMs)
         },
         onFailure: async ({ sessionId, reason, message }) => {
           await this.handleCaptureFailure(sessionId, reason, message)
@@ -339,17 +338,13 @@ export class RecordingServiceOrchestrator {
 
   /**
    * Finalization guarantee:
-   * - Finalize artifact bytes before transcription.
-   * - Any transcription throw is mapped to `transcription_error`.
+   * - Finalize artifact bytes and publish completed artifact for downstream pipeline processing.
    * - Session always resolves to complete/failed and schedules idle reset.
    */
-  private async finalizeAndTranscribe(sessionId: string, durationMs: number): Promise<void> {
+  private async finalizeAndPublishArtifact(sessionId: string, durationMs: number): Promise<void> {
     if (!this.state.activeArtifact || this.state.activeArtifact.artifact.sessionId !== sessionId) {
       return
     }
-
-    this.state.machine = moveToTranscribing(this.state.machine)
-    await this.publishOverlayImmediate()
 
     let finalizedArtifact = this.state.activeArtifact.artifact
 
@@ -361,34 +356,9 @@ export class RecordingServiceOrchestrator {
       return
     }
 
-    try {
-      const transcriptionResult = await transcriptionProvider.transcribe(finalizedArtifact)
-
-      if (transcriptionResult.ok) {
-        await this.artifactStore.markTranscriptionSuccess(finalizedArtifact)
-        this.state.activeArtifact = null
-        await this.settleTerminalState({ type: 'complete' })
-        return
-      }
-
-      const failure = toTranscriptionFailureFromResult(transcriptionResult)
-      await this.persistFailureArtifact(finalizedArtifact, failure.reason, failure.message)
-      this.state.activeArtifact = null
-      await this.settleTerminalState({
-        type: 'failed',
-        reason: failure.reason,
-        message: failure.message
-      })
-    } catch (error) {
-      const failure = toTranscriptionFailureFromThrow(error)
-      await this.persistFailureArtifact(finalizedArtifact, failure.reason, failure.message)
-      this.state.activeArtifact = null
-      await this.settleTerminalState({
-        type: 'failed',
-        reason: failure.reason,
-        message: failure.message
-      })
-    }
+    recordingArtifactBus.emit(finalizedArtifact)
+    this.state.activeArtifact = null
+    await this.settleTerminalState({ type: 'complete' })
   }
 
   private async handleCaptureFailure(
