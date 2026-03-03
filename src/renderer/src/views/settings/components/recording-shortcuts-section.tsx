@@ -24,10 +24,10 @@ export function RecordingShortcutsSection({
       {config?.hasStartupFailure && (
         <Alert>
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-          <AlertTitle>Startup registration warning</AlertTitle>
+          <AlertTitle>Some shortcuts did not load</AlertTitle>
           <AlertDescription>
-            At least one shortcut failed to register on startup. Review the rows below and adjust
-            any conflicted bindings.
+            At startup, at least one shortcut could not be registered. Update conflicted shortcuts
+            below.
           </AlertDescription>
         </Alert>
       )}
@@ -35,7 +35,7 @@ export function RecordingShortcutsSection({
       {requestError && (
         <Alert variant="destructive">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-          <AlertTitle>Shortcuts request failed</AlertTitle>
+          <AlertTitle>Could not load shortcuts</AlertTitle>
           <AlertDescription>{requestError}</AlertDescription>
         </Alert>
       )}
@@ -58,7 +58,7 @@ export function RecordingShortcutsSection({
       )}
 
       {!isLoading && !config && !requestError && (
-        <p className="text-muted-foreground text-sm">No shortcut settings available.</p>
+        <p className="text-muted-foreground text-sm">Shortcuts are currently unavailable.</p>
       )}
     </section>
   )

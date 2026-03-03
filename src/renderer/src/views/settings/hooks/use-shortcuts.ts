@@ -52,19 +52,19 @@ export function useShortcuts({
 
   const requestError = useMemo(() => {
     if (shortcutsConfigQuery.isError) {
-      return 'Failed to load shortcut settings.'
+      return 'Could not load shortcuts.'
     }
 
     if (shortcutsRuntimeStatusQuery.isError) {
-      return 'Failed to load push-to-talk runtime status.'
+      return 'Could not load push-to-talk status.'
     }
 
     if (updateShortcutMutation.isError) {
-      return 'Failed to save shortcut. Please retry.'
+      return 'Could not save shortcut. Try again.'
     }
 
     if (resetShortcutMutation.isError) {
-      return 'Failed to reset shortcut. Please retry.'
+      return 'Could not reset shortcut. Try again.'
     }
 
     return null

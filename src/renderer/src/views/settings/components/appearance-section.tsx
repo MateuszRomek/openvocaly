@@ -20,7 +20,7 @@ export function AppearanceSection(): React.JSX.Element {
     <div className="space-y-1.5">
       <h4 className="text-base font-medium">Appearance</h4>
       <p className="text-muted-foreground text-sm">
-        Choose the app theme. Changes apply immediately.
+        Choose a theme. Changes apply right away.
       </p>
     </div>
   )
@@ -32,10 +32,10 @@ export function AppearanceSection(): React.JSX.Element {
         variant="outline"
         onClick={handleThemeToggle}
         className="w-full sm:w-auto"
-        aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+        aria-label={isDark ? 'Use light theme' : 'Use dark theme'}
       >
         {isDark ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
-        {isDark ? 'Switch to light' : 'Switch to dark'}
+        {isDark ? 'Use light theme' : 'Use dark theme'}
       </Button>
     </div>
   )

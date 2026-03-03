@@ -19,5 +19,5 @@ export const resolveDevicesErrorMessage = (
     return query.error.message
   }
 
-  return 'Failed to enumerate microphone devices.'
+  return 'Could not load microphones.'
 }

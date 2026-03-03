@@ -23,11 +23,11 @@ export function useTranscriptionProviderSettings(): UseTranscriptionProviderSett
 
   const requestError = useMemo(() => {
     if (providerCatalog.hasError) {
-      return 'Failed to load transcription settings.'
+      return 'Could not load transcription settings.'
     }
 
     if (selectionActions.hasError) {
-      return 'Failed to save transcription provider settings.'
+      return 'Could not save transcription provider.'
     }
 
     return null

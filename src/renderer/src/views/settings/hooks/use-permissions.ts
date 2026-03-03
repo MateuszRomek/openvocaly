@@ -47,23 +47,23 @@ export function usePermissions(): UsePermissionsControllerResult {
 
   const requestError = useMemo(() => {
     if (permissionsStatusQuery.isError) {
-      return 'Failed to load permissions status.'
+      return 'Could not load permission status.'
     }
 
     if (requestAccessibilityMutation.isError) {
-      return 'Failed to request macOS accessibility permission.'
+      return 'Could not request Accessibility access.'
     }
 
     if (openAccessibilitySettingsMutation.isError) {
-      return 'Failed to open macOS accessibility settings.'
+      return 'Could not open Accessibility settings.'
     }
 
     if (requestMicrophoneMutation.isError) {
-      return 'Failed to request microphone permission.'
+      return 'Could not request microphone access.'
     }
 
     if (openMicrophoneSettingsMutation.isError) {
-      return 'Failed to open macOS microphone settings.'
+      return 'Could not open microphone settings.'
     }
 
     return null

@@ -77,14 +77,14 @@ export function TranscriptionProviderConfigSheet({
       try {
         const result = await clearProviderApiKey.clear(provider.id)
         if (!result.ok) {
-          toast.error(result.message ?? 'Failed to remove API key.')
+          toast.error(result.message ?? 'Could not remove API key.')
           return
         }
 
         resetApiKeyDraft()
         toast.success('API key removed.')
       } catch {
-        toast.error('Failed to remove API key.')
+        toast.error('Could not remove API key.')
       }
     })()
   }
@@ -98,7 +98,7 @@ export function TranscriptionProviderConfigSheet({
       try {
         const result = await saveProviderApiKey.save(provider.id, sheetApiKeyDraft)
         if (!result.ok) {
-          toast.error(result.message ?? 'Failed to save API key.')
+          toast.error(result.message ?? 'Could not save API key.')
           return
         }
 
@@ -106,7 +106,7 @@ export function TranscriptionProviderConfigSheet({
         toast.success('API key saved.')
         onOpenChange(false)
       } catch {
-        toast.error('Failed to save API key.')
+        toast.error('Could not save API key.')
       }
     })()
   }
@@ -117,7 +117,7 @@ export function TranscriptionProviderConfigSheet({
         <SheetContent side="right" className="w-full p-0 sm:max-w-md">
           <SheetHeader>
             <SheetTitle>{provider.label} configuration</SheetTitle>
-            <SheetDescription>Configure model and API key for this provider.</SheetDescription>
+            <SheetDescription>Set model and API key for this provider.</SheetDescription>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto">
@@ -125,10 +125,9 @@ export function TranscriptionProviderConfigSheet({
               {!secureStorageAvailable ? (
                 <Alert variant="destructive">
                   <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-                  <AlertTitle>Secure storage unavailable</AlertTitle>
+                  <AlertTitle>Secure storage is unavailable</AlertTitle>
                   <AlertDescription>
-                    This device does not provide secure key encryption, so cloud provider API keys
-                    cannot be saved.
+                    API keys cannot be saved securely on this device.
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -178,10 +177,9 @@ export function TranscriptionProviderConfigSheet({
               {!provider.isConfigured ? (
                 <Alert>
                   <KeyRoundIcon className="mt-0.5 size-4 shrink-0" />
-                  <AlertTitle>Provider requires configuration</AlertTitle>
+                  <AlertTitle>API key required</AlertTitle>
                   <AlertDescription>
-                    Save an API key before recording. Otherwise transcription will fail for this
-                    provider.
+                    Add an API key to use this provider for transcription.
                   </AlertDescription>
                 </Alert>
               ) : null}

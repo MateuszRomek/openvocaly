@@ -11,7 +11,9 @@ export function SettingsView(): React.JSX.Element {
     <section className="w-full max-w-4xl space-y-5 py-1 sm:py-2">
       <header className="space-y-1.5">
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">General</h2>
-        <p className="text-muted-foreground text-sm">Manage app preferences and permissions.</p>
+        <p className="text-muted-foreground text-sm">
+          Manage recording, shortcuts, and permissions.
+        </p>
       </header>
 
       <AppearanceSection />

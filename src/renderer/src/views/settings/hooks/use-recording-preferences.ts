@@ -21,11 +21,11 @@ export function useRecordingPreferences(): UseRecordingPreferencesResult {
 
   const requestError = useMemo(() => {
     if (preferencesQuery.isError) {
-      return 'Failed to load recording preferences.'
+      return 'Could not load recording settings.'
     }
 
     if (updatePreferencesMutation.isError) {
-      return 'Failed to save recording preferences. Please retry.'
+      return 'Could not save recording settings. Try again.'
     }
 
     return null

@@ -28,29 +28,29 @@ export function RecordingMicrophoneSection(): React.JSX.Element {
 
   const prioritizedError = requestError ?? devicesError
   const prioritizedErrorTitle = requestError
-    ? 'Recording settings failed'
-    : 'Microphone list failed'
+    ? 'Could not save recording settings'
+    : 'Could not load microphones'
 
   const left = (
     <div className="space-y-2">
       <div className="space-y-1.5">
         <h4 className="text-base font-medium">Input device</h4>
         <p className="text-muted-foreground text-sm">
-          Choose which microphone to use for recording.
+          Choose the microphone used for recording.
         </p>
       </div>
       {isPermissionBlocked ? (
         <p className="text-muted-foreground text-xs">
-          {permissionMessage ?? 'Microphone access is required before selecting an input device.'}
+          {permissionMessage ?? 'Allow microphone access to choose an input device.'}
         </p>
       ) : null}
       {!isDeviceEnumerationAvailable ? (
         <p className="text-muted-foreground text-xs">
-          Microphone device list is not available in this runtime.
+          Microphone list is not available in this environment.
         </p>
       ) : null}
       {!isPermissionBlocked && hasNoDevices ? (
-        <p className="text-muted-foreground text-xs">No input devices are currently available.</p>
+        <p className="text-muted-foreground text-xs">No input devices available.</p>
       ) : null}
     </div>
   )
@@ -60,7 +60,7 @@ export function RecordingMicrophoneSection(): React.JSX.Element {
       <Select value={selectedOptionId} onValueChange={handleValueChange} disabled={selectDisabled}>
         <SelectTrigger className="w-full sm:w-56" aria-label="Microphone device">
           <span className={`block truncate ${selectedLabel ? '' : 'text-muted-foreground'}`}>
-            {selectedLabel ?? 'Select microphone'}
+            {selectedLabel ?? 'Choose microphone'}
           </span>
         </SelectTrigger>
         <SelectContent

@@ -62,7 +62,7 @@ export function PermissionRow({
           disabled={isRequesting}
           className="w-full sm:w-auto"
         >
-          Request access
+          Allow access
         </Button>
       )}
       {canOpenPermissionSettings(state) && (
@@ -73,7 +73,7 @@ export function PermissionRow({
           disabled={isOpeningSettings}
           className="w-full sm:w-auto"
         >
-          Open System Settings
+          Open system settings
         </Button>
       )}
     </div>

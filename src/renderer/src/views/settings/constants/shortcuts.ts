@@ -16,27 +16,27 @@ export const SHORTCUT_ACTION_META: Record<ShortcutAction, { label: string; descr
     },
     'recording.push_to_talk': {
       label: 'Push-to-talk',
-      description: 'Hold to record, then release to stop.'
+      description: 'Hold to record. Release to stop.'
     }
   }
 
 export const SHORTCUT_ERROR_MESSAGES: Record<ShortcutErrorCode, string> = {
-  invalid_accelerator: 'Shortcut format is invalid. Press a key with optional modifiers.',
+  invalid_accelerator: 'Invalid shortcut. Press a key, with optional modifiers.',
   duplicate_accelerator: 'That shortcut is already assigned to another action.',
   registration_conflict:
-    'Shortcut could not be registered. It may be reserved by the OS or another app.',
-  registration_failed: 'Shortcut registration failed unexpectedly. Please try again.',
-  unsupported_action: 'This action is not supported in the current phase.',
+    'Could not register this shortcut. It may be used by your system or another app.',
+  registration_failed: 'Could not register this shortcut. Try a different one.',
+  unsupported_action: 'This action is not available right now.',
   requires_native_keyup_hook:
-    'Global push-to-talk requires native key-up hooks and is not available yet.',
+    'Push-to-talk is not available in this build yet.',
   permission_denied:
-    'Accessibility permission is required before this shortcut can be activated globally.',
-  hook_unavailable: 'Push-to-talk native hook is unavailable in the current runtime.',
-  hook_init_failed: 'Push-to-talk native hook failed to initialize.'
+    'Allow Accessibility access to use this shortcut globally.',
+  hook_unavailable: 'Push-to-talk is not available in this environment.',
+  hook_init_failed: 'Push-to-talk could not start. Restart the app and try again.'
 }
 
 export const SHORTCUT_UNSUPPORTED_GLOBAL_MESSAGE =
-  'This shortcut is not currently available in the global runtime state.'
+  'This shortcut is not available in this environment.'
 
 export const SHORTCUT_ROW_INTERACTIVE_SURFACE_CLASS =
   'cursor-pointer hover:border-foreground/18 hover:bg-muted/12'
@@ -57,7 +57,7 @@ export const PTT_STATUS_BADGE: Record<
 
 export const PTT_STATUS_MESSAGE: Record<Exclude<ShortcutPttAvailability, 'ready'>, string> = {
   permission_required:
-    'Accessibility permission is required. Open the Permissions section below to enable it.',
+    'Allow Accessibility access in Permissions to use push-to-talk.',
   unsupported_platform: 'Push-to-talk is currently available only on macOS.',
-  hook_init_failed: 'Native hook could not start. Check logs and retry.'
+  hook_init_failed: 'Push-to-talk could not start. Restart the app and try again.'
 }

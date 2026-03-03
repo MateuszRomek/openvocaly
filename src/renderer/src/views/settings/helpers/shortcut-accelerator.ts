@@ -143,5 +143,5 @@ export const toErrorMessage = (errorCode: ShortcutErrorCode | undefined): string
     return null
   }
 
-  return SHORTCUT_ERROR_MESSAGES[errorCode] ?? 'Unknown shortcut error.'
+  return SHORTCUT_ERROR_MESSAGES[errorCode] ?? 'Could not save shortcut. Try again.'
 }

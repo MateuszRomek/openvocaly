@@ -48,10 +48,10 @@ export function ShortcutRow({
   })
   const editingHint =
     item.action === 'recording.cancel' ? (
-      'Listening now. Click outside to cancel editing.'
+      'Listening. Click outside to cancel.'
     ) : (
       <>
-        Listening now. Press <Kbd className="mx-1 h-5 min-w-6 px-2.5">Esc</Kbd> to cancel.
+        Listening. Press <Kbd className="mx-1 h-5 min-w-6 px-2.5">Esc</Kbd> to cancel.
       </>
     )
 
