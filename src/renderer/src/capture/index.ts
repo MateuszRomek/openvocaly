@@ -1,6 +1,6 @@
 import type { RecordingCaptureCommand } from '../../../shared/recording'
 import { emitCaptureReady, onCaptureCommand } from './ipc'
-import { primeRecordingCueOutput } from './audio-cues'
+import { playRecordingCue, primeRecordingCueOutput } from './audio-cues'
 import { cancelCapture, startCapture, stopCapture } from './recorder'
 import { createCaptureRuntimeState } from './runtime-state'
 
@@ -14,6 +14,13 @@ onCaptureCommand((payload: RecordingCaptureCommand) => {
 
   if (payload.type === 'stop') {
     stopCapture(state)
+    return
+  }
+
+  if (payload.type === 'playCue') {
+    void playRecordingCue(payload.cue, payload.soundCues).catch((error) => {
+      console.error('[recording] failed to play cue command', error)
+    })
     return
   }
 

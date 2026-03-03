@@ -96,10 +96,17 @@ export class RecordingCaptureRuntime {
 
     if (!this.window || this.window.isDestroyed() || !this.ready) {
       this.commandQueue.push(command)
+      if (command.type === 'playCue' && !this.captureActive) {
+        this.scheduleIdleDestroy()
+      }
       return
     }
 
     this.window.webContents.send(RECORDING_CAPTURE_COMMAND_CHANNEL, command)
+
+    if (command.type === 'playCue' && !this.captureActive) {
+      this.scheduleIdleDestroy()
+    }
   }
 
   private async ensureWindow(): Promise<void> {

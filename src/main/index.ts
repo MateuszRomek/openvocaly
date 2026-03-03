@@ -4,10 +4,16 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { closeDb } from './db'
 import { isLinux, isMacOS, isWindows } from './helpers/platform'
+import { dictationPipelineOrchestrator } from './pipeline/dictation-pipeline-orchestrator'
 import { registerPermissionsIpc } from './permissions/ipc'
 import { initializeRecording, registerRecordingIpc, shutdownRecording } from './recording/ipc'
 import { initializeShortcuts, registerShortcutsIpc, shutdownShortcuts } from './shortcuts/ipc'
 import { registerStorageIpc } from './storage'
+import {
+  initializeTranscription,
+  registerTranscriptionIpc,
+  shutdownTranscription
+} from './transcription/ipc'
 
 const GRACEFUL_QUIT_TIMEOUT_MS = 2500
 
@@ -33,9 +39,21 @@ const performShutdownSequence = (): Promise<void> => {
 
   shutdownPromise = (async () => {
     try {
+      await dictationPipelineOrchestrator.shutdown()
+    } catch (error) {
+      console.error('[shutdown] pipeline teardown failed', error)
+    }
+
+    try {
       await Promise.race([shutdownRecording(), createTimeout(GRACEFUL_QUIT_TIMEOUT_MS)])
     } catch (error) {
       console.error('[shutdown] recording teardown failed', error)
+    }
+
+    try {
+      await shutdownTranscription()
+    } catch (error) {
+      console.error('[shutdown] transcription teardown failed', error)
     }
 
     try {
@@ -80,7 +98,8 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      backgroundThrottling: true
+      backgroundThrottling: true,
+      devTools: is.dev
     }
   })
 
@@ -138,11 +157,25 @@ app.whenReady().then(async () => {
   registerPermissionsIpc()
   registerShortcutsIpc()
   registerRecordingIpc()
+  registerTranscriptionIpc()
   initializeShortcuts()
+
+  try {
+    await initializeTranscription()
+  } catch (error) {
+    console.error('[transcription] failed to initialize transcription subsystem', error)
+  }
+
   try {
     await initializeRecording()
   } catch (error) {
     console.error('[recording] failed to initialize recording subsystem', error)
+  }
+
+  try {
+    await dictationPipelineOrchestrator.initialize()
+  } catch (error) {
+    console.error('[pipeline] failed to initialize dictation pipeline', error)
   }
 
   createWindow()

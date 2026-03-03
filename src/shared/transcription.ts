@@ -59,9 +59,20 @@ export type TranscriptionSuccessResult = {
   }
 }
 
+export type TranscriptionFailureCode =
+  | 'forced_failure'
+  | 'provider_not_supported'
+  | 'provider_unavailable'
+  | 'provider_not_configured'
+  | 'invalid_api_key'
+  | 'provider_request_failed'
+  | 'empty_transcription'
+  | 'storage_failed'
+
 export type TranscriptionFailureResult = {
   ok: false
   message?: string
+  code?: TranscriptionFailureCode
 }
 
 export type TranscriptionResult = TranscriptionSuccessResult | TranscriptionFailureResult

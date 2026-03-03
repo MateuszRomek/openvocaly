@@ -1,9 +1,7 @@
-import type { RecordingSoundCueSettings } from '../../../shared/recording'
+import type { RecordingCueKind, RecordingSoundCueSettings } from '../../../shared/recording'
 import startCueAssetUrl from '../assets/audio/rec-start.wav'
 import cancelCueAssetUrl from '../assets/audio/rec-cancel.wav'
 import errorCueAssetUrl from '../assets/audio/rec-error.wav'
-
-type RecordingCueKind = 'start' | 'cancel' | 'error'
 
 const START_CUE_COOLDOWN_MS = 85
 const CANCEL_CUE_COOLDOWN_MS = 140

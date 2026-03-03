@@ -36,6 +36,8 @@ export type RecordingSoundCueSettings = {
   enabled: boolean
 }
 
+export type RecordingCueKind = 'start' | 'cancel' | 'error'
+
 export type RecordingPreferences = {
   soundCues: RecordingSoundCueSettings
 }
@@ -83,10 +85,17 @@ export type RecordingCaptureCancelCommand = {
   soundCues: RecordingSoundCueSettings
 }
 
+export type RecordingCapturePlayCueCommand = {
+  type: 'playCue'
+  cue: RecordingCueKind
+  soundCues: RecordingSoundCueSettings
+}
+
 export type RecordingCaptureCommand =
   | RecordingCaptureStartCommand
   | RecordingCaptureStopCommand
   | RecordingCaptureCancelCommand
+  | RecordingCapturePlayCueCommand
 
 export type RecordingCaptureChunkEvent = {
   type: 'chunk'
