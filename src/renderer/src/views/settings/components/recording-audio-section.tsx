@@ -18,8 +18,7 @@ export function RecordingAudioSection(): React.JSX.Element {
       <div className="space-y-1.5">
         <h4 className="text-base font-medium">Recording sounds</h4>
         <p className="text-muted-foreground text-sm">
-          Play short sounds when recording starts and when you cancel recording. This helps confirm
-          action instantly while using global shortcuts.
+          Play a sound when recording starts or is canceled for instant feedback.
         </p>
       </div>
     </div>
@@ -56,7 +55,7 @@ export function RecordingAudioSection(): React.JSX.Element {
       {requestError && (
         <Alert variant="destructive">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-          <AlertTitle>Sound settings failed</AlertTitle>
+          <AlertTitle>Could not save sound settings</AlertTitle>
           <AlertDescription>{requestError}</AlertDescription>
         </Alert>
       )}

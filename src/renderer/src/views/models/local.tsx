@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import { CpuIcon } from 'lucide-react'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@renderer/ui/empty'
+import { MODELS_COPY } from './constants/copy'
 
 export function LocalModelsView(): JSX.Element {
   return (
@@ -10,11 +11,8 @@ export function LocalModelsView(): JSX.Element {
           <EmptyMedia variant="icon">
             <CpuIcon />
           </EmptyMedia>
-          <EmptyTitle>Local Models Coming Soon</EmptyTitle>
-          <EmptyDescription>
-            This tab will include local runtime setup, model downloads, and hardware compatibility
-            controls. Cloud models are currently prioritized.
-          </EmptyDescription>
+          <EmptyTitle>{MODELS_COPY.local.title}</EmptyTitle>
+          <EmptyDescription>{MODELS_COPY.local.description}</EmptyDescription>
         </EmptyHeader>
       </Empty>
     </section>

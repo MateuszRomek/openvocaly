@@ -15,6 +15,11 @@ type CaptureStartedInput = {
   sessionId: string
 }
 
+type CaptureDeviceResolvedInput = {
+  sessionId: string
+  deviceId: string | null
+}
+
 type CaptureStoppedInput = {
   sessionId: string
   durationMs: number
@@ -29,6 +34,7 @@ type CaptureFailureInput = {
 export type CaptureEventDelegates = {
   onChunk: (input: CaptureChunkInput) => Promise<void>
   onStarted: (input: CaptureStartedInput) => Promise<void>
+  onDeviceResolved: (input: CaptureDeviceResolvedInput) => Promise<void>
   onAudioLevels: (input: CaptureAudioLevelsInput) => Promise<void>
   onStopped: (input: CaptureStoppedInput) => Promise<void>
   onFailure: (input: CaptureFailureInput) => Promise<void>
@@ -77,6 +83,14 @@ export const routeCaptureEvent = async ({
   if (event.type === 'started') {
     await delegates.onStarted({
       sessionId: event.sessionId
+    })
+    return
+  }
+
+  if (event.type === 'deviceResolved') {
+    await delegates.onDeviceResolved({
+      sessionId: event.sessionId,
+      deviceId: event.deviceId
     })
     return
   }

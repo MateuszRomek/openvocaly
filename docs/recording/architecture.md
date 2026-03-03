@@ -35,6 +35,7 @@ flowchart LR
 - `src/main/recording/service/orchestrator.ts`
   - owns capture lifecycle transitions (`start`/`stop`/`cancel`).
   - persists capture failures.
+  - persists resolved microphone fallback devices reported by capture runtime.
   - emits capture session snapshots to `recordingSessionBus`.
   - emits finalized artifacts to `recordingArtifactBus`.
 
@@ -58,7 +59,9 @@ flowchart LR
 
 - `src/renderer/src/capture/recorder.ts`
   - owns media stream + MediaRecorder setup/teardown and command handling.
+  - resolves preferred microphone device with fallback to first available input.
   - emits started/chunks/audio-levels/stopped/error through capture IPC helpers.
+  - emits resolved microphone device ids for main-process persistence.
 
 ## Core invariants
 

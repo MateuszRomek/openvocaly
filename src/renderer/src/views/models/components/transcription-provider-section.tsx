@@ -37,15 +37,13 @@ export function TranscriptionProviderSection(): React.JSX.Element {
 
   return (
     <section className="space-y-3">
-      <h3 className="text-lg font-semibold">Transcription providers</h3>
-      <p className="text-muted-foreground text-sm">
-        Choose a provider in the list. Configure model and API key in the provider sheet.
-      </p>
+      <h3 className="text-lg font-semibold">Providers</h3>
+      <p className="text-muted-foreground text-sm">Choose a provider and set it up.</p>
 
       {requestError ? (
         <Alert variant="destructive">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-          <AlertTitle>Transcription settings failed</AlertTitle>
+          <AlertTitle>Could not update transcription settings</AlertTitle>
           <AlertDescription>{requestError}</AlertDescription>
         </Alert>
       ) : null}

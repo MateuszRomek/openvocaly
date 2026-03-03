@@ -4,12 +4,12 @@ export const PERMISSION_ITEMS = [
   {
     key: 'microphone',
     title: 'Microphone',
-    description: 'Required to capture your voice before transcription.'
+    description: 'Needed to record your voice.'
   },
   {
     key: 'accessibility',
     title: 'Accessibility',
-    description: 'Required for global push-to-talk and writing text into focused inputs.'
+    description: 'Needed for global push-to-talk and typing in other apps.'
   }
 ] as const
 
@@ -18,10 +18,10 @@ export const PERMISSION_STATUS_BADGE: Record<
   { label: string; variant: 'success' | 'destructive' | 'outline' }
 > = {
   granted: { label: 'Enabled', variant: 'success' },
-  denied: { label: 'Not enabled', variant: 'destructive' },
-  not_determined: { label: 'Not enabled', variant: 'destructive' },
-  restricted: { label: 'Not enabled', variant: 'destructive' },
-  unknown: { label: 'Not enabled', variant: 'destructive' },
+  denied: { label: 'Not granted', variant: 'destructive' },
+  not_determined: { label: 'Not granted', variant: 'destructive' },
+  restricted: { label: 'Not granted', variant: 'destructive' },
+  unknown: { label: 'Not granted', variant: 'destructive' },
   unsupported_platform: { label: 'Unsupported', variant: 'outline' }
 }
 

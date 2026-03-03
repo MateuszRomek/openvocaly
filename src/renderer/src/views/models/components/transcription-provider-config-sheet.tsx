@@ -20,6 +20,7 @@ import {
   SheetTitle
 } from '@renderer/ui/sheet'
 import { toast } from 'sonner'
+import { MODELS_COPY } from '../constants/copy'
 import { useClearTranscriptionProviderApiKey } from '../hooks/use-clear-transcription-provider-api-key'
 import { useTranscriptionProviderConfigSheet } from '../hooks/use-transcription-provider-config-sheet'
 import { useSaveTranscriptionProviderApiKey } from '../hooks/use-save-transcription-provider-api-key'
@@ -77,14 +78,14 @@ export function TranscriptionProviderConfigSheet({
       try {
         const result = await clearProviderApiKey.clear(provider.id)
         if (!result.ok) {
-          toast.error(result.message ?? 'Failed to remove API key.')
+          toast.error(MODELS_COPY.errors.removeApiKey)
           return
         }
 
         resetApiKeyDraft()
         toast.success('API key removed.')
       } catch {
-        toast.error('Failed to remove API key.')
+        toast.error(MODELS_COPY.errors.removeApiKey)
       }
     })()
   }
@@ -98,7 +99,7 @@ export function TranscriptionProviderConfigSheet({
       try {
         const result = await saveProviderApiKey.save(provider.id, sheetApiKeyDraft)
         if (!result.ok) {
-          toast.error(result.message ?? 'Failed to save API key.')
+          toast.error(MODELS_COPY.errors.saveApiKey)
           return
         }
 
@@ -106,7 +107,7 @@ export function TranscriptionProviderConfigSheet({
         toast.success('API key saved.')
         onOpenChange(false)
       } catch {
-        toast.error('Failed to save API key.')
+        toast.error(MODELS_COPY.errors.saveApiKey)
       }
     })()
   }
@@ -116,74 +117,72 @@ export function TranscriptionProviderConfigSheet({
       {provider ? (
         <SheetContent side="right" className="w-full p-0 sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>{provider.label} configuration</SheetTitle>
-            <SheetDescription>Configure model and API key for this provider.</SheetDescription>
+            <SheetTitle>{provider.label} settings</SheetTitle>
+            <SheetDescription>Choose a model and manage your API key.</SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
-            {!secureStorageAvailable ? (
-              <Alert variant="destructive">
-                <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-                <AlertTitle>Secure storage unavailable</AlertTitle>
-                <AlertDescription>
-                  This device does not provide secure key encryption, so cloud provider API keys
-                  cannot be saved.
-                </AlertDescription>
-              </Alert>
-            ) : null}
+          <div className="flex-1 overflow-y-auto">
+            <div className="space-y-4 px-4 pb-4">
+              {!secureStorageAvailable ? (
+                <Alert variant="destructive">
+                  <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
+                  <AlertTitle>Cannot store API keys securely</AlertTitle>
+                  <AlertDescription>This device can&apos;t securely store API keys.</AlertDescription>
+                </Alert>
+              ) : null}
 
-            <div className="space-y-1.5">
-              <label className="text-sm leading-none font-medium">Model</label>
-              <Select
-                value={sheetModelValue}
-                onValueChange={handleModelChange}
-                disabled={isSelectionMutating || provider.models.length <= 1}
-              >
-                <SelectTrigger className="w-full" aria-label={`${provider.label} model`}>
-                  <SelectValue placeholder="Select model" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {provider.models.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <div className="space-y-1.5">
+                <label className="text-sm leading-none font-medium">Model</label>
+                <Select
+                  value={sheetModelValue}
+                  onValueChange={handleModelChange}
+                  disabled={isSelectionMutating || provider.models.length <= 1}
+                >
+                  <SelectTrigger className="w-full" aria-label={`${provider.label} model`}>
+                    <SelectValue placeholder="Choose model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {provider.models.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {provider.isConfigured ? (
+                <TranscriptionProviderConfiguredApiKeyField
+                  provider={provider}
+                  isApiKeyMutating={isApiKeyMutating}
+                  isRemovingApiKey={isRemovingApiKey}
+                  onRemoveApiKeyConfirm={handleRemoveApiKeyConfirm}
+                />
+              ) : (
+                <TranscriptionProviderDraftApiKeyField
+                  provider={provider}
+                  secureStorageAvailable={secureStorageAvailable}
+                  isApiKeyMutating={isApiKeyMutating}
+                  sheetApiKeyDraft={sheetApiKeyDraft}
+                  hasDraftApiKey={hasDraftApiKey}
+                  isDraftApiKeyVisible={isDraftApiKeyVisible}
+                  onApiKeyDraftChange={setApiKeyDraft}
+                  onToggleApiKeyVisibility={toggleApiKeyVisibility}
+                />
+              )}
+
+              {!provider.isConfigured ? (
+                <Alert>
+                  <KeyRoundIcon className="mt-0.5 size-4 shrink-0" />
+                  <AlertTitle>API key required</AlertTitle>
+                  <AlertDescription>
+                    Add an API key to use this provider for transcription.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
             </div>
-
-            {provider.isConfigured ? (
-              <TranscriptionProviderConfiguredApiKeyField
-                provider={provider}
-                isApiKeyMutating={isApiKeyMutating}
-                isRemovingApiKey={isRemovingApiKey}
-                onRemoveApiKeyConfirm={handleRemoveApiKeyConfirm}
-              />
-            ) : (
-              <TranscriptionProviderDraftApiKeyField
-                provider={provider}
-                secureStorageAvailable={secureStorageAvailable}
-                isApiKeyMutating={isApiKeyMutating}
-                sheetApiKeyDraft={sheetApiKeyDraft}
-                hasDraftApiKey={hasDraftApiKey}
-                isDraftApiKeyVisible={isDraftApiKeyVisible}
-                onApiKeyDraftChange={setApiKeyDraft}
-                onToggleApiKeyVisibility={toggleApiKeyVisibility}
-              />
-            )}
-
-            {!provider.isConfigured ? (
-              <Alert>
-                <KeyRoundIcon className="mt-0.5 size-4 shrink-0" />
-                <AlertTitle>Provider requires configuration</AlertTitle>
-                <AlertDescription>
-                  Save an API key before recording. Otherwise transcription will fail for this
-                  provider.
-                </AlertDescription>
-              </Alert>
-            ) : null}
           </div>
 
           <SheetFooter className="border-border/60 border-t bg-background p-4">
@@ -194,11 +193,11 @@ export function TranscriptionProviderConfigSheet({
                 onClick={handleSaveChanges}
                 disabled={!canSaveChanges}
               >
-                {saveProviderApiKey.isPending ? 'Saving...' : 'Save changes'}
+                {saveProviderApiKey.isPending ? 'Saving...' : 'Save API key'}
               </Button>
             ) : null}
             <SheetClose render={<Button type="button" variant="outline" className="w-full" />}>
-              Close
+              Close panel
             </SheetClose>
           </SheetFooter>
         </SheetContent>

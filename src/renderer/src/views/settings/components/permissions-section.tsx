@@ -20,7 +20,7 @@ export function PermissionsSection(): React.JSX.Element {
       {requestError && (
         <Alert variant="destructive">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-          <AlertTitle>Permissions request failed</AlertTitle>
+          <AlertTitle>Could not update permissions</AlertTitle>
           <AlertDescription>{requestError}</AlertDescription>
         </Alert>
       )}

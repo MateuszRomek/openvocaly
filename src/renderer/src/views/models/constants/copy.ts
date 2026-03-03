@@ -1,0 +1,15 @@
+export const MODELS_COPY = {
+  errors: {
+    loadSettings: 'Could not load transcription settings. Try again.',
+    saveProviderSettings: 'Could not save provider settings. Try again.',
+    removeApiKey: 'Could not remove API key. Try again.',
+    saveApiKey: 'Could not save API key. Try again.'
+  },
+  local: {
+    title: 'Local models coming soon',
+    description: "We're working on local models. Cloud is currently the fastest option."
+  },
+  providers: {
+    unavailableDescription: "We're working on this provider. Try Cloud for now."
+  }
+} as const

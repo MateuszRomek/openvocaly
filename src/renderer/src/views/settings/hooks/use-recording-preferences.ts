@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react'
+import { SETTINGS_COPY } from '../constants/copy'
 import { useRecordingPreferencesQuery } from '../queries/recording/use-recording-preferences-query'
 import { useUpdateRecordingPreferencesMutation } from '../queries/recording/use-update-recording-preferences-mutation'
 
@@ -8,21 +9,24 @@ type UseRecordingPreferencesResult = {
   requestError: string | null
   soundCuesEnabled: boolean
   setSoundCuesEnabled: (enabled: boolean) => void
+  selectedMicrophoneDeviceId: string | null
+  setSelectedMicrophoneDeviceId: (deviceId: string | null) => void
 }
 
 export function useRecordingPreferences(): UseRecordingPreferencesResult {
   const preferencesQuery = useRecordingPreferencesQuery()
   const updatePreferencesMutation = useUpdateRecordingPreferencesMutation()
+  const mutatePreferences = updatePreferencesMutation.mutate
 
   const preferences = preferencesQuery.data?.preferences
 
   const requestError = useMemo(() => {
     if (preferencesQuery.isError) {
-      return 'Failed to load recording preferences.'
+      return SETTINGS_COPY.errors.loadRecordingSettings
     }
 
     if (updatePreferencesMutation.isError) {
-      return 'Failed to save recording preferences. Please retry.'
+      return SETTINGS_COPY.errors.saveRecordingSettings
     }
 
     return null
@@ -30,11 +34,20 @@ export function useRecordingPreferences(): UseRecordingPreferencesResult {
 
   const setSoundCuesEnabled = useCallback(
     (enabled: boolean): void => {
-      updatePreferencesMutation.mutate({
+      mutatePreferences({
         soundCues: { enabled }
       })
     },
-    [updatePreferencesMutation]
+    [mutatePreferences]
+  )
+
+  const setSelectedMicrophoneDeviceId = useCallback(
+    (deviceId: string | null): void => {
+      mutatePreferences({
+        microphone: { selectedDeviceId: deviceId }
+      })
+    },
+    [mutatePreferences]
   )
 
   return {
@@ -42,6 +55,8 @@ export function useRecordingPreferences(): UseRecordingPreferencesResult {
     isMutating: updatePreferencesMutation.isPending,
     requestError,
     soundCuesEnabled: preferences?.soundCues.enabled ?? true,
-    setSoundCuesEnabled
+    setSoundCuesEnabled,
+    selectedMicrophoneDeviceId: preferences?.microphone.selectedDeviceId ?? null,
+    setSelectedMicrophoneDeviceId
   }
 }

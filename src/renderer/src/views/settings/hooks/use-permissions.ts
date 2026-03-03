@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react'
+import { SETTINGS_COPY } from '../constants/copy'
 import { PERMISSION_ITEMS, shouldRenderPermissionMessage } from '../constants/permissions'
 import { useOpenAccessibilitySettingsMutation } from '../queries/permissions/use-open-accessibility-settings-mutation'
 import { useOpenMicrophoneSettingsMutation } from '../queries/permissions/use-open-microphone-settings-mutation'
@@ -47,23 +48,23 @@ export function usePermissions(): UsePermissionsControllerResult {
 
   const requestError = useMemo(() => {
     if (permissionsStatusQuery.isError) {
-      return 'Failed to load permissions status.'
+      return SETTINGS_COPY.errors.loadPermissions
     }
 
     if (requestAccessibilityMutation.isError) {
-      return 'Failed to request macOS accessibility permission.'
+      return SETTINGS_COPY.errors.requestAccessibility
     }
 
     if (openAccessibilitySettingsMutation.isError) {
-      return 'Failed to open macOS accessibility settings.'
+      return SETTINGS_COPY.errors.openAccessibilitySettings
     }
 
     if (requestMicrophoneMutation.isError) {
-      return 'Failed to request microphone permission.'
+      return SETTINGS_COPY.errors.requestMicrophone
     }
 
     if (openMicrophoneSettingsMutation.isError) {
-      return 'Failed to open macOS microphone settings.'
+      return SETTINGS_COPY.errors.openMicrophoneSettings
     }
 
     return null

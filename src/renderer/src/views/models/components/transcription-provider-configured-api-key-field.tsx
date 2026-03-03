@@ -57,7 +57,7 @@ export function TranscriptionProviderConfiguredApiKeyField({
               <span className="sr-only">Remove API key</span>
             </TooltipTrigger>
             <TooltipContent side="top" align="center">
-              Remove
+              Remove API key
             </TooltipContent>
           </Tooltip>
 
@@ -65,7 +65,7 @@ export function TranscriptionProviderConfiguredApiKeyField({
             <PopoverHeader>
               <PopoverTitle>Remove API key?</PopoverTitle>
               <PopoverDescription className="text-xs">
-                This disables {provider.label} until a new key is saved.
+                {provider.label} will be unavailable until you add a new key.
               </PopoverDescription>
             </PopoverHeader>
             <div className="flex items-center justify-end gap-2">
@@ -78,7 +78,7 @@ export function TranscriptionProviderConfiguredApiKeyField({
                   setIsDeletePopoverOpen(false)
                 }}
               >
-                Cancel
+                Keep key
               </Button>
               <Button
                 type="button"
@@ -90,10 +90,10 @@ export function TranscriptionProviderConfiguredApiKeyField({
                 {isRemovingApiKey ? (
                   <>
                     <Loader2Icon className="size-4 animate-spin" />
-                    Removing...
+                    Removing key...
                   </>
                 ) : (
-                  'Remove'
+                  'Remove API key'
                 )}
               </Button>
             </div>
@@ -106,7 +106,7 @@ export function TranscriptionProviderConfiguredApiKeyField({
           <span className="font-medium tracking-wide">{provider.apiKeyPreview ?? '••••'}</span>
         </div>
 
-        <FieldDescription>API key is stored securely on this device only.</FieldDescription>
+        <FieldDescription>Stored securely on this device only.</FieldDescription>
       </div>
     </Field>
   )
