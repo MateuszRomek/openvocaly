@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow, screen, type Rectangle } from 'electron'
 import {
   DICTATION_OVERLAY_STATE_CHANNEL,
   type DictationOverlayState
@@ -8,10 +8,17 @@ import {
   OVERLAY_FOLLOW_FAST_INTERVAL_MS,
   OVERLAY_FOLLOW_SLOW_INTERVAL_MS,
   OVERLAY_FOLLOW_STABLE_TICKS_FOR_SLOW,
-  positionOverlayOnActiveDisplay
+  resolveOverlayBoundsOnActiveDisplay,
+  resolveOverlaySizeForState
 } from './positioning'
 import { createOverlayWindow, loadOverlayWindow } from './window-lifecycle'
 import { isMacOS } from '../../helpers/platform'
+
+const OVERLAY_RESIZE_DURATION_MS = 300
+const OVERLAY_LAYOUT_EPSILON_PX = 1
+const OVERLAY_ANIMATION_FALLBACK_HZ = 60
+const OVERLAY_ANIMATION_MIN_HZ = 30
+const OVERLAY_ANIMATION_MAX_HZ = 144
 
 /**
  * Module ownership:
@@ -29,6 +36,7 @@ export class RecordingOverlayController {
   private overlayFollowTimer: NodeJS.Timeout | null = null
   private overlayFollowLastDisplayId: number | null = null
   private overlayFollowStableTicks = 0
+  private resizeAnimationTimer: NodeJS.Timeout | null = null
 
   private readonly macosVisibility = new MacosOverlayVisibilityController(() => this.overlayWindow)
 
@@ -38,7 +46,7 @@ export class RecordingOverlayController {
       return
     }
 
-    positionOverlayOnActiveDisplay(overlayWindow)
+    this.applyOverlayLayout({ state: this.pendingState, animate: false })
     this.macosVisibility.reassertPassive()
   }
 
@@ -48,7 +56,7 @@ export class RecordingOverlayController {
       return
     }
 
-    positionOverlayOnActiveDisplay(overlayWindow)
+    this.applyOverlayLayout({ state: this.pendingState, animate: false })
     this.macosVisibility.reassert(true)
     this.macosVisibility.scheduleSpaceTransitionReassertBurst()
   }
@@ -69,8 +77,10 @@ export class RecordingOverlayController {
     // Send latest state snapshot to overlay renderer over the stable IPC channel.
     this.overlayWindow.webContents.send(DICTATION_OVERLAY_STATE_CHANNEL, state)
 
-    if (!this.overlayWindow.isVisible()) {
-      positionOverlayOnActiveDisplay(this.overlayWindow)
+    const wasVisible = this.overlayWindow.isVisible()
+    this.applyOverlayLayout({ state, animate: wasVisible })
+
+    if (!wasVisible) {
       this.overlayWindow.showInactive()
       this.overlayWindow.moveTop()
       this.macosVisibility.reassert(true)
@@ -88,6 +98,7 @@ export class RecordingOverlayController {
       return
     }
 
+    this.clearResizeAnimationTimer()
     this.overlayWindow.hide()
   }
 
@@ -96,6 +107,7 @@ export class RecordingOverlayController {
    */
   destroy(): void {
     this.stopOverlayFollowActiveDisplay()
+    this.clearResizeAnimationTimer()
     this.macosVisibility.clear()
 
     if (!this.overlayWindow) {
@@ -143,6 +155,7 @@ export class RecordingOverlayController {
 
     this.overlayWindow.on('closed', () => {
       this.stopOverlayFollowActiveDisplay()
+      this.clearResizeAnimationTimer()
       this.overlayWindow = null
       this.pendingState = null
       this.isRendererReady = false
@@ -162,7 +175,7 @@ export class RecordingOverlayController {
       }
 
       this.overlayWindow.webContents.send(DICTATION_OVERLAY_STATE_CHANNEL, this.pendingState)
-      positionOverlayOnActiveDisplay(this.overlayWindow)
+      this.applyOverlayLayout({ state: this.pendingState, animate: false })
       this.overlayWindow.showInactive()
       this.overlayWindow.moveTop()
       this.macosVisibility.reassert(true)
@@ -229,7 +242,7 @@ export class RecordingOverlayController {
     if (hasDisplayChanged) {
       this.overlayFollowLastDisplayId = display.id
       this.overlayFollowStableTicks = 0
-      positionOverlayOnActiveDisplay(overlayWindow)
+      this.applyOverlayLayout({ state: this.pendingState, animate: false })
       this.macosVisibility.reassertPassive()
       this.scheduleNextOverlayFollowTick(OVERLAY_FOLLOW_FAST_INTERVAL_MS)
       return
@@ -274,6 +287,109 @@ export class RecordingOverlayController {
     this.overlayFollowTimer = null
     this.overlayFollowStableTicks = 0
     this.overlayFollowLastDisplayId = null
+  }
+
+  private applyOverlayLayout(input: {
+    state: Pick<DictationOverlayState, 'phase' | 'failureReason' | 'message'> | null
+    animate: boolean
+  }): void {
+    const overlayWindow = this.getLiveOverlayWindow()
+    if (!overlayWindow) {
+      return
+    }
+
+    const targetSize = resolveOverlaySizeForState(input.state)
+    const targetBounds = resolveOverlayBoundsOnActiveDisplay(targetSize)
+
+    if (!input.animate || !overlayWindow.isVisible()) {
+      this.clearResizeAnimationTimer()
+      overlayWindow.setBounds(targetBounds)
+      return
+    }
+
+    const currentBounds = overlayWindow.getBounds()
+    if (this.isCloseEnough(currentBounds, targetBounds)) {
+      return
+    }
+
+    this.animateOverlayBounds(currentBounds, targetBounds)
+  }
+
+  private animateOverlayBounds(from: Rectangle, to: Rectangle): void {
+    this.clearResizeAnimationTimer()
+    const startedAt = performance.now()
+    const frameDurationMs = this.resolveAnimationFrameDurationMs(from)
+    let nextFrameAt = startedAt + frameDurationMs
+
+    const step = (): void => {
+      const overlayWindow = this.getVisibleOverlayWindow()
+      if (!overlayWindow) {
+        this.clearResizeAnimationTimer()
+        return
+      }
+
+      const now = performance.now()
+      const elapsed = now - startedAt
+      const progress = Math.min(1, elapsed / OVERLAY_RESIZE_DURATION_MS)
+      const easedProgress =
+        progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2
+
+      overlayWindow.setBounds({
+        x: Math.round(from.x + (to.x - from.x) * easedProgress),
+        y: Math.round(from.y + (to.y - from.y) * easedProgress),
+        width: Math.round(from.width + (to.width - from.width) * easedProgress),
+        height: Math.round(from.height + (to.height - from.height) * easedProgress)
+      })
+
+      if (progress >= 1) {
+        this.resizeAnimationTimer = null
+        return
+      }
+
+      while (nextFrameAt <= now) {
+        nextFrameAt += frameDurationMs
+      }
+
+      const delayMs = Math.max(1, nextFrameAt - now)
+      this.resizeAnimationTimer = setTimeout(step, delayMs)
+      this.resizeAnimationTimer.unref()
+    }
+
+    step()
+  }
+
+  private resolveAnimationFrameDurationMs(bounds: Rectangle): number {
+    const center = {
+      x: Math.round(bounds.x + bounds.width / 2),
+      y: Math.round(bounds.y + bounds.height / 2)
+    }
+    const display = screen.getDisplayNearestPoint(center)
+    const rawHz = Number.isFinite(display.displayFrequency) ? display.displayFrequency : 0
+
+    if (rawHz <= 0) {
+      return 1000 / OVERLAY_ANIMATION_FALLBACK_HZ
+    }
+
+    const clampedHz = Math.min(OVERLAY_ANIMATION_MAX_HZ, Math.max(OVERLAY_ANIMATION_MIN_HZ, rawHz))
+    return 1000 / clampedHz
+  }
+
+  private clearResizeAnimationTimer(): void {
+    if (!this.resizeAnimationTimer) {
+      return
+    }
+
+    clearTimeout(this.resizeAnimationTimer)
+    this.resizeAnimationTimer = null
+  }
+
+  private isCloseEnough(from: Rectangle, to: Rectangle): boolean {
+    return (
+      Math.abs(from.x - to.x) <= OVERLAY_LAYOUT_EPSILON_PX &&
+      Math.abs(from.y - to.y) <= OVERLAY_LAYOUT_EPSILON_PX &&
+      Math.abs(from.width - to.width) <= OVERLAY_LAYOUT_EPSILON_PX &&
+      Math.abs(from.height - to.height) <= OVERLAY_LAYOUT_EPSILON_PX
+    )
   }
 
   private getLiveOverlayWindow(): BrowserWindow | null {

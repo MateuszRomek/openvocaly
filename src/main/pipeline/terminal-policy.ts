@@ -2,6 +2,7 @@ import type { DictationFailureReason } from '../../shared/dictation'
 
 const COMPLETE_DISPLAY_MS = 650
 const FAILURE_DISPLAY_MS = 1900
+const FAILURE_WITH_MESSAGE_DISPLAY_MS = 2900
 const CANCEL_DISPLAY_MS = 120
 
 export type TerminalOutcome =
@@ -9,6 +10,7 @@ export type TerminalOutcome =
   | {
       type: 'failed'
       reason: DictationFailureReason
+      hasMessage: boolean
     }
 
 /**
@@ -19,5 +21,9 @@ export const resolveTerminalDisplayDelayMs = (outcome: TerminalOutcome): number 
     return COMPLETE_DISPLAY_MS
   }
 
-  return outcome.reason === 'aborted' ? CANCEL_DISPLAY_MS : FAILURE_DISPLAY_MS
+  if (outcome.reason === 'aborted') {
+    return CANCEL_DISPLAY_MS
+  }
+
+  return outcome.hasMessage ? FAILURE_WITH_MESSAGE_DISPLAY_MS : FAILURE_DISPLAY_MS
 }

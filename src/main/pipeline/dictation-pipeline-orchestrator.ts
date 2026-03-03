@@ -222,11 +222,17 @@ class DictationPipelineOrchestrator {
     this.session.setFailed(reason, message, sessionId, mode)
 
     await this.publishOverlayImmediate()
-    this.scheduleTerminalReset({ type: 'failed', reason })
+    this.scheduleTerminalReset({
+      type: 'failed',
+      reason,
+      hasMessage: Boolean(message?.trim())
+    })
   }
 
   private scheduleTerminalReset(
-    outcome: { type: 'complete' } | { type: 'failed'; reason: DictationFailureReason }
+    outcome:
+      | { type: 'complete' }
+      | { type: 'failed'; reason: DictationFailureReason; hasMessage: boolean }
   ): void {
     const delayMs = resolveTerminalDisplayDelayMs(outcome)
 

@@ -188,6 +188,7 @@ export class DictationSessionStateManager {
       mode: this.state.mode,
       meterLevel: this.state.meterLevel,
       bands: this.state.meterBands,
+      failureReason: this.state.failureReason,
       message: this.state.message
     }
   }
