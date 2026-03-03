@@ -1,4 +1,5 @@
 import { Badge } from '@renderer/ui/badge'
+import { Alert, AlertDescription } from '@renderer/ui/alert'
 import { Button } from '@renderer/ui/button'
 import { AlertCircleIcon } from 'lucide-react'
 import {
@@ -6,7 +7,7 @@ import {
   canOpenPermissionSettings,
   canRequestPermission
 } from '../constants/permissions'
-import { SettingsRowShell } from './shared/settings-row-shell'
+import { SectionRow } from '@renderer/components/section-row'
 import type { PermissionState } from '../queries/permissions/permissions.types'
 
 type PermissionRowProps = {
@@ -45,10 +46,10 @@ export function PermissionRow({
   )
 
   const footer = message ? (
-    <p className="border-destructive/35 bg-destructive/12 text-destructive inline-flex max-w-full items-start gap-1.5 rounded-md border px-2.5 py-1.5 text-xs leading-relaxed dark:border-red-300/40 dark:bg-red-500/18 dark:text-red-100">
-      <AlertCircleIcon className="mt-0.5 size-3.5 shrink-0" />
-      <span>{message}</span>
-    </p>
+    <Alert variant="destructive" className="max-w-full">
+      <AlertCircleIcon className="size-4" />
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
   ) : undefined
 
   const right = (
@@ -79,7 +80,7 @@ export function PermissionRow({
   )
 
   return (
-    <SettingsRowShell
+    <SectionRow
       isLast={isLast}
       left={left}
       right={right}

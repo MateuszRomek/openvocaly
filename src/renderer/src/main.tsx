@@ -7,6 +7,8 @@ import { RouterProvider } from '@tanstack/react-router'
 import { queryClient } from './lib/query-client'
 import { startThemeSync } from './lib/theme'
 import router from './router'
+import { Toaster } from './ui/sonner'
+import { TooltipProvider } from './ui/tooltip'
 
 const stopThemeSync = startThemeSync()
 if (import.meta.hot) {
@@ -18,7 +20,10 @@ if (import.meta.hot) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <TooltipProvider>
+        <RouterProvider router={router} />
+        <Toaster />
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>
 )

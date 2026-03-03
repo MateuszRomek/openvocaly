@@ -4,7 +4,7 @@ import { Button } from '@renderer/ui/button'
 import { Kbd } from '@renderer/ui/kbd'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/ui/tooltip'
 import { ShortcutChord } from './shortcut-chord'
-import { SettingsRowShell } from './shared/settings-row-shell'
+import { SectionRow } from '@renderer/components/section-row'
 import { useShortcutRow } from '../hooks/use-shortcut-row'
 import type { KeyboardEvent } from 'react'
 import type {
@@ -120,5 +120,5 @@ export function ShortcutRow({
     </div>
   )
 
-  return <SettingsRowShell isLast={row.isLast} left={left} right={right} />
+  return <SectionRow isLast={row.isLast} left={left} right={right} />
 }

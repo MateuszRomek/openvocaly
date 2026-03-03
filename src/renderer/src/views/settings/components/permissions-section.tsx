@@ -4,7 +4,7 @@ import { PERMISSION_ITEMS } from '../constants/permissions'
 import { usePermissions } from '../hooks/use-permissions'
 import { PermissionRow } from './permission-row'
 import { SettingsPermissionsSkeleton } from './settings-permissions-skeleton'
-import { SettingsSectionCard } from './shared/settings-section-card'
+import { SectionCard } from '@renderer/components/section-card'
 
 export function PermissionsSection(): React.JSX.Element {
   const { requestError, permissionConfig, isLoading } = usePermissions()
@@ -18,14 +18,14 @@ export function PermissionsSection(): React.JSX.Element {
       <h3 className="text-lg font-semibold">Permissions</h3>
 
       {requestError && (
-        <Alert variant="destructive" className="border-destructive/35 bg-destructive/8">
+        <Alert variant="destructive">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
           <AlertTitle>Permissions request failed</AlertTitle>
           <AlertDescription>{requestError}</AlertDescription>
         </Alert>
       )}
 
-      <SettingsSectionCard>
+      <SectionCard>
         {PERMISSION_ITEMS.map((item, index) => {
           const config = permissionConfig[item.key]
 
@@ -44,7 +44,7 @@ export function PermissionsSection(): React.JSX.Element {
             />
           )
         })}
-      </SettingsSectionCard>
+      </SectionCard>
     </section>
   )
 }

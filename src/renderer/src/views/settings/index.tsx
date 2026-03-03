@@ -1,3 +1,4 @@
+import { AppearanceSection } from './components/appearance-section'
 import { RecordingAudioSection } from './components/recording-audio-section'
 import { PermissionsSection } from './components/permissions-section'
 import { RecordingShortcutsSection } from './components/recording-shortcuts-section'
@@ -10,10 +11,11 @@ export function SettingsView(): React.JSX.Element {
       <header className="space-y-1.5">
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">General</h2>
         <p className="text-muted-foreground text-sm">
-          Configure recording shortcuts, sound cues, and required permissions.
+          Configure appearance, recording shortcuts, sound cues, and required permissions.
         </p>
       </header>
 
+      <AppearanceSection />
       <RecordingShortcutsSection platform={platform} />
       <RecordingAudioSection />
       <PermissionsSection />

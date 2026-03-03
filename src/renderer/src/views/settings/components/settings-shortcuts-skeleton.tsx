@@ -15,7 +15,7 @@ export function SettingsShortcutsSkeleton({
           <article
             key={index}
             className={`flex min-h-[7.5rem] items-center gap-3 px-5 py-5 ${
-              index === rows - 1 ? '' : 'border-border/40 border-b'
+              index === rows - 1 ? '' : 'border-border border-b'
             }`}
           >
             <div className="min-w-0 flex-1 space-y-2.5">
