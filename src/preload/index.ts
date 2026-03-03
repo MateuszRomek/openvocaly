@@ -19,9 +19,16 @@ import type {
 } from '../shared/shortcuts'
 import type {
   RecordingPreferencesResponse,
-  RecordingPreferencesUpdateInput,
-  RecordingRuntimeStateResponse
+  RecordingPreferencesUpdateInput
 } from '../shared/recording'
+import type { DictationRuntimeStateResponse } from '../shared/dictation'
+import type {
+  TranscriptionPreferencesResponse,
+  TranscriptionPreferencesUpdateInput,
+  TranscriptionProviderApiKeyClearInput,
+  TranscriptionProviderApiKeyMutationResponse,
+  TranscriptionProviderApiKeyUpdateInput
+} from '../shared/transcription'
 import type {
   AccessibilityRequestResponse,
   MicrophoneRequestResponse,
@@ -59,14 +66,32 @@ const api = {
       ipcRenderer.invoke('shortcuts:reset', input)
   },
   recording: {
-    getRuntimeState: (): Promise<RecordingRuntimeStateResponse> =>
-      ipcRenderer.invoke('recording:getRuntimeState'),
     getPreferences: (): Promise<RecordingPreferencesResponse> =>
       ipcRenderer.invoke('recording:getPreferences'),
     updatePreferences: (
       input: RecordingPreferencesUpdateInput
     ): Promise<RecordingPreferencesResponse> =>
       ipcRenderer.invoke('recording:updatePreferences', input)
+  },
+  transcription: {
+    getPreferences: (): Promise<TranscriptionPreferencesResponse> =>
+      ipcRenderer.invoke('transcription:getPreferences'),
+    updatePreferences: (
+      input: TranscriptionPreferencesUpdateInput
+    ): Promise<TranscriptionPreferencesResponse> =>
+      ipcRenderer.invoke('transcription:updatePreferences', input),
+    setProviderApiKey: (
+      input: TranscriptionProviderApiKeyUpdateInput
+    ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
+      ipcRenderer.invoke('transcription:setProviderApiKey', input),
+    clearProviderApiKey: (
+      input: TranscriptionProviderApiKeyClearInput
+    ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
+      ipcRenderer.invoke('transcription:clearProviderApiKey', input)
+  },
+  dictation: {
+    getRuntimeState: (): Promise<DictationRuntimeStateResponse> =>
+      ipcRenderer.invoke('dictation:getRuntimeState')
   },
   permissions: {
     getStatus: (): Promise<PermissionsStatusResponse> =>

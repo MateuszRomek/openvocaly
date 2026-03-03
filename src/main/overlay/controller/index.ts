@@ -1,8 +1,8 @@
 import { BrowserWindow, screen } from 'electron'
 import {
-  RECORDING_OVERLAY_STATE_CHANNEL,
-  type RecordingOverlayState
-} from '../../../shared/recording'
+  DICTATION_OVERLAY_STATE_CHANNEL,
+  type DictationOverlayState
+} from '../../../shared/dictation'
 import { MacosOverlayVisibilityController } from './macos-visibility'
 import {
   OVERLAY_FOLLOW_FAST_INTERVAL_MS,
@@ -25,7 +25,7 @@ import { isMacOS } from '../../helpers/platform'
 export class RecordingOverlayController {
   private overlayWindow: BrowserWindow | null = null
   private isRendererReady = false
-  private pendingState: RecordingOverlayState | null = null
+  private pendingState: DictationOverlayState | null = null
   private overlayFollowTimer: NodeJS.Timeout | null = null
   private overlayFollowLastDisplayId: number | null = null
   private overlayFollowStableTicks = 0
@@ -57,7 +57,7 @@ export class RecordingOverlayController {
    * Publish overlay state from main to overlay renderer.
    * Creates the window lazily on first use.
    */
-  async show(state: RecordingOverlayState): Promise<void> {
+  async show(state: DictationOverlayState): Promise<void> {
     await this.ensureWindow()
 
     this.pendingState = state
@@ -67,7 +67,7 @@ export class RecordingOverlayController {
     }
 
     // Send latest state snapshot to overlay renderer over the stable IPC channel.
-    this.overlayWindow.webContents.send(RECORDING_OVERLAY_STATE_CHANNEL, state)
+    this.overlayWindow.webContents.send(DICTATION_OVERLAY_STATE_CHANNEL, state)
 
     if (!this.overlayWindow.isVisible()) {
       positionOverlayOnActiveDisplay(this.overlayWindow)
@@ -161,7 +161,7 @@ export class RecordingOverlayController {
         return
       }
 
-      this.overlayWindow.webContents.send(RECORDING_OVERLAY_STATE_CHANNEL, this.pendingState)
+      this.overlayWindow.webContents.send(DICTATION_OVERLAY_STATE_CHANNEL, this.pendingState)
       positionOverlayOnActiveDisplay(this.overlayWindow)
       this.overlayWindow.showInactive()
       this.overlayWindow.moveTop()

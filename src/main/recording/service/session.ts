@@ -1,7 +1,4 @@
-import type {
-  RecordingOverlayState,
-  RecordingRuntimeStateResponse
-} from '../../../shared/recording'
+import type { RecordingRuntimeStateResponse } from '../../../shared/recording'
 import {
   createInitialRecordingMachine,
   resetToIdle,
@@ -15,6 +12,17 @@ export type RecordingSessionState = {
   meterLevel: number
   meterBands: number[]
   activeArtifact: ActiveArtifact | null
+}
+
+export type RecordingSessionSnapshot = {
+  phase: RecordingMachine['phase']
+  mode: RecordingMachine['mode']
+  sessionId: RecordingMachine['sessionId']
+  meterLevel: number
+  meterBands: number[]
+  activeArtifactPath: string | null
+  failureReason?: RecordingMachine['failureReason']
+  message?: string
 }
 
 export const createRecordingSessionState = (): RecordingSessionState => ({
@@ -45,18 +53,15 @@ export const toRecordingRuntimeStateResponse = (
   )
 })
 
-export const toRecordingOverlayState = (
+export const toRecordingSessionSnapshot = (
   state: RecordingSessionState
-): RecordingOverlayState | null => {
-  if (state.machine.phase === 'idle') {
-    return null
-  }
-
-  return {
-    phase: state.machine.phase,
-    mode: state.machine.mode,
-    meterLevel: state.meterLevel,
-    bands: state.meterBands,
-    message: state.machine.message
-  }
-}
+): RecordingSessionSnapshot => ({
+  phase: state.machine.phase,
+  mode: state.machine.mode,
+  sessionId: state.machine.sessionId,
+  meterLevel: state.meterLevel,
+  meterBands: [...state.meterBands],
+  activeArtifactPath: state.activeArtifact?.artifact.filePath ?? null,
+  failureReason: state.machine.failureReason,
+  message: state.machine.message
+})

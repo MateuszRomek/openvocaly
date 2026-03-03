@@ -4,6 +4,7 @@ import type {
   RecordingPhase,
   RecordingRuntimeState
 } from '../../../shared/recording'
+import { isIdlePhase } from '../../../shared/lifecycle'
 
 export type RecordingMachine = {
   phase: RecordingPhase
@@ -33,7 +34,7 @@ export const toRuntimeState = (
   message: machine.message
 })
 
-export const canBeginRecording = (machine: RecordingMachine): boolean => machine.phase === 'idle'
+export const canBeginRecording = (machine: RecordingMachine): boolean => isIdlePhase(machine.phase)
 
 export const canStopRecording = (machine: RecordingMachine): boolean =>
   machine.phase === 'recording'
@@ -54,11 +55,6 @@ export const moveToRecording = (machine: RecordingMachine): RecordingMachine => 
 export const moveToStopping = (machine: RecordingMachine): RecordingMachine => ({
   ...machine,
   phase: 'stopping'
-})
-
-export const moveToTranscribing = (machine: RecordingMachine): RecordingMachine => ({
-  ...machine,
-  phase: 'transcribing'
 })
 
 export const moveToComplete = (machine: RecordingMachine): RecordingMachine => ({

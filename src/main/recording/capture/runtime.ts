@@ -96,10 +96,17 @@ export class RecordingCaptureRuntime {
 
     if (!this.window || this.window.isDestroyed() || !this.ready) {
       this.commandQueue.push(command)
+      if (command.type === 'playCue' && !this.captureActive) {
+        this.scheduleIdleDestroy()
+      }
       return
     }
 
     this.window.webContents.send(RECORDING_CAPTURE_COMMAND_CHANNEL, command)
+
+    if (command.type === 'playCue' && !this.captureActive) {
+      this.scheduleIdleDestroy()
+    }
   }
 
   private async ensureWindow(): Promise<void> {
@@ -124,7 +131,8 @@ export class RecordingCaptureRuntime {
         nodeIntegration: false,
         sandbox: false,
         autoplayPolicy: 'no-user-gesture-required',
-        backgroundThrottling: true
+        backgroundThrottling: true,
+        devTools: is.dev
       }
     })
     this.applyCapturePerformanceMode()

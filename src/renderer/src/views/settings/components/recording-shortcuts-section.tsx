@@ -1,7 +1,7 @@
 import { AlertTriangleIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/ui/alert'
 import { ShortcutRow } from './shortcut-row'
-import { SettingsSectionCard } from './shared/settings-section-card'
+import { SectionCard } from '@renderer/components/section-card'
 import { SettingsShortcutsSkeleton } from './settings-shortcuts-skeleton'
 import { useShortcuts } from '../hooks/use-shortcuts'
 import type { ShortcutPlatform } from '../queries/shortcuts/shortcuts.types'
@@ -22,8 +22,8 @@ export function RecordingShortcutsSection({
       <h3 className="text-lg font-semibold">Recording</h3>
 
       {config?.hasStartupFailure && (
-        <Alert className="border-destructive/35 bg-destructive/8">
-          <AlertTriangleIcon className="text-destructive mt-0.5 size-4 shrink-0" />
+        <Alert>
+          <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
           <AlertTitle>Startup registration warning</AlertTitle>
           <AlertDescription>
             At least one shortcut failed to register on startup. Review the rows below and adjust
@@ -33,7 +33,7 @@ export function RecordingShortcutsSection({
       )}
 
       {requestError && (
-        <Alert variant="destructive" className="border-destructive/35 bg-destructive/8">
+        <Alert variant="destructive">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
           <AlertTitle>Shortcuts request failed</AlertTitle>
           <AlertDescription>{requestError}</AlertDescription>
@@ -43,7 +43,7 @@ export function RecordingShortcutsSection({
       {isLoading && <SettingsShortcutsSkeleton />}
 
       {!isLoading && config && (
-        <SettingsSectionCard>
+        <SectionCard>
           {config.actions.map((item, index) => (
             <ShortcutRow
               key={item.action}
@@ -54,7 +54,7 @@ export function RecordingShortcutsSection({
               rowController={rowController}
             />
           ))}
-        </SettingsSectionCard>
+        </SectionCard>
       )}
 
       {!isLoading && !config && !requestError && (

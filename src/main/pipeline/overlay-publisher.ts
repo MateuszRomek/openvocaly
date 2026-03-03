@@ -1,36 +1,31 @@
 import { setTimeout as setNodeTimeout } from 'node:timers'
-import type { RecordingOverlayState } from '../../../shared/recording'
-import { RecordingOverlayController } from '../../overlay/controller'
+import type { DictationOverlayState } from '../../shared/dictation'
+import { RecordingOverlayController } from '../overlay/controller'
 import { cloneOverlayState, isSameOverlayState } from './overlay-state-helpers'
 
 const AUDIO_LEVELS_PUBLISH_MIN_INTERVAL_MS = 50
 
 /**
- * Applies presentation policy for overlay updates.
- *
- * Immediate updates are used for phase/mode transitions.
- * Audio-level updates are deduped and throttled to reduce BrowserWindow churn.
+ * Applies dictation overlay publish policy.
+ * Immediate publishes are used for phase transitions; meter updates are throttled.
  */
-export class RecordingOverlayPublisher {
-  private lastPublishedState: RecordingOverlayState | null = null
+export class DictationOverlayPublisher {
+  private lastPublishedState: DictationOverlayState | null = null
   private lastPublishedAt = 0
-  private pendingAudioLevelsState: RecordingOverlayState | null = null
+  private pendingAudioLevelsState: DictationOverlayState | null = null
   private pendingAudioLevelsTimer: NodeJS.Timeout | null = null
 
   constructor(
     private readonly overlay: RecordingOverlayController = new RecordingOverlayController()
   ) {}
 
-  async publishImmediate(state: RecordingOverlayState | null): Promise<void> {
+  async publishImmediate(state: DictationOverlayState | null): Promise<void> {
     this.clearPendingAudioLevelsTimer()
     this.pendingAudioLevelsState = null
     await this.publishNow(state)
   }
 
-  /**
-   * Throttles high-frequency audio-level updates and keeps only the latest pending state.
-   */
-  async publishAudioLevels(state: RecordingOverlayState | null): Promise<void> {
+  async publishAudioLevels(state: DictationOverlayState | null): Promise<void> {
     if (!state) {
       await this.publishImmediate(null)
       return
@@ -86,7 +81,7 @@ export class RecordingOverlayPublisher {
     this.pendingAudioLevelsTimer = null
   }
 
-  private async publishNow(state: RecordingOverlayState | null): Promise<void> {
+  private async publishNow(state: DictationOverlayState | null): Promise<void> {
     if (isSameOverlayState(this.lastPublishedState, state)) {
       return
     }

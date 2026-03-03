@@ -1,7 +1,6 @@
 export const RECORDING_CAPTURE_COMMAND_CHANNEL = 'recording:capture-command'
 export const RECORDING_CAPTURE_EVENT_CHANNEL = 'recording:capture-event'
 export const RECORDING_CAPTURE_READY_CHANNEL = 'recording:capture-ready'
-export const RECORDING_OVERLAY_STATE_CHANNEL = 'recording:overlay-state'
 
 export const DEFAULT_RECORDING_SOUND_CUE_SETTINGS = {
   enabled: true
@@ -15,26 +14,19 @@ export type RecordingShortcutCommandType =
 
 export type RecordingMode = 'toggle' | 'push_to_talk'
 
-export type RecordingPhase =
-  | 'idle'
-  | 'starting'
-  | 'recording'
-  | 'stopping'
-  | 'transcribing'
-  | 'complete'
-  | 'failed'
+export type RecordingPhase = 'idle' | 'starting' | 'recording' | 'stopping' | 'complete' | 'failed'
 
-export type RecordingFailureReason =
-  | 'microphone_permission_denied'
-  | 'capture_error'
-  | 'transcription_error'
-  | 'aborted'
+export type RecordingFailureReason = 'microphone_permission_denied' | 'capture_error' | 'aborted'
+
+export type RecordingArtifactFailureReason = RecordingFailureReason | 'transcription_error'
 
 export type RecordingOutputFormat = 'webm_opus'
 
 export type RecordingSoundCueSettings = {
   enabled: boolean
 }
+
+export type RecordingCueKind = 'start' | 'cancel' | 'error'
 
 export type RecordingPreferences = {
   soundCues: RecordingSoundCueSettings
@@ -58,14 +50,6 @@ export type RecordingRuntimeState = {
   message?: string
 }
 
-export type RecordingOverlayState = {
-  phase: Exclude<RecordingPhase, 'idle'>
-  mode: RecordingMode | null
-  meterLevel: number
-  bands: number[]
-  message?: string
-}
-
 export type RecordingCaptureStartCommand = {
   type: 'start'
   sessionId: string
@@ -83,10 +67,17 @@ export type RecordingCaptureCancelCommand = {
   soundCues: RecordingSoundCueSettings
 }
 
+export type RecordingCapturePlayCueCommand = {
+  type: 'playCue'
+  cue: RecordingCueKind
+  soundCues: RecordingSoundCueSettings
+}
+
 export type RecordingCaptureCommand =
   | RecordingCaptureStartCommand
   | RecordingCaptureStopCommand
   | RecordingCaptureCancelCommand
+  | RecordingCapturePlayCueCommand
 
 export type RecordingCaptureChunkEvent = {
   type: 'chunk'
@@ -141,7 +132,7 @@ export type RecordingArtifact = {
 }
 
 export type RecordingFailureMetadata = RecordingArtifact & {
-  failureReason: RecordingFailureReason
+  failureReason: RecordingArtifactFailureReason
   failedAt: number
   message?: string
 }

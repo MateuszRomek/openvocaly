@@ -1,7 +1,7 @@
 import { AlertTriangleIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/ui/alert'
-import { SettingsSectionCard } from './shared/settings-section-card'
-import { SettingsRowShell } from './shared/settings-row-shell'
+import { SectionCard } from '@renderer/components/section-card'
+import { SectionRow } from '@renderer/components/section-row'
 import { useRecordingPreferences } from '../hooks/use-recording-preferences'
 import { SettingsRecordingAudioSkeleton } from './settings-recording-audio-skeleton'
 
@@ -54,22 +54,16 @@ export function RecordingAudioSection(): React.JSX.Element {
       <h3 className="text-lg font-semibold">Sound feedback</h3>
 
       {requestError && (
-        <Alert variant="destructive" className="border-destructive/35 bg-destructive/8">
+        <Alert variant="destructive">
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
           <AlertTitle>Sound settings failed</AlertTitle>
           <AlertDescription>{requestError}</AlertDescription>
         </Alert>
       )}
 
-      <SettingsSectionCard>
-        <SettingsRowShell
-          isLast
-          left={left}
-          right={right}
-          minHeightClass="min-h-[7rem]"
-          stackOnMobile
-        />
-      </SettingsSectionCard>
+      <SectionCard>
+        <SectionRow isLast left={left} right={right} minHeightClass="min-h-[7rem]" stackOnMobile />
+      </SectionCard>
     </section>
   )
 }
