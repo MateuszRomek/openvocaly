@@ -22,6 +22,13 @@ import type {
   RecordingRuntimeStateResponse
 } from '../shared/recording'
 import type {
+  TranscriptionPreferencesResponse,
+  TranscriptionPreferencesUpdateInput,
+  TranscriptionProviderApiKeyClearInput,
+  TranscriptionProviderApiKeyMutationResponse,
+  TranscriptionProviderApiKeyUpdateInput
+} from '../shared/transcription'
+import type {
   AccessibilityRequestResponse,
   MicrophoneRequestResponse,
   OpenSystemSettingsResponse,
@@ -53,6 +60,18 @@ declare global {
         updatePreferences: (
           input: RecordingPreferencesUpdateInput
         ) => Promise<RecordingPreferencesResponse>
+      }
+      transcription: {
+        getPreferences: () => Promise<TranscriptionPreferencesResponse>
+        updatePreferences: (
+          input: TranscriptionPreferencesUpdateInput
+        ) => Promise<TranscriptionPreferencesResponse>
+        setProviderApiKey: (
+          input: TranscriptionProviderApiKeyUpdateInput
+        ) => Promise<TranscriptionProviderApiKeyMutationResponse>
+        clearProviderApiKey: (
+          input: TranscriptionProviderApiKeyClearInput
+        ) => Promise<TranscriptionProviderApiKeyMutationResponse>
       }
       permissions: {
         getStatus: () => Promise<PermissionsStatusResponse>

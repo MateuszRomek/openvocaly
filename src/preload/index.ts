@@ -23,6 +23,13 @@ import type {
   RecordingRuntimeStateResponse
 } from '../shared/recording'
 import type {
+  TranscriptionPreferencesResponse,
+  TranscriptionPreferencesUpdateInput,
+  TranscriptionProviderApiKeyClearInput,
+  TranscriptionProviderApiKeyMutationResponse,
+  TranscriptionProviderApiKeyUpdateInput
+} from '../shared/transcription'
+import type {
   AccessibilityRequestResponse,
   MicrophoneRequestResponse,
   OpenSystemSettingsResponse,
@@ -67,6 +74,22 @@ const api = {
       input: RecordingPreferencesUpdateInput
     ): Promise<RecordingPreferencesResponse> =>
       ipcRenderer.invoke('recording:updatePreferences', input)
+  },
+  transcription: {
+    getPreferences: (): Promise<TranscriptionPreferencesResponse> =>
+      ipcRenderer.invoke('transcription:getPreferences'),
+    updatePreferences: (
+      input: TranscriptionPreferencesUpdateInput
+    ): Promise<TranscriptionPreferencesResponse> =>
+      ipcRenderer.invoke('transcription:updatePreferences', input),
+    setProviderApiKey: (
+      input: TranscriptionProviderApiKeyUpdateInput
+    ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
+      ipcRenderer.invoke('transcription:setProviderApiKey', input),
+    clearProviderApiKey: (
+      input: TranscriptionProviderApiKeyClearInput
+    ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
+      ipcRenderer.invoke('transcription:clearProviderApiKey', input)
   },
   permissions: {
     getStatus: (): Promise<PermissionsStatusResponse> =>
