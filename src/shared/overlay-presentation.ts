@@ -76,6 +76,14 @@ export const resolveOverlayMessage = (
     return 'No speech detected'
   }
 
+  if (normalized.includes('model is not downloaded')) {
+    return 'Local model not downloaded'
+  }
+
+  if (normalized.includes('runtime is unavailable') || normalized.includes('runtime binary')) {
+    return 'Local runtime unavailable'
+  }
+
   const lines = rawMessage
     .split(/\r?\n/)
     .map((line) => normalizeLine(trimTrailingPeriod(stripProviderPrefix(line))))

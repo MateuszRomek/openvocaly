@@ -15,7 +15,7 @@ export function useSetProviderApiKeyMutation(): UseMutationResult<
 
   return useMutation({
     mutationFn: async (input: TranscriptionProviderApiKeyUpdateInput) =>
-      window.api.transcription.setProviderApiKey(input),
+      window.api.transcription.cloud.setProviderApiKey(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: transcriptionKeys.preferences() })
     }

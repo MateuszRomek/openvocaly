@@ -1,22 +1,41 @@
 export const DEFAULT_TRANSCRIPTION_PROVIDER_ID = 'groq' as const
 export const DEFAULT_TRANSCRIPTION_MODEL_ID = 'whisper-large-v3-turbo' as const
 
-export type TranscriptionProviderId = 'groq' | 'openai' | 'elevenlabs' | 'gemini'
+export type TranscriptionProviderId = 'groq' | 'openai' | 'elevenlabs' | 'gemini' | 'local-parakeet'
 export type TranscriptionProviderAvailability = 'available' | 'coming_soon'
+export type TranscriptionProviderKind = 'cloud' | 'local'
 
 export type TranscriptionProviderModel = {
   id: string
   label: string
+  description?: string
+  sizeMb?: number
+  downloaded?: boolean
+  language?: string
 }
 
-export type TranscriptionProviderOption = {
+type BaseTranscriptionProviderOption = {
   id: TranscriptionProviderId
   label: string
+  kind: TranscriptionProviderKind
   models: TranscriptionProviderModel[]
   isConfigured: boolean
-  apiKeyPreview: string | null
   availability: TranscriptionProviderAvailability
 }
+
+export type CloudTranscriptionProviderOption = BaseTranscriptionProviderOption & {
+  kind: 'cloud'
+  apiKeyPreview: string | null
+}
+
+export type LocalTranscriptionProviderOption = BaseTranscriptionProviderOption & {
+  kind: 'local'
+  apiKeyPreview: null
+}
+
+export type TranscriptionProviderOption =
+  | CloudTranscriptionProviderOption
+  | LocalTranscriptionProviderOption
 
 export type TranscriptionPreferences = {
   providerId: TranscriptionProviderId
@@ -64,8 +83,13 @@ export type TranscriptionFailureCode =
   | 'provider_not_supported'
   | 'provider_unavailable'
   | 'provider_not_configured'
+  | 'missing_api_key'
   | 'invalid_api_key'
   | 'provider_request_failed'
+  | 'local_runtime_unavailable'
+  | 'local_model_not_downloaded'
+  | 'local_model_download_failed'
+  | 'local_transcription_failed'
   | 'empty_transcription'
   | 'storage_failed'
 

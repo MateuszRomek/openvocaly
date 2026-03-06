@@ -1,11 +1,20 @@
 import type { RecordingArtifact } from '../../../shared/recording'
 import type {
+  ListLocalModelsResponse,
+  LocalModelActionInput,
+  LocalModelActionResponse,
+  LocalModelDownloadProgress,
+  LocalRuntimeStatusResponse
+} from '../../../shared/local-transcription'
+import type {
+  TranscriptionPreferences,
   TranscriptionPreferencesResponse,
   TranscriptionPreferencesUpdateInput,
   TranscriptionProviderApiKeyMutationResponse,
   TranscriptionProviderApiKeyUpdateInput,
   TranscriptionResult
 } from '../../../shared/transcription'
+import { parakeetRuntime } from '../local/parakeet/runtime'
 import { TranscriptionProviderFactory } from '../provider-factory'
 import { TranscriptionPreferencesStore } from './preferences-store'
 import { TranscriptionProviderCredentialsStore } from './provider-credentials-store'
@@ -34,21 +43,43 @@ class TranscriptionService {
   }
 
   getPreferences(): TranscriptionPreferencesResponse {
+    const preferences = this.preferencesStore.get()
+
     return {
-      preferences: this.preferencesStore.get(),
-      config: this.providerFactory.buildConfig()
+      preferences,
+      config: this.providerFactory.buildConfig(preferences)
     }
   }
 
   async updatePreferences(
     input: TranscriptionPreferencesUpdateInput
   ): Promise<TranscriptionPreferencesResponse> {
+    await this.initialize()
+    const previousPreferences = this.preferencesStore.get()
     const preferences = await this.preferencesStore.update(input)
+
+    if (this.shouldStopLocalRuntime(previousPreferences, preferences)) {
+      await parakeetRuntime.stopRuntime()
+    }
 
     return {
       preferences,
-      config: this.providerFactory.buildConfig()
+      config: this.providerFactory.buildConfig(preferences)
     }
+  }
+
+  private shouldStopLocalRuntime(
+    previousPreferences: TranscriptionPreferences,
+    nextPreferences: TranscriptionPreferences
+  ): boolean {
+    const previousWasLocal = previousPreferences.providerId === 'local-parakeet'
+    if (!previousWasLocal) {
+      return false
+    }
+
+    const switchedAwayFromLocal = nextPreferences.providerId !== 'local-parakeet'
+    const switchedLocalModel = nextPreferences.modelId !== previousPreferences.modelId
+    return switchedAwayFromLocal || switchedLocalModel
   }
 
   async setProviderApiKey(
@@ -61,6 +92,37 @@ class TranscriptionService {
     providerId: TranscriptionProviderApiKeyUpdateInput['providerId']
   ): Promise<TranscriptionProviderApiKeyMutationResponse> {
     return this.credentialsStore.clearApiKey(providerId)
+  }
+
+  async listLocalModels(): Promise<ListLocalModelsResponse> {
+    return parakeetRuntime.listModels()
+  }
+
+  async downloadLocalModel(
+    input: LocalModelActionInput,
+    onProgress?: (progress: LocalModelDownloadProgress) => void
+  ): Promise<LocalModelActionResponse> {
+    return parakeetRuntime.downloadModel(input, onProgress)
+  }
+
+  cancelLocalModelDownload(): LocalModelActionResponse {
+    return parakeetRuntime.cancelDownload()
+  }
+
+  async deleteLocalModel(input: LocalModelActionInput): Promise<LocalModelActionResponse> {
+    return parakeetRuntime.deleteModel(input)
+  }
+
+  getLocalRuntimeStatus(): LocalRuntimeStatusResponse {
+    return parakeetRuntime.getRuntimeStatus()
+  }
+
+  async startLocalRuntime(input: LocalModelActionInput): Promise<LocalModelActionResponse> {
+    return parakeetRuntime.startRuntime(input)
+  }
+
+  async stopLocalRuntime(): Promise<LocalModelActionResponse> {
+    return parakeetRuntime.stopRuntime()
   }
 
   async transcribeArtifact(artifact: RecordingArtifact): Promise<TranscriptionResult> {

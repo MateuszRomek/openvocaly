@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
   AddTranscriptInput,
@@ -30,6 +30,13 @@ import type {
   TranscriptionProviderApiKeyUpdateInput
 } from '../shared/transcription'
 import type {
+  ListLocalModelsResponse,
+  LocalModelActionInput,
+  LocalModelActionResponse,
+  LocalModelDownloadProgress,
+  LocalRuntimeStatusResponse
+} from '../shared/local-transcription'
+import type {
   AccessibilityRequestResponse,
   MicrophoneRequestResponse,
   OpenSystemSettingsResponse,
@@ -40,6 +47,21 @@ type DesktopPlatform = 'darwin' | 'win32' | 'linux'
 
 const platform: DesktopPlatform =
   process.platform === 'darwin' || process.platform === 'win32' ? process.platform : 'linux'
+
+// Wraps electron IPC event wiring and returns an unsubscribe function for renderer cleanup.
+const subscribeToIpcChannel = <TPayload>(
+  channel: string,
+  callback: (payload: TPayload) => void
+): (() => void) => {
+  const listener = (_event: IpcRendererEvent, payload: TPayload): void => {
+    callback(payload)
+  }
+
+  ipcRenderer.on(channel, listener)
+  return () => {
+    ipcRenderer.removeListener(channel, listener)
+  }
+}
 
 // Custom APIs for renderer
 const api = {
@@ -74,20 +96,45 @@ const api = {
       ipcRenderer.invoke('recording:updatePreferences', input)
   },
   transcription: {
-    getPreferences: (): Promise<TranscriptionPreferencesResponse> =>
-      ipcRenderer.invoke('transcription:getPreferences'),
-    updatePreferences: (
-      input: TranscriptionPreferencesUpdateInput
-    ): Promise<TranscriptionPreferencesResponse> =>
-      ipcRenderer.invoke('transcription:updatePreferences', input),
-    setProviderApiKey: (
-      input: TranscriptionProviderApiKeyUpdateInput
-    ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
-      ipcRenderer.invoke('transcription:setProviderApiKey', input),
-    clearProviderApiKey: (
-      input: TranscriptionProviderApiKeyClearInput
-    ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
-      ipcRenderer.invoke('transcription:clearProviderApiKey', input)
+    preferences: {
+      get: (): Promise<TranscriptionPreferencesResponse> =>
+        ipcRenderer.invoke('transcription:getPreferences'),
+      update: (
+        input: TranscriptionPreferencesUpdateInput
+      ): Promise<TranscriptionPreferencesResponse> =>
+        ipcRenderer.invoke('transcription:updatePreferences', input)
+    },
+    cloud: {
+      setProviderApiKey: (
+        input: TranscriptionProviderApiKeyUpdateInput
+      ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
+        ipcRenderer.invoke('transcription:setProviderApiKey', input),
+      clearProviderApiKey: (
+        input: TranscriptionProviderApiKeyClearInput
+      ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
+        ipcRenderer.invoke('transcription:clearProviderApiKey', input)
+    },
+    local: {
+      listModels: (): Promise<ListLocalModelsResponse> =>
+        ipcRenderer.invoke('transcription:listLocalModels'),
+      downloadModel: (input: LocalModelActionInput): Promise<LocalModelActionResponse> =>
+        ipcRenderer.invoke('transcription:downloadLocalModel', input),
+      cancelDownload: (): Promise<LocalModelActionResponse> =>
+        ipcRenderer.invoke('transcription:cancelLocalModelDownload'),
+      deleteModel: (input: LocalModelActionInput): Promise<LocalModelActionResponse> =>
+        ipcRenderer.invoke('transcription:deleteLocalModel', input),
+      getRuntimeStatus: (): Promise<LocalRuntimeStatusResponse> =>
+        ipcRenderer.invoke('transcription:getLocalRuntimeStatus'),
+      startRuntime: (input: LocalModelActionInput): Promise<LocalModelActionResponse> =>
+        ipcRenderer.invoke('transcription:startLocalRuntime', input),
+      stopRuntime: (): Promise<LocalModelActionResponse> =>
+        ipcRenderer.invoke('transcription:stopLocalRuntime'),
+      onDownloadProgress: (callback: (payload: LocalModelDownloadProgress) => void): (() => void) =>
+        subscribeToIpcChannel<LocalModelDownloadProgress>(
+          'transcription:localModelDownloadProgress',
+          callback
+        )
+    }
   },
   dictation: {
     getRuntimeState: (): Promise<DictationRuntimeStateResponse> =>

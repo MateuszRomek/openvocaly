@@ -13,7 +13,7 @@ type TranscriptionPreferencesQueryOptions = UseQueryOptions<
 export function transcriptionPreferencesQueryOptions(): TranscriptionPreferencesQueryOptions {
   return queryOptions({
     queryKey: transcriptionKeys.preferences(),
-    queryFn: async () => window.api.transcription.getPreferences()
+    queryFn: async () => window.api.transcription.preferences.get()
   })
 }
 

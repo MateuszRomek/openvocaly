@@ -29,6 +29,13 @@ import type {
   TranscriptionProviderApiKeyUpdateInput
 } from '../shared/transcription'
 import type {
+  ListLocalModelsResponse,
+  LocalModelActionInput,
+  LocalModelActionResponse,
+  LocalModelDownloadProgress,
+  LocalRuntimeStatusResponse
+} from '../shared/local-transcription'
+import type {
   AccessibilityRequestResponse,
   MicrophoneRequestResponse,
   OpenSystemSettingsResponse,
@@ -61,16 +68,32 @@ declare global {
         ) => Promise<RecordingPreferencesResponse>
       }
       transcription: {
-        getPreferences: () => Promise<TranscriptionPreferencesResponse>
-        updatePreferences: (
-          input: TranscriptionPreferencesUpdateInput
-        ) => Promise<TranscriptionPreferencesResponse>
-        setProviderApiKey: (
-          input: TranscriptionProviderApiKeyUpdateInput
-        ) => Promise<TranscriptionProviderApiKeyMutationResponse>
-        clearProviderApiKey: (
-          input: TranscriptionProviderApiKeyClearInput
-        ) => Promise<TranscriptionProviderApiKeyMutationResponse>
+        preferences: {
+          get: () => Promise<TranscriptionPreferencesResponse>
+          update: (
+            input: TranscriptionPreferencesUpdateInput
+          ) => Promise<TranscriptionPreferencesResponse>
+        }
+        cloud: {
+          setProviderApiKey: (
+            input: TranscriptionProviderApiKeyUpdateInput
+          ) => Promise<TranscriptionProviderApiKeyMutationResponse>
+          clearProviderApiKey: (
+            input: TranscriptionProviderApiKeyClearInput
+          ) => Promise<TranscriptionProviderApiKeyMutationResponse>
+        }
+        local: {
+          listModels: () => Promise<ListLocalModelsResponse>
+          downloadModel: (input: LocalModelActionInput) => Promise<LocalModelActionResponse>
+          cancelDownload: () => Promise<LocalModelActionResponse>
+          deleteModel: (input: LocalModelActionInput) => Promise<LocalModelActionResponse>
+          getRuntimeStatus: () => Promise<LocalRuntimeStatusResponse>
+          startRuntime: (input: LocalModelActionInput) => Promise<LocalModelActionResponse>
+          stopRuntime: () => Promise<LocalModelActionResponse>
+          onDownloadProgress: (
+            callback: (payload: LocalModelDownloadProgress) => void
+          ) => () => void
+        }
       }
       dictation: {
         getRuntimeState: () => Promise<DictationRuntimeStateResponse>

@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { MODELS_COPY } from '../constants/copy'
 import {
+  useCloudTranscriptionProviderCatalog,
   type TranscriptionProviderId,
-  useTranscriptionProviderCatalog,
   type TranscriptionProviderSettingsProvider
 } from './use-transcription-provider-catalog'
 import { useTranscriptionProviderSelectionActions } from './use-transcription-provider-selection-actions'
@@ -12,6 +12,7 @@ type UseTranscriptionProviderSettingsResult = {
   requestError: string | null
   providers: TranscriptionProviderSettingsProvider[]
   selectedProviderId: string
+  selectedModelId: string
   isSelectionMutating: boolean
   setProvider: (providerId: TranscriptionProviderId) => void
 }
@@ -19,7 +20,7 @@ type UseTranscriptionProviderSettingsResult = {
 export type { TranscriptionProviderSettingsProvider } from './use-transcription-provider-catalog'
 
 export function useTranscriptionProviderSettings(): UseTranscriptionProviderSettingsResult {
-  const providerCatalog = useTranscriptionProviderCatalog()
+  const providerCatalog = useCloudTranscriptionProviderCatalog()
   const selectionActions = useTranscriptionProviderSelectionActions(providerCatalog.providers)
 
   const requestError = useMemo(() => {
@@ -39,6 +40,7 @@ export function useTranscriptionProviderSettings(): UseTranscriptionProviderSett
     requestError,
     providers: providerCatalog.providers,
     selectedProviderId: providerCatalog.selectedProviderId,
+    selectedModelId: providerCatalog.preferredModelId,
     isSelectionMutating: selectionActions.isMutating,
     setProvider: selectionActions.setProvider
   }

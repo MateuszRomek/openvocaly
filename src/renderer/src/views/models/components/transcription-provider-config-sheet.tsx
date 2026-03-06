@@ -127,7 +127,9 @@ export function TranscriptionProviderConfigSheet({
                 <Alert variant="destructive">
                   <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
                   <AlertTitle>Cannot store API keys securely</AlertTitle>
-                  <AlertDescription>This device can&apos;t securely store API keys.</AlertDescription>
+                  <AlertDescription>
+                    This device can&apos;t securely store API keys.
+                  </AlertDescription>
                 </Alert>
               ) : null}
 

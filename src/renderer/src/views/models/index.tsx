@@ -20,7 +20,7 @@ export function ModelsLayoutView(): JSX.Element {
       <header className="space-y-1.5">
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Models</h2>
         <p className="text-muted-foreground text-sm">
-          Choose where your transcription model runs.
+          Choose your active transcription provider and model.
         </p>
       </header>
 

@@ -6,10 +6,10 @@ export const MODELS_COPY = {
     saveApiKey: 'Could not save API key. Try again.'
   },
   local: {
-    title: 'Local models coming soon',
-    description: "We're working on local models. Cloud is currently the fastest option."
+    title: 'Local models',
+    description: 'Choose a local provider, download a model, and run transcription on this device.'
   },
   providers: {
-    unavailableDescription: "We're working on this provider. Try Cloud for now."
+    unavailableDescription: 'This provider is coming soon in OpenVocally.'
   }
 } as const

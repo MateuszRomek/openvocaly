@@ -1,7 +1,8 @@
+import type { JSX } from 'react'
 import { Skeleton } from '@renderer/ui/skeleton'
 import { SectionCard } from '@renderer/components/section-card'
 
-export function ModelsTranscriptionSkeleton(): React.JSX.Element {
+export function ModelsTranscriptionSkeleton(): JSX.Element {
   return (
     <div className="space-y-3">
       <Skeleton className="h-6 w-36" />

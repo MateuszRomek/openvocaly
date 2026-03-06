@@ -15,7 +15,7 @@ export function useUpdateTranscriptionPreferencesMutation(): UseMutationResult<
 
   return useMutation({
     mutationFn: async (input: TranscriptionPreferencesUpdateInput) =>
-      window.api.transcription.updatePreferences(input),
+      window.api.transcription.preferences.update(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: transcriptionKeys.preferences() })
     }
