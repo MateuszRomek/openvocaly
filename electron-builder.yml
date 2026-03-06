@@ -10,6 +10,7 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
+  - resources/bin/**
   - resources/**
   - node_modules/@openvocaly/ptt-hook-macos/build/**/*.node
 win:

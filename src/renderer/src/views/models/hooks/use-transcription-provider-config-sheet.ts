@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
+  useCloudTranscriptionProviderCatalog,
   type TranscriptionProviderId,
-  useTranscriptionProviderCatalog,
   type TranscriptionProviderSettingsProvider
 } from './use-transcription-provider-catalog'
 
@@ -23,7 +23,7 @@ export function useTranscriptionProviderConfigSheet(
   providerId: TranscriptionProviderId | null
 ): UseTranscriptionProviderConfigSheetResult {
   const { providers, preferredModelId, secureStorageAvailable, findAvailableProvider } =
-    useTranscriptionProviderCatalog()
+    useCloudTranscriptionProviderCatalog()
 
   const provider = useMemo(() => {
     if (!providerId) {

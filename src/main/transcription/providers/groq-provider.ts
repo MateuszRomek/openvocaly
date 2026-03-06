@@ -10,6 +10,7 @@ const GROQ_MODELS: Array<{ id: string; label: string }> = [
 export const groqProvider: TranscriptionProviderDefinition = {
   id: 'groq',
   label: 'Groq',
+  kind: 'cloud',
   availability: 'available',
   models: GROQ_MODELS,
   transcribe: async (artifact, context) => {

@@ -21,15 +21,19 @@ type UseTranscriptionProviderCatalogResult = {
   ) => TranscriptionProviderSettingsProvider | null
 }
 
-export function useTranscriptionProviderCatalog(): UseTranscriptionProviderCatalogResult {
+const useTranscriptionProviderCatalogByKind = (
+  kind: 'cloud' | 'local'
+): UseTranscriptionProviderCatalogResult => {
   const preferencesQuery = useTranscriptionPreferencesQuery()
 
   const preferences = preferencesQuery.data?.preferences
   const transcriptionConfig = preferencesQuery.data?.config
-  const providers = useMemo(() => transcriptionConfig?.providers ?? [], [transcriptionConfig])
+  const providers = useMemo(() => {
+    const allProviders = transcriptionConfig?.providers ?? []
+    return allProviders.filter((provider) => provider.kind === kind)
+  }, [kind, transcriptionConfig])
 
-  const selectedProvider =
-    providers.find((provider) => provider.id === preferences?.providerId) ?? providers[0]
+  const selectedProviderId = preferences?.providerId ?? providers[0]?.id ?? ''
 
   const availableProvidersById = useMemo(
     () =>
@@ -52,8 +56,14 @@ export function useTranscriptionProviderCatalog(): UseTranscriptionProviderCatal
     hasError: preferencesQuery.isError,
     providers,
     preferredModelId: preferences?.modelId ?? '',
-    selectedProviderId: selectedProvider?.id ?? '',
+    selectedProviderId,
     secureStorageAvailable: transcriptionConfig?.secureStorageAvailable ?? false,
     findAvailableProvider
   }
 }
+
+export const useCloudTranscriptionProviderCatalog = (): UseTranscriptionProviderCatalogResult =>
+  useTranscriptionProviderCatalogByKind('cloud')
+
+export const useLocalTranscriptionProviderCatalog = (): UseTranscriptionProviderCatalogResult =>
+  useTranscriptionProviderCatalogByKind('local')

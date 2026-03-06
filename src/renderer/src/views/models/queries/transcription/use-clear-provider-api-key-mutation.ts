@@ -4,7 +4,7 @@ import { transcriptionKeys } from './transcription.keys'
 import type { TranscriptionProviderApiKeyMutationResponse } from './transcription.types'
 
 type ClearProviderApiKeyInput = {
-  providerId: Parameters<Window['api']['transcription']['clearProviderApiKey']>[0]['providerId']
+  providerId: Parameters<Window['api']['transcription']['cloud']['clearProviderApiKey']>[0]['providerId']
 }
 
 export function useClearProviderApiKeyMutation(): UseMutationResult<
@@ -16,7 +16,7 @@ export function useClearProviderApiKeyMutation(): UseMutationResult<
 
   return useMutation({
     mutationFn: async (input: ClearProviderApiKeyInput) =>
-      window.api.transcription.clearProviderApiKey(input),
+      window.api.transcription.cloud.clearProviderApiKey(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: transcriptionKeys.preferences() })
     }
