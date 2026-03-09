@@ -79,6 +79,10 @@ export class MacosOverlayVisibilityController {
     }
 
     this.applyFullScreenVisibility()
+    if (!overlayWindow.isVisible()) {
+      return
+    }
+
     // Show window without activation so typing focus stays in the current app.
     overlayWindow.showInactive()
     overlayWindow.moveTop()
@@ -146,9 +150,13 @@ export class MacosOverlayVisibilityController {
   }
 
   clear(): void {
+    this.clearScheduledReasserts()
+    this.detachWorkspaceObserver()
+  }
+
+  clearScheduledReasserts(): void {
     this.clearDelayedReassertTimer()
     this.clearSpaceReassertTimers()
-    this.detachWorkspaceObserver()
   }
 
   private scheduleDelayedReassert(): void {

@@ -9,7 +9,7 @@ export const PERMISSION_ITEMS = [
   {
     key: 'accessibility',
     title: 'Accessibility',
-    description: 'Needed for global push-to-talk and typing in other apps.'
+    description: 'Required for global push-to-talk and auto-paste in other apps.'
   }
 ] as const
 

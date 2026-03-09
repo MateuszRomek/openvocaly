@@ -48,7 +48,10 @@ export function LocalModelsView(): JSX.Element {
         }}
       >
         {providerSections.map((providerSection) => (
-          <LocalProviderSection key={providerSection.provider.id} providerSection={providerSection} />
+          <LocalProviderSection
+            key={providerSection.provider.id}
+            providerSection={providerSection}
+          />
         ))}
       </LocalModelsControllerProvider>
     </section>

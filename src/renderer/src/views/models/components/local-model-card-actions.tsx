@@ -1,5 +1,11 @@
 import type { JSX } from 'react'
-import { CheckCircle2Icon, DownloadIcon, Loader2Icon, MoreHorizontalIcon, Trash2Icon } from 'lucide-react'
+import {
+  CheckCircle2Icon,
+  DownloadIcon,
+  Loader2Icon,
+  MoreHorizontalIcon,
+  Trash2Icon
+} from 'lucide-react'
 import { Button } from '@renderer/ui/button'
 import {
   DropdownMenu,
@@ -54,7 +60,11 @@ export function LocalModelCardActions({
   }
 
   if (!supportsRuntimeActions) {
-    return <div className="self-center text-sm text-muted-foreground">Provider support is coming soon.</div>
+    return (
+      <div className="self-center text-sm text-muted-foreground">
+        Provider support is coming soon.
+      </div>
+    )
   }
 
   if (showOverflowMenu) {
@@ -89,7 +99,9 @@ export function LocalModelCardActions({
                   Download
                 </DropdownMenuItem>
               ) : null}
-              {isDownloading ? <DropdownMenuItem onClick={handleCancel}>Cancel</DropdownMenuItem> : null}
+              {isDownloading ? (
+                <DropdownMenuItem onClick={handleCancel}>Cancel</DropdownMenuItem>
+              ) : null}
             </>
           )}
         </DropdownMenuContent>
@@ -111,8 +123,8 @@ export function LocalModelCardActions({
           </Button>
         ) : null}
         <Button type="button" variant="destructive" onClick={handleDelete}>
-          <Trash2Icon className="mr-1.5 size-4" />
-          Delete
+          <Trash2Icon className="size-4" />
+          <span>Delete</span>
         </Button>
       </div>
     )

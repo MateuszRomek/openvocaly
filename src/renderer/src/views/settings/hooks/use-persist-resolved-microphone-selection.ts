@@ -1,20 +1,14 @@
 import { useEffect, useRef } from 'react'
 
 type UsePersistResolvedMicrophoneSelectionInput = {
-  isPermissionBlocked: boolean
-  isPreferencesLoading: boolean
-  isMutating: boolean
-  isDevicesLoading: boolean
+  canPersistResolvedSelection: boolean
   resolvedDeviceId: string | null
   selectedMicrophoneDeviceId: string | null
   setSelectedMicrophoneDeviceId: (deviceId: string | null) => void
 }
 
 export function usePersistResolvedMicrophoneSelection({
-  isPermissionBlocked,
-  isPreferencesLoading,
-  isMutating,
-  isDevicesLoading,
+  canPersistResolvedSelection,
   resolvedDeviceId,
   selectedMicrophoneDeviceId,
   setSelectedMicrophoneDeviceId
@@ -22,7 +16,12 @@ export function usePersistResolvedMicrophoneSelection({
   const attemptedTransitionRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (isPermissionBlocked || isPreferencesLoading || isMutating || isDevicesLoading) {
+    if (!canPersistResolvedSelection) {
+      return
+    }
+
+    // Only auto-persist initial resolution when no explicit microphone has been selected yet.
+    if (selectedMicrophoneDeviceId !== null) {
       return
     }
 
@@ -38,10 +37,7 @@ export function usePersistResolvedMicrophoneSelection({
     attemptedTransitionRef.current = transitionKey
     setSelectedMicrophoneDeviceId(resolvedDeviceId)
   }, [
-    isDevicesLoading,
-    isMutating,
-    isPermissionBlocked,
-    isPreferencesLoading,
+    canPersistResolvedSelection,
     resolvedDeviceId,
     selectedMicrophoneDeviceId,
     setSelectedMicrophoneDeviceId

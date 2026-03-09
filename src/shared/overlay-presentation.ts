@@ -5,6 +5,8 @@ const ERROR_WIDTH_MAX = 380
 const ERROR_HEIGHT_SINGLE_LINE = 46
 const ERROR_HEIGHT_MAX = 86
 const ERROR_CHROME_WIDTH = 112
+const MANUAL_PASTE_WIDTH = 262
+const MANUAL_PASTE_HEIGHT = 50
 const AVERAGE_CHARACTER_WIDTH = 7.1
 const ERROR_LINE_HEIGHT = 16
 const ERROR_LINE_COUNT_MAX = 3
@@ -38,10 +40,29 @@ const truncate = (value: string, maxLength: number): string =>
   value.length <= maxLength ? value : `${value.slice(0, maxLength - 1).trimEnd()}...`
 
 export const resolveOverlayMessage = (
-  state: Pick<DictationOverlayState, 'phase' | 'failureReason' | 'message'>
+  state: Pick<DictationOverlayState, 'phase' | 'failureReason' | 'message' | 'manualPaste'>
 ): string | null => {
+  if (state.phase === 'awaiting_manual_paste') {
+    return state.manualPaste ? 'Paste when ready' : 'Waiting for manual paste'
+  }
+
   if (state.phase !== 'failed') {
     return null
+  }
+
+  if (state.failureReason === 'paste_not_supported') {
+    return 'Auto-paste not supported on this platform'
+  }
+
+  if (state.failureReason === 'paste_permission_denied') {
+    return 'Allow Accessibility to use auto-paste'
+  }
+
+  if (state.failureReason === 'paste_runtime_error') {
+    const message = (state.message ?? '').trim()
+    return message.length > 0
+      ? truncate(normalizeLine(message), MAX_ERROR_MESSAGE_LENGTH)
+      : 'Auto-paste failed'
   }
 
   if (state.failureReason === 'aborted') {
@@ -94,11 +115,18 @@ export const resolveOverlayMessage = (
 }
 
 export const resolveOverlayWindowSize = (
-  state: Pick<DictationOverlayState, 'phase' | 'failureReason' | 'message'> | null,
+  state: Pick<DictationOverlayState, 'phase' | 'failureReason' | 'message' | 'manualPaste'> | null,
   defaultSize: OverlayWindowSize
 ): OverlayWindowSize => {
   if (!state) {
     return defaultSize
+  }
+
+  if (state.phase === 'awaiting_manual_paste') {
+    return {
+      width: MANUAL_PASTE_WIDTH,
+      height: MANUAL_PASTE_HEIGHT
+    }
   }
 
   const message = resolveOverlayMessage(state)

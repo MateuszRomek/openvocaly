@@ -21,6 +21,11 @@ let mainWindow: BrowserWindow | null = null
 let hasShutdownCompleted = false
 let shutdownPromise: Promise<void> | null = null
 let isQuitting = false
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+}
 
 const createTimeout = (delayMs: number): Promise<void> =>
   new Promise((resolve) => {
@@ -91,7 +96,7 @@ function createWindow(): void {
     minHeight: 550,
     show: false,
     autoHideMenuBar: true,
-    title: 'OpenVocally',
+    title: 'OpenVocaly',
     ...(isLinux() ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -138,7 +143,11 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
-  app.setName('OpenVocally')
+  if (!hasSingleInstanceLock) {
+    return
+  }
+
+  app.setName('OpenVocaly')
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.openvocally.app')
@@ -180,6 +189,23 @@ app.whenReady().then(async () => {
   }
 
   createWindow()
+
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow()
+      return
+    }
+
+    if (!mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore()
+    }
+
+    mainWindow.focus()
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

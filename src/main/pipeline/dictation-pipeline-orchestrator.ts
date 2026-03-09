@@ -1,5 +1,7 @@
 import type { DictationFailureReason, DictationRuntimeStateResponse } from '../../shared/dictation'
 import type { RecordingArtifact, RecordingMode } from '../../shared/recording'
+import { dictationPasteService } from '../paste'
+import type { ManualPasteState } from '../paste/service'
 import type { RecordingCommand } from '../recording/command-bus'
 import { recordingCommandBus } from '../recording/command-bus'
 import { recordingArtifactBus } from '../recording/artifact-bus'
@@ -33,6 +35,7 @@ class DictationPipelineOrchestrator {
   private readonly session = new DictationSessionStateManager()
   private readonly idleReset = new DictationIdleResetController()
   private readonly transcriptionWorkflow = new DictationTranscriptionWorkflow()
+  private readonly pasteService = dictationPasteService
 
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -86,6 +89,7 @@ class DictationPipelineOrchestrator {
       this.unsubscribeArtifactReady = null
     }
 
+    this.pasteService.destroy()
     this.overlayPublisher.destroy()
     this.session.resetToIdle()
     this.initialized = false
@@ -114,6 +118,11 @@ class DictationPipelineOrchestrator {
 
     if (intent.type === 'cancel') {
       await recordingService.cancelRecording()
+      return
+    }
+
+    if (intent.type === 'cancel_manual_paste') {
+      this.pasteService.cancelActiveFallback(this.session.sessionId ?? undefined)
       return
     }
 
@@ -177,13 +186,76 @@ class DictationPipelineOrchestrator {
     }
 
     if (workflowResult.type === 'complete') {
-      await this.transitionToComplete(artifact.sessionId, artifact.mode)
+      await this.handlePostTranscriptionSuccess(artifact, workflowResult.transcriptText)
       return
     }
 
     await this.transitionToFailed(
       'transcription_error',
       workflowResult.message,
+      artifact.sessionId,
+      artifact.mode
+    )
+  }
+
+  private async handlePostTranscriptionSuccess(
+    artifact: RecordingArtifact,
+    transcriptText: string
+  ): Promise<void> {
+    // Keep overlay visible while post-transcription paste flow resolves.
+    // This avoids a hide/show blink before manual fallback or error states.
+    const pasteOutcome = await this.pasteService.processTranscript({
+      sessionId: artifact.sessionId,
+      transcriptText,
+      onManualPasteState: async (manualState) => {
+        await this.transitionToAwaitingManualPaste(artifact.sessionId, artifact.mode, manualState)
+      }
+    })
+
+    if (!this.session.isCurrentSession(artifact.sessionId)) {
+      return
+    }
+
+    if (pasteOutcome.type === 'auto_paste_success') {
+      await this.resetToIdleAndHideOverlay()
+      return
+    }
+
+    if (
+      pasteOutcome.type === 'manual_paste_success' ||
+      pasteOutcome.type === 'manual_timeout' ||
+      pasteOutcome.type === 'manual_cancelled'
+    ) {
+      await this.resetToIdleAndHideOverlay()
+      return
+    }
+
+    if (pasteOutcome.type === 'not_supported') {
+      await this.playErrorCueSafe()
+      await this.transitionToFailed(
+        'paste_not_supported',
+        pasteOutcome.message,
+        artifact.sessionId,
+        artifact.mode
+      )
+      return
+    }
+
+    if (pasteOutcome.type === 'permission_denied') {
+      await this.playErrorCueSafe()
+      await this.transitionToFailed(
+        'paste_permission_denied',
+        pasteOutcome.message,
+        artifact.sessionId,
+        artifact.mode
+      )
+      return
+    }
+
+    await this.playErrorCueSafe()
+    await this.transitionToFailed(
+      'paste_runtime_error',
+      pasteOutcome.message,
       artifact.sessionId,
       artifact.mode
     )
@@ -201,15 +273,31 @@ class DictationPipelineOrchestrator {
     await this.publishOverlayImmediate()
   }
 
-  private async transitionToComplete(
+  private async transitionToAwaitingManualPaste(
     sessionId: string | null,
-    mode: RecordingMode | null
+    mode: RecordingMode | null,
+    manualState: ManualPasteState
   ): Promise<void> {
+    if (!sessionId || !this.session.isCurrentSession(sessionId)) {
+      return
+    }
+
+    const wasAwaitingManualPaste = this.session.isPhase('awaiting_manual_paste')
+
     this.idleReset.clear()
-    this.session.setComplete(sessionId, mode)
+    this.session.setAwaitingManualPaste({
+      sessionId,
+      mode,
+      remainingMs: manualState.remainingMs,
+      timeoutMs: manualState.timeoutMs,
+      hint: manualState.hint
+    })
 
     await this.publishOverlayImmediate()
-    this.scheduleTerminalReset({ type: 'complete' })
+
+    if (!wasAwaitingManualPaste) {
+      await this.playAutoPasteFallbackCueSafe()
+    }
   }
 
   private async transitionToFailed(
@@ -237,13 +325,17 @@ class DictationPipelineOrchestrator {
     const delayMs = resolveTerminalDisplayDelayMs(outcome)
 
     this.idleReset.schedule(delayMs, () => {
-      this.session.resetToIdle()
-      recordingService.resetSessionToIdle()
-
-      void this.overlayPublisher.publishImmediate(null).catch((error) => {
+      void this.resetToIdleAndHideOverlay().catch((error) => {
         console.error('[pipeline] failed to publish idle overlay state', error)
       })
     })
+  }
+
+  private async resetToIdleAndHideOverlay(): Promise<void> {
+    this.pasteService.cancelActiveFallback(this.session.sessionId ?? undefined)
+    this.session.resetToIdle()
+    recordingService.resetSessionToIdle()
+    await this.overlayPublisher.publishImmediate(null)
   }
 
   private async publishOverlayImmediate(): Promise<void> {
@@ -252,6 +344,18 @@ class DictationPipelineOrchestrator {
 
   private async publishOverlayAudioLevels(): Promise<void> {
     await this.overlayPublisher.publishAudioLevels(this.session.toOverlayState())
+  }
+
+  private async playErrorCueSafe(): Promise<void> {
+    await recordingService.playCue('error').catch((error) => {
+      console.error('[pipeline] failed to play paste failure cue', error)
+    })
+  }
+
+  private async playAutoPasteFallbackCueSafe(): Promise<void> {
+    await recordingService.playCue('auto_paste_fail').catch((error) => {
+      console.error('[pipeline] failed to play auto-paste fallback cue', error)
+    })
   }
 }
 

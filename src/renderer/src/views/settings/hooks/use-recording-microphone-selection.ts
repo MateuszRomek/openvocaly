@@ -22,7 +22,7 @@ type UseRecordingMicrophoneSelectionResult = {
   permissionMessage?: string
   hasNoDevices: boolean
   deviceOptions: MicrophoneDeviceOption[]
-  selectedOptionId: string | undefined
+  selectedOptionId: string | null
   selectedLabel: string | null
   selectDisabled: boolean
   handleValueChange: (value: string | null) => void
@@ -50,12 +50,16 @@ export function useRecordingMicrophoneSelection(): UseRecordingMicrophoneSelecti
     () => toSelectableDeviceOptions(allDeviceOptions),
     [allDeviceOptions]
   )
+  const canPersistResolvedSelection =
+    !isPermissionBlocked &&
+    !isPermissionStatusLoading &&
+    microphonePermissionState === 'granted' &&
+    !isPreferencesLoading &&
+    !isMutating &&
+    !devicesQuery.isPending
 
   usePersistResolvedMicrophoneSelection({
-    isPermissionBlocked,
-    isPreferencesLoading,
-    isMutating,
-    isDevicesLoading: devicesQuery.isPending,
+    canPersistResolvedSelection,
     resolvedDeviceId,
     selectedMicrophoneDeviceId,
     setSelectedMicrophoneDeviceId
@@ -96,7 +100,7 @@ export function useRecordingMicrophoneSelection(): UseRecordingMicrophoneSelecti
     permissionMessage: permissionConfig.microphone.message,
     hasNoDevices: !devicesQuery.isPending && selectableDeviceOptions.length === 0,
     deviceOptions: selectableDeviceOptions,
-    selectedOptionId: selectedOption?.optionId,
+    selectedOptionId: selectedOption?.optionId ?? null,
     selectedLabel: selectedOption?.label ?? null,
     selectDisabled:
       isPermissionBlocked ||

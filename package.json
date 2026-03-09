@@ -1,6 +1,6 @@
 {
   "name": "openvocaly",
-  "productName": "OpenVocally",
+  "productName": "OpenVocaly",
   "version": "1.0.0",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
@@ -13,7 +13,8 @@
     "routes:generate": "tsr generate",
     "routes:watch": "tsr watch",
     "prepare:local-runtime": "npm run download:sherpa-onnx",
-    "predev": "npm run routes:generate && npm run prepare:local-runtime",
+    "prepare:macos-fast-paste": "node scripts/build-macos-fast-paste.js",
+    "predev": "npm run routes:generate && npm run prepare:local-runtime && npm run prepare:macos-fast-paste",
     "prebuild": "npm run prepare:local-runtime",
     "pretypecheck": "npm run routes:generate",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
@@ -28,7 +29,7 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
-    "build:mac": "npm run build && electron-builder --mac",
+    "build:mac": "npm run prepare:macos-fast-paste && npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {

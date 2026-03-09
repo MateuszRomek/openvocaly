@@ -2,6 +2,7 @@ import type { RecordingCueKind, RecordingSoundCueSettings } from '../../../share
 import startCueAssetUrl from '../assets/audio/rec-start.wav'
 import cancelCueAssetUrl from '../assets/audio/rec-cancel.wav'
 import errorCueAssetUrl from '../assets/audio/rec-error.wav'
+import autoPasteFailCueAssetUrl from '../assets/audio/auto-paste-fail.wav'
 
 const START_CUE_COOLDOWN_MS = 85
 const CANCEL_CUE_COOLDOWN_MS = 140
@@ -15,13 +16,15 @@ const PRIME_DURATION_SEC = 0.05
 const CUE_ASSET_URLS: Record<RecordingCueKind, string> = {
   start: startCueAssetUrl,
   cancel: cancelCueAssetUrl,
-  error: errorCueAssetUrl
+  error: errorCueAssetUrl,
+  auto_paste_fail: autoPasteFailCueAssetUrl
 }
 
 const CUE_GAIN_SCALE: Record<RecordingCueKind, number> = {
   start: 1,
   cancel: 0.7,
-  error: 1
+  error: 1,
+  auto_paste_fail: 1
 }
 
 let cueAudioContext: AudioContext | null = null
@@ -207,7 +210,8 @@ export const primeRecordingCueOutput = async (): Promise<void> => {
         primeOutput(context)
         await Promise.all([
           ensureCueBufferReady(context, 'start'),
-          ensureCueBufferReady(context, 'cancel')
+          ensureCueBufferReady(context, 'cancel'),
+          ensureCueBufferReady(context, 'auto_paste_fail')
         ])
         return
       }

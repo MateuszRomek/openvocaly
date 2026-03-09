@@ -39,6 +39,12 @@ class TranscriptionService {
   }
 
   async shutdown(): Promise<void> {
+    try {
+      await parakeetRuntime.stopRuntime()
+    } catch (error) {
+      console.error('[transcription] failed to stop local runtime during shutdown', error)
+    }
+
     this.initialized = false
   }
 

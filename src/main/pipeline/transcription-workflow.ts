@@ -4,7 +4,7 @@ import { RecordingArtifactStore } from '../recording/storage/artifact-store'
 import { transcriptionService } from '../transcription/service'
 
 export type TranscriptionWorkflowResult =
-  | { type: 'complete' }
+  | { type: 'complete'; transcriptText: string }
   | {
       type: 'failed'
       message?: string
@@ -32,7 +32,10 @@ export class DictationTranscriptionWorkflow {
 
     if (transcriptionResult.ok) {
       await this.artifactStore.markTranscriptionSuccess(artifact)
-      return { type: 'complete' }
+      return {
+        type: 'complete',
+        transcriptText: transcriptionResult.transcript.text
+      }
     }
 
     try {

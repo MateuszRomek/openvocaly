@@ -99,6 +99,8 @@ export class RecordingOverlayController {
     }
 
     this.clearResizeAnimationTimer()
+    this.pendingState = null
+    this.macosVisibility.clearScheduledReasserts()
     this.overlayWindow.hide()
   }
 

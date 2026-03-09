@@ -34,7 +34,7 @@ export type RecordingMicrophoneSettings = {
   selectedDeviceId: string | null
 }
 
-export type RecordingCueKind = 'start' | 'cancel' | 'error'
+export type RecordingCueKind = 'start' | 'cancel' | 'error' | 'auto_paste_fail'
 
 export type RecordingPreferences = {
   soundCues: RecordingSoundCueSettings
