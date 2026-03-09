@@ -1,17 +1,17 @@
 import type { DictationFailureReason, DictationRuntimeStateResponse } from '../../shared/dictation'
 import type { RecordingArtifact, RecordingMode } from '../../shared/recording'
-import type { RecordingCommand } from '../recording/command-bus'
-import { recordingCommandBus } from '../recording/command-bus'
-import { recordingArtifactBus } from '../recording/artifact-bus'
-import { recordingService } from '../recording/service/orchestrator'
+import type { DictationPasteService, ManualPasteState } from '../paste/service'
+import type { RecordingCommand, RecordingCommandBus } from '../recording/command-bus'
+import type { RecordingArtifactBus } from '../recording/artifact-bus'
+import type { RecordingServiceOrchestrator } from '../recording/service/orchestrator'
 import type { RecordingSessionSnapshot } from '../recording/service/session'
-import { recordingSessionBus } from '../recording/session-bus'
+import type { RecordingSessionBus } from '../recording/session-bus'
 import { resolveDictationCommandIntent } from './command-intent'
-import { DictationIdleResetController } from './idle-reset-controller'
-import { DictationOverlayPublisher } from './overlay-publisher'
-import { DictationSessionStateManager } from './session'
+import type { DictationIdleResetController } from './idle-reset-controller'
+import type { DictationOverlayPublisher } from './overlay-publisher'
+import type { DictationSessionStateManager } from './session'
 import { resolveTerminalDisplayDelayMs } from './terminal-policy'
-import { DictationTranscriptionWorkflow } from './transcription-workflow'
+import type { DictationTranscriptionWorkflow } from './transcription-workflow'
 
 /**
  * Coordinates top-level dictation lifecycle in main process.
@@ -22,17 +22,26 @@ import { DictationTranscriptionWorkflow } from './transcription-workflow'
  * - delegates state mutations to DictationSessionStateManager,
  * - delegates side effects to dedicated collaborators.
  */
-class DictationPipelineOrchestrator {
+export class DictationPipelineOrchestrator {
   private initialized = false
 
   private unsubscribeCommand: (() => void) | null = null
   private unsubscribeRecordingSession: (() => void) | null = null
   private unsubscribeArtifactReady: (() => void) | null = null
 
-  private readonly overlayPublisher = new DictationOverlayPublisher()
-  private readonly session = new DictationSessionStateManager()
-  private readonly idleReset = new DictationIdleResetController()
-  private readonly transcriptionWorkflow = new DictationTranscriptionWorkflow()
+  constructor(
+    private readonly dependencies: {
+      commandBus: RecordingCommandBus
+      sessionBus: RecordingSessionBus
+      artifactBus: RecordingArtifactBus
+      recordingService: RecordingServiceOrchestrator
+      overlayPublisher: DictationOverlayPublisher
+      session: DictationSessionStateManager
+      idleReset: DictationIdleResetController
+      transcriptionWorkflow: DictationTranscriptionWorkflow
+      pasteService: DictationPasteService
+    }
+  ) {}
 
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -41,25 +50,27 @@ class DictationPipelineOrchestrator {
 
     this.initialized = true
 
-    this.unsubscribeCommand = recordingCommandBus.subscribe((command) => {
+    this.unsubscribeCommand = this.dependencies.commandBus.subscribe((command) => {
       void this.handleShortcutCommand(command).catch((error) => {
         console.error('[pipeline] failed to process shortcut command', error)
       })
     })
 
-    this.unsubscribeRecordingSession = recordingSessionBus.subscribe((snapshot) => {
+    this.unsubscribeRecordingSession = this.dependencies.sessionBus.subscribe((snapshot) => {
       void this.handleRecordingSessionSnapshot(snapshot).catch((error) => {
         console.error('[pipeline] failed to process recording session snapshot', error)
       })
     })
 
-    this.unsubscribeArtifactReady = recordingArtifactBus.subscribe((artifact) => {
+    this.unsubscribeArtifactReady = this.dependencies.artifactBus.subscribe((artifact) => {
       void this.handleArtifactReady(artifact).catch((error) => {
         console.error('[pipeline] failed to process recording artifact', error)
       })
     })
 
-    this.session.initializeFromRecordingRuntime(recordingService.getRuntimeState().state)
+    this.dependencies.session.initializeFromRecordingRuntime(
+      this.dependencies.recordingService.getRuntimeState().state
+    )
 
     await this.publishOverlayImmediate()
   }
@@ -69,7 +80,7 @@ class DictationPipelineOrchestrator {
       return
     }
 
-    this.idleReset.destroy()
+    this.dependencies.idleReset.destroy()
 
     if (this.unsubscribeCommand) {
       this.unsubscribeCommand()
@@ -86,13 +97,14 @@ class DictationPipelineOrchestrator {
       this.unsubscribeArtifactReady = null
     }
 
-    this.overlayPublisher.destroy()
-    this.session.resetToIdle()
+    this.dependencies.pasteService.destroy()
+    this.dependencies.overlayPublisher.destroy()
+    this.dependencies.session.resetToIdle()
     this.initialized = false
   }
 
   getRuntimeState(): DictationRuntimeStateResponse {
-    return this.session.toRuntimeStateResponse()
+    return this.dependencies.session.toRuntimeStateResponse()
   }
 
   private async handleShortcutCommand(command: RecordingCommand): Promise<void> {
@@ -102,8 +114,8 @@ class DictationPipelineOrchestrator {
 
     const intent = resolveDictationCommandIntent(
       {
-        phase: this.session.phase,
-        mode: this.session.mode
+        phase: this.dependencies.session.phase,
+        mode: this.dependencies.session.mode
       },
       command
     )
@@ -113,16 +125,23 @@ class DictationPipelineOrchestrator {
     }
 
     if (intent.type === 'cancel') {
-      await recordingService.cancelRecording()
+      await this.dependencies.recordingService.cancelRecording()
+      return
+    }
+
+    if (intent.type === 'cancel_manual_paste') {
+      this.dependencies.pasteService.cancelActiveFallback(
+        this.dependencies.session.sessionId ?? undefined
+      )
       return
     }
 
     if (intent.type === 'stop') {
-      await recordingService.stopRecording()
+      await this.dependencies.recordingService.stopRecording()
       return
     }
 
-    await recordingService.startRecording(intent.mode)
+    await this.dependencies.recordingService.startRecording(intent.mode)
   }
 
   private async handleRecordingSessionSnapshot(snapshot: RecordingSessionSnapshot): Promise<void> {
@@ -130,7 +149,7 @@ class DictationPipelineOrchestrator {
       return
     }
 
-    if (this.session.isPhase('transcribing') && snapshot.phase === 'complete') {
+    if (this.dependencies.session.isPhase('transcribing') && snapshot.phase === 'complete') {
       return
     }
 
@@ -153,7 +172,7 @@ class DictationPipelineOrchestrator {
       return
     }
 
-    this.session.applyRecordingSessionSnapshot(snapshot)
+    this.dependencies.session.applyRecordingSessionSnapshot(snapshot)
 
     if (snapshot.phase === 'recording') {
       await this.publishOverlayAudioLevels()
@@ -170,14 +189,14 @@ class DictationPipelineOrchestrator {
 
     await this.transitionToTranscribing(artifact.sessionId, artifact.mode)
 
-    const workflowResult = await this.transcriptionWorkflow.processArtifact(artifact)
+    const workflowResult = await this.dependencies.transcriptionWorkflow.processArtifact(artifact)
 
-    if (!this.session.isCurrentSession(artifact.sessionId)) {
+    if (!this.dependencies.session.isCurrentSession(artifact.sessionId)) {
       return
     }
 
     if (workflowResult.type === 'complete') {
-      await this.transitionToComplete(artifact.sessionId, artifact.mode)
+      await this.handlePostTranscriptionSuccess(artifact, workflowResult.transcriptText)
       return
     }
 
@@ -189,27 +208,106 @@ class DictationPipelineOrchestrator {
     )
   }
 
+  private async handlePostTranscriptionSuccess(
+    artifact: RecordingArtifact,
+    transcriptText: string
+  ): Promise<void> {
+    // Keep overlay visible while post-transcription paste flow resolves.
+    // This avoids a hide/show blink before manual fallback or error states.
+    const pasteOutcome = await this.dependencies.pasteService.processTranscript({
+      sessionId: artifact.sessionId,
+      transcriptText,
+      onManualPasteState: async (manualState) => {
+        await this.transitionToAwaitingManualPaste(artifact.sessionId, artifact.mode, manualState)
+      }
+    })
+
+    if (!this.dependencies.session.isCurrentSession(artifact.sessionId)) {
+      return
+    }
+
+    if (pasteOutcome.type === 'auto_paste_success') {
+      await this.resetToIdleAndHideOverlay()
+      return
+    }
+
+    if (
+      pasteOutcome.type === 'manual_paste_success' ||
+      pasteOutcome.type === 'manual_timeout' ||
+      pasteOutcome.type === 'manual_cancelled'
+    ) {
+      await this.resetToIdleAndHideOverlay()
+      return
+    }
+
+    if (pasteOutcome.type === 'not_supported') {
+      await this.playErrorCueSafe()
+      await this.transitionToFailed(
+        'paste_not_supported',
+        pasteOutcome.message,
+        artifact.sessionId,
+        artifact.mode
+      )
+      return
+    }
+
+    if (pasteOutcome.type === 'permission_denied') {
+      await this.playErrorCueSafe()
+      await this.transitionToFailed(
+        'paste_permission_denied',
+        pasteOutcome.message,
+        artifact.sessionId,
+        artifact.mode
+      )
+      return
+    }
+
+    await this.playErrorCueSafe()
+    await this.transitionToFailed(
+      'paste_runtime_error',
+      pasteOutcome.message,
+      artifact.sessionId,
+      artifact.mode
+    )
+  }
+
   private async transitionToTranscribing(
     sessionId: string | null,
     mode: RecordingMode | null
   ): Promise<void> {
-    if (!this.session.setTranscribing(sessionId, mode)) {
+    if (!this.dependencies.session.setTranscribing(sessionId, mode)) {
       return
     }
 
-    this.idleReset.clear()
+    this.dependencies.idleReset.clear()
     await this.publishOverlayImmediate()
   }
 
-  private async transitionToComplete(
+  private async transitionToAwaitingManualPaste(
     sessionId: string | null,
-    mode: RecordingMode | null
+    mode: RecordingMode | null,
+    manualState: ManualPasteState
   ): Promise<void> {
-    this.idleReset.clear()
-    this.session.setComplete(sessionId, mode)
+    if (!sessionId || !this.dependencies.session.isCurrentSession(sessionId)) {
+      return
+    }
+
+    const wasAwaitingManualPaste = this.dependencies.session.isPhase('awaiting_manual_paste')
+
+    this.dependencies.idleReset.clear()
+    this.dependencies.session.setAwaitingManualPaste({
+      sessionId,
+      mode,
+      remainingMs: manualState.remainingMs,
+      timeoutMs: manualState.timeoutMs,
+      hint: manualState.hint
+    })
 
     await this.publishOverlayImmediate()
-    this.scheduleTerminalReset({ type: 'complete' })
+
+    if (!wasAwaitingManualPaste) {
+      await this.playAutoPasteFallbackCueSafe()
+    }
   }
 
   private async transitionToFailed(
@@ -218,8 +316,8 @@ class DictationPipelineOrchestrator {
     sessionId?: string | null,
     mode?: RecordingMode | null
   ): Promise<void> {
-    this.idleReset.clear()
-    this.session.setFailed(reason, message, sessionId, mode)
+    this.dependencies.idleReset.clear()
+    this.dependencies.session.setFailed(reason, message, sessionId, mode)
 
     await this.publishOverlayImmediate()
     this.scheduleTerminalReset({
@@ -236,23 +334,43 @@ class DictationPipelineOrchestrator {
   ): void {
     const delayMs = resolveTerminalDisplayDelayMs(outcome)
 
-    this.idleReset.schedule(delayMs, () => {
-      this.session.resetToIdle()
-      recordingService.resetSessionToIdle()
-
-      void this.overlayPublisher.publishImmediate(null).catch((error) => {
+    this.dependencies.idleReset.schedule(delayMs, () => {
+      void this.resetToIdleAndHideOverlay().catch((error) => {
         console.error('[pipeline] failed to publish idle overlay state', error)
       })
     })
   }
 
+  private async resetToIdleAndHideOverlay(): Promise<void> {
+    this.dependencies.pasteService.cancelActiveFallback(
+      this.dependencies.session.sessionId ?? undefined
+    )
+    this.dependencies.session.resetToIdle()
+    this.dependencies.recordingService.resetSessionToIdle()
+    await this.dependencies.overlayPublisher.publishImmediate(null)
+  }
+
   private async publishOverlayImmediate(): Promise<void> {
-    await this.overlayPublisher.publishImmediate(this.session.toOverlayState())
+    await this.dependencies.overlayPublisher.publishImmediate(
+      this.dependencies.session.toOverlayState()
+    )
   }
 
   private async publishOverlayAudioLevels(): Promise<void> {
-    await this.overlayPublisher.publishAudioLevels(this.session.toOverlayState())
+    await this.dependencies.overlayPublisher.publishAudioLevels(
+      this.dependencies.session.toOverlayState()
+    )
+  }
+
+  private async playErrorCueSafe(): Promise<void> {
+    await this.dependencies.recordingService.playCue('error').catch((error) => {
+      console.error('[pipeline] failed to play paste failure cue', error)
+    })
+  }
+
+  private async playAutoPasteFallbackCueSafe(): Promise<void> {
+    await this.dependencies.recordingService.playCue('auto_paste_fail').catch((error) => {
+      console.error('[pipeline] failed to play auto-paste fallback cue', error)
+    })
   }
 }
-
-export const dictationPipelineOrchestrator = new DictationPipelineOrchestrator()

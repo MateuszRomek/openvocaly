@@ -46,9 +46,7 @@ const isCommandAvailable = (command: string): boolean => {
 
 const resolveTarCommand = (): string => {
   const candidates =
-    process.platform === 'win32'
-      ? ['tar.exe', 'tar', 'bsdtar.exe', 'bsdtar']
-      : ['tar']
+    process.platform === 'win32' ? ['tar.exe', 'tar', 'bsdtar.exe', 'bsdtar'] : ['tar']
 
   for (const command of candidates) {
     if (isCommandAvailable(command)) {

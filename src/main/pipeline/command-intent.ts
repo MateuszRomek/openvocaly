@@ -11,6 +11,7 @@ export type DictationCommandContext = {
 export type DictationCommandIntent =
   | { type: 'ignore' }
   | { type: 'cancel' }
+  | { type: 'cancel_manual_paste' }
   | { type: 'start'; mode: RecordingMode }
   | { type: 'stop' }
 
@@ -26,6 +27,10 @@ export const resolveDictationCommandIntent = (
     context.phase === phase && context.mode === mode
 
   if (command.type === 'cancel') {
+    if (context.phase === 'awaiting_manual_paste') {
+      return { type: 'cancel_manual_paste' }
+    }
+
     if (!isActiveCapturePhase(context.phase)) {
       return { type: 'ignore' }
     }

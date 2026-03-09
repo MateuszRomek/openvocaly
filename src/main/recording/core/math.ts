@@ -14,8 +14,8 @@ export const clamp01 = (value: number): number => {
   return value
 }
 
-export const normalizeBands = (input: number[]): number[] =>
-  input.map((value) => {
+export const normalizeBands = (params: number[]): number[] =>
+  params.map((value) => {
     if (!Number.isFinite(value)) {
       return 0
     }

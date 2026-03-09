@@ -1,22 +1,27 @@
 import { ipcMain } from 'electron'
+import { createIpcRegistrar } from '../helpers/ipc'
 import type { DictationRuntimeStateResponse } from '../../shared/dictation'
-import { dictationPipelineOrchestrator } from './dictation-pipeline-orchestrator'
+import type { DictationPipelineOrchestrator } from './dictation-pipeline-orchestrator'
 
-let pipelineIpcRegistered = false
-
-export const registerPipelineIpc = (): void => {
-  if (pipelineIpcRegistered) {
-    return
-  }
-
-  ipcMain.handle(
-    'dictation:getRuntimeState',
-    (): DictationRuntimeStateResponse => dictationPipelineOrchestrator.getRuntimeState()
-  )
-
-  pipelineIpcRegistered = true
+export type PipelineIpcModule = {
+  registerIpcHandlers: () => void
+  initialize: () => Promise<void>
+  shutdown: () => Promise<void>
 }
 
-export const initializePipeline = (): Promise<void> => dictationPipelineOrchestrator.initialize()
+export const createPipelineIpcModule = (
+  dictationPipelineOrchestrator: DictationPipelineOrchestrator
+): PipelineIpcModule => {
+  const registerIpcHandlers = createIpcRegistrar(() => {
+    ipcMain.handle(
+      'dictation:getRuntimeState',
+      (): DictationRuntimeStateResponse => dictationPipelineOrchestrator.getRuntimeState()
+    )
+  })
 
-export const shutdownPipeline = (): Promise<void> => dictationPipelineOrchestrator.shutdown()
+  return {
+    registerIpcHandlers,
+    initialize: () => dictationPipelineOrchestrator.initialize(),
+    shutdown: () => dictationPipelineOrchestrator.shutdown()
+  }
+}

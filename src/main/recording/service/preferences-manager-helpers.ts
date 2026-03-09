@@ -19,19 +19,19 @@ export const createDefaultPreferences = (): RecordingPreferences => ({
 })
 
 const normalizeSoundCueSettings = (
-  input: Partial<RecordingSoundCueSettings> | undefined,
+  params: Partial<RecordingSoundCueSettings> | undefined,
   fallback: RecordingSoundCueSettings
 ): RecordingSoundCueSettings => ({
-  enabled: typeof input?.enabled === 'boolean' ? input.enabled : fallback.enabled
+  enabled: typeof params?.enabled === 'boolean' ? params.enabled : fallback.enabled
 })
 
 const normalizeMicrophoneSettings = (
-  input: Partial<RecordingMicrophoneSettings> | undefined,
+  params: Partial<RecordingMicrophoneSettings> | undefined,
   fallback: RecordingMicrophoneSettings
 ): RecordingMicrophoneSettings => ({
   selectedDeviceId:
-    typeof input?.selectedDeviceId === 'string' || input?.selectedDeviceId === null
-      ? input.selectedDeviceId
+    typeof params?.selectedDeviceId === 'string' || params?.selectedDeviceId === null
+      ? params.selectedDeviceId
       : fallback.selectedDeviceId
 })
 

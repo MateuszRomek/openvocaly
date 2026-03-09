@@ -5,7 +5,8 @@ const BAND_EPSILON = 0.02
 
 export const cloneOverlayState = (state: DictationOverlayState): DictationOverlayState => ({
   ...state,
-  bands: [...state.bands]
+  bands: [...state.bands],
+  manualPaste: state.manualPaste ? { ...state.manualPaste } : undefined
 })
 
 export const isSameOverlayState = (
@@ -27,6 +28,20 @@ export const isSameOverlayState = (
     left.message !== right.message
   ) {
     return false
+  }
+
+  if (Boolean(left.manualPaste) !== Boolean(right.manualPaste)) {
+    return false
+  }
+
+  if (left.manualPaste && right.manualPaste) {
+    if (
+      left.manualPaste.remainingMs !== right.manualPaste.remainingMs ||
+      left.manualPaste.timeoutMs !== right.manualPaste.timeoutMs ||
+      left.manualPaste.hint !== right.manualPaste.hint
+    ) {
+      return false
+    }
   }
 
   if (Math.abs(left.meterLevel - right.meterLevel) > LEVEL_EPSILON) {

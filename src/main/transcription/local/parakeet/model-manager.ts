@@ -9,7 +9,6 @@ import type {
 } from '../../../../shared/local-transcription'
 import { createArchiveExtractor } from '../archive-extractor'
 import type { ArchiveExtractor } from '../archive-extractor'
-import { DownloadProgressStore } from '../download-progress-store'
 import { getParakeetModelDir, getParakeetModelsRootDir } from '../model-dir-utils'
 import { downloadFile } from '../model-download-client'
 import {
@@ -27,26 +26,23 @@ type DownloadState = {
 
 type ParakeetModelManagerDeps = {
   archiveExtractor?: ArchiveExtractor
-  progressStore?: DownloadProgressStore<ParakeetModelId, LocalModelDownloadProgress>
+  progressByModel?: Map<ParakeetModelId, LocalModelDownloadProgress>
 }
 
 export class ParakeetModelManager {
   private activeDownload: DownloadState | null = null
   private readonly archiveExtractor: ArchiveExtractor
-  private readonly progressStore: DownloadProgressStore<
-    ParakeetModelId,
-    LocalModelDownloadProgress
-  >
+  private readonly progressByModel: Map<ParakeetModelId, LocalModelDownloadProgress>
 
   constructor(deps: ParakeetModelManagerDeps = {}) {
     this.archiveExtractor = deps.archiveExtractor ?? createArchiveExtractor()
-    this.progressStore = deps.progressStore ?? new DownloadProgressStore()
+    this.progressByModel = deps.progressByModel ?? new Map()
   }
 
   private toModelInfo(modelId: ParakeetModelId): LocalModelInfo {
     const model = getParakeetModelDefinition(modelId)
     const downloaded = this.isModelDownloaded(modelId)
-    const progress = this.progressStore.get(modelId)
+    const progress = this.progressByModel.get(modelId)
 
     return {
       id: model.id,
@@ -74,7 +70,7 @@ export class ParakeetModelManager {
   }
 
   private updateProgress(progress: LocalModelDownloadProgress): void {
-    this.progressStore.set(progress)
+    this.progressByModel.set(progress.modelId, progress)
   }
 
   private async extractModelArchive(archivePath: string, modelId: ParakeetModelId): Promise<void> {
@@ -240,7 +236,7 @@ export class ParakeetModelManager {
       return false
     }
 
-    const progress = this.progressStore.get(this.activeDownload.modelId)
+    const progress = this.progressByModel.get(this.activeDownload.modelId)
     if (progress?.state !== 'downloading') {
       return false
     }

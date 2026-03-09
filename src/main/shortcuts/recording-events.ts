@@ -1,8 +1,12 @@
 import type { RecordingShortcutCommandType } from '../../shared/recording'
-import { recordingCommandBus } from '../recording/command-bus'
+import type { RecordingCommandBus } from '../recording/command-bus'
 
 export type RecordingShortcutEvent = RecordingShortcutCommandType
 
-export const emitRecordingShortcutEvent = (event: RecordingShortcutEvent): void => {
-  recordingCommandBus.emit(event)
+export const createRecordingShortcutEventEmitter = (
+  commandBus: RecordingCommandBus
+): ((event: RecordingShortcutEvent) => void) => {
+  return (event: RecordingShortcutEvent): void => {
+    commandBus.emit(event)
+  }
 }

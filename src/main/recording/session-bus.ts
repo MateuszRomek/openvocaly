@@ -1,23 +1,27 @@
 import type { RecordingSessionSnapshot } from './service/session'
+import { createDomainBus } from '../events/domain-bus'
 
 type RecordingSessionListener = (snapshot: RecordingSessionSnapshot) => void
 
-class RecordingSessionBus {
-  private listeners = new Set<RecordingSessionListener>()
+const RECORDING_SESSION_EVENT = 'recording.session'
 
+const recordingSessionDomainBus = createDomainBus(RECORDING_SESSION_EVENT, {
+  toEvent: (snapshot: RecordingSessionSnapshot) => ({
+    snapshot,
+    emittedAt: Date.now()
+  }),
+  fromEvent: (event: { snapshot: RecordingSessionSnapshot }): RecordingSessionSnapshot =>
+    event.snapshot
+})
+
+class RecordingSessionBus {
   emit(snapshot: RecordingSessionSnapshot): void {
-    for (const listener of this.listeners) {
-      listener(snapshot)
-    }
+    recordingSessionDomainBus.emit(snapshot)
   }
 
   subscribe(listener: RecordingSessionListener): () => void {
-    this.listeners.add(listener)
-
-    return () => {
-      this.listeners.delete(listener)
-    }
+    return recordingSessionDomainBus.subscribe(listener)
   }
 }
 
-export const recordingSessionBus = new RecordingSessionBus()
+export { RecordingSessionBus }

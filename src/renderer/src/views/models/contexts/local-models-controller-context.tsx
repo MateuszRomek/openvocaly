@@ -1,4 +1,4 @@
-import { createContext, useContext, type JSX, type ReactNode } from 'react'
+import { createContext, useContext } from 'react'
 import type { TranscriptionProviderId } from '../hooks/use-transcription-provider-catalog'
 import type { LocalModelDownloadProgress } from '../types/local-models'
 
@@ -13,23 +13,7 @@ export type LocalModelsControllerValue = {
   deleteModel: (providerId: TranscriptionProviderId, modelId: string) => Promise<void>
 }
 
-const LocalModelsControllerContext = createContext<LocalModelsControllerValue | null>(null)
-
-type LocalModelsControllerProviderProps = {
-  value: LocalModelsControllerValue
-  children: ReactNode
-}
-
-export function LocalModelsControllerProvider({
-  value,
-  children
-}: LocalModelsControllerProviderProps): JSX.Element {
-  return (
-    <LocalModelsControllerContext.Provider value={value}>
-      {children}
-    </LocalModelsControllerContext.Provider>
-  )
-}
+export const LocalModelsControllerContext = createContext<LocalModelsControllerValue | null>(null)
 
 export function useLocalModelsControllerContext(): LocalModelsControllerValue {
   const context = useContext(LocalModelsControllerContext)

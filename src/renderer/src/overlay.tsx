@@ -1,7 +1,9 @@
-import { StrictMode, useEffect, useRef, useState } from 'react'
+import { StrictMode, useEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
-import { DICTATION_OVERLAY_STATE_CHANNEL, type DictationOverlayState } from '../../shared/dictation'
-import { resolveOverlayMessage } from '../../shared/overlay-presentation'
+import type { DictationOverlayState } from '../../shared/dictation'
+import { Kbd } from '@renderer/ui/kbd'
+import { useOverlayIpcState } from '@renderer/hooks/use-overlay-ipc-state'
+import { isMacOS } from '@renderer/lib/platform'
 import './assets/main.css'
 import { startThemeSync } from './lib/theme'
 import {
@@ -12,8 +14,7 @@ import {
   createBars,
   getBarSmoothing,
   resolveBarTarget,
-  toBarVisuals,
-  toTargetBars
+  toBarVisuals
 } from './overlay-visualizer-helpers'
 
 const stopThemeSync = startThemeSync()
@@ -38,9 +39,14 @@ export function OverlayVisualizer(): React.JSX.Element {
   const barElementsRef = useRef<Array<HTMLSpanElement | null>>(createBars(0).map(() => null))
   const mountedRef = useRef(false)
   const hasMessageRef = useRef(false)
-  const [message, setMessage] = useState<string | null>(null)
+  const { message, manualPasteState } = useOverlayIpcState({
+    currentPhaseRef,
+    targetBarsRef,
+    hasMessageRef
+  })
 
   const barIndexes = createBarIndexes()
+  const pasteModifierLabel = isMacOS() ? 'Cmd' : 'Ctrl'
 
   useEffect(() => {
     document.body.style.background = 'transparent'
@@ -50,20 +56,8 @@ export function OverlayVisualizer(): React.JSX.Element {
   useEffect(() => {
     mountedRef.current = true
 
-    const detach = window.electron.ipcRenderer.on(
-      DICTATION_OVERLAY_STATE_CHANNEL,
-      (_event, state: DictationOverlayState) => {
-        currentPhaseRef.current = state.phase
-        targetBarsRef.current = toTargetBars(state)
-        const nextMessage = resolveOverlayMessage(state)
-        hasMessageRef.current = Boolean(nextMessage)
-        setMessage(nextMessage)
-      }
-    )
-
     return () => {
       mountedRef.current = false
-      detach()
     }
   }, [])
 
@@ -143,6 +137,14 @@ export function OverlayVisualizer(): React.JSX.Element {
     }
   }, [])
 
+  const manualPasteProgress = manualPasteState
+    ? Math.max(
+        0,
+        Math.min(1, manualPasteState.remainingMs / Math.max(1, manualPasteState.timeoutMs))
+      )
+    : 0
+  const showMessageLayer = Boolean(message) || Boolean(manualPasteState)
+
   return (
     <div className="pointer-events-none flex h-full w-full items-center justify-center select-none">
       <div
@@ -151,7 +153,7 @@ export function OverlayVisualizer(): React.JSX.Element {
       >
         <div
           className={`absolute inset-0 px-5 py-2.5 transition-opacity duration-180 ease-out ${
-            message ? 'opacity-0' : 'opacity-100'
+            showMessageLayer ? 'opacity-0' : 'opacity-100'
           }`}
         >
           <div className="flex h-full w-full items-center justify-between">
@@ -169,12 +171,38 @@ export function OverlayVisualizer(): React.JSX.Element {
         </div>
         <div
           className={`absolute inset-0 flex items-center justify-center px-4 text-center text-[13px] font-medium tracking-[0.01em] text-foreground transition-opacity duration-180 ease-out ${
-            message ? 'opacity-100' : 'opacity-0'
+            showMessageLayer ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          <span className="max-h-[48px] max-w-[92%] overflow-hidden break-words whitespace-pre-wrap leading-[1.22]">
-            {message ?? ''}
-          </span>
+          {manualPasteState ? (
+            <div className="w-full max-w-[94%] py-1.5">
+              <div className="flex items-center justify-center gap-1.5 text-[12px]">
+                <span className="text-foreground/72">Paste</span>
+                <Kbd className="h-[18px] min-w-6 rounded px-1.5 text-[11px] font-semibold">
+                  {pasteModifierLabel}
+                </Kbd>
+                <span className="text-foreground/45">+</span>
+                <Kbd className="h-[18px] min-w-[18px] rounded px-1.5 text-[11px] font-semibold">
+                  V
+                </Kbd>
+                <span className="mx-0.5 text-foreground/30">•</span>
+                <span className="text-foreground/72">Cancel</span>
+                <Kbd className="h-[18px] min-w-[18px] rounded px-1.5 text-[11px] font-semibold">
+                  Esc
+                </Kbd>
+              </div>
+              <div className="mx-auto mt-2.5 h-1.5 w-[84%] max-w-[212px] overflow-hidden rounded-full bg-foreground/16">
+                <span
+                  className="block h-full rounded-full bg-foreground/80 transition-[width] duration-180 ease-out"
+                  style={{ width: `${(manualPasteProgress * 100).toFixed(1)}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <span className="max-h-[48px] max-w-[92%] overflow-hidden break-words whitespace-pre-wrap leading-[1.22]">
+              {message ?? ''}
+            </span>
+          )}
         </div>
       </div>
     </div>

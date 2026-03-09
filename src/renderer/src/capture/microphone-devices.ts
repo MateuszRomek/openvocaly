@@ -91,13 +91,22 @@ export const resolvePreferredMicrophoneDevice = async (
 
   const fallbackCandidates =
     concreteAddressableOptions.length > 0 ? concreteAddressableOptions : addressableOptions
+  const defaultAddressableOption = addressableOptions.find(
+    (device) => device.deviceId === 'default'
+  )
+  const communicationsAddressableOption = addressableOptions.find(
+    (device) => device.deviceId === 'communications'
+  )
   const hasPreferredDevice =
     typeof preferredDeviceId === 'string' &&
     addressableOptions.some((device) => device.deviceId === preferredDeviceId)
 
   const resolvedDeviceId = hasPreferredDevice
     ? preferredDeviceId
-    : (fallbackCandidates[0]?.deviceId ?? null)
+    : (defaultAddressableOption?.deviceId ??
+      communicationsAddressableOption?.deviceId ??
+      fallbackCandidates[0]?.deviceId ??
+      null)
 
   return {
     devices: microphoneOptions,

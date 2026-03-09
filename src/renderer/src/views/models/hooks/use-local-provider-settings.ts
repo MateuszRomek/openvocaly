@@ -89,7 +89,6 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
     })
   }, [
     localModelsQuery.data?.models,
-    localRuntimeWarning.runtimeError,
     localRuntimeWarning.warning,
     providerCatalog.providers,
     providerCatalog.selectedProviderId

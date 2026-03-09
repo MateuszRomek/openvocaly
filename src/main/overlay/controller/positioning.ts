@@ -34,7 +34,7 @@ const resolveOverlayBounds = (size: OverlayWindowSize): Rectangle => {
 }
 
 export const resolveOverlaySizeForState = (
-  state: Pick<DictationOverlayState, 'phase' | 'failureReason' | 'message'> | null
+  state: Pick<DictationOverlayState, 'phase' | 'failureReason' | 'message' | 'manualPaste'> | null
 ): OverlayWindowSize => resolveOverlayWindowSize(state, DEFAULT_OVERLAY_SIZE)
 
 export const resolveOverlayBoundsOnActiveDisplay = (

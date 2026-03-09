@@ -26,7 +26,8 @@ export const createOverlayWindow = (): BrowserWindow =>
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
-    focusable: isMacOS(),
+    // Overlay must never become an active target; it should only mirror state.
+    focusable: false,
     roundedCorners: true,
     acceptFirstMouse: false,
     alwaysOnTop: true,

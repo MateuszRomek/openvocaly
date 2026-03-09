@@ -2,31 +2,34 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { createMainAppContext } from './app-context'
 import { closeDb } from './db'
+import { withShutdownTimeout } from './helpers/lifecycle'
+import { createLogger } from './helpers/logger'
 import { isLinux, isMacOS, isWindows } from './helpers/platform'
-import { initializePipeline, registerPipelineIpc, shutdownPipeline } from './pipeline/ipc'
-import { registerPermissionsIpc } from './permissions/ipc'
-import { initializeRecording, registerRecordingIpc, shutdownRecording } from './recording/ipc'
-import { initializeShortcuts, registerShortcutsIpc, shutdownShortcuts } from './shortcuts/ipc'
-import { registerStorageIpc } from './storage'
-import {
-  initializeTranscription,
-  registerTranscriptionIpc,
-  shutdownTranscription
-} from './transcription/ipc'
 
 const GRACEFUL_QUIT_TIMEOUT_MS = 2500
+const logger = createLogger('main.index')
+
+const mainContext = createMainAppContext()
 
 let mainWindow: BrowserWindow | null = null
 let hasShutdownCompleted = false
 let shutdownPromise: Promise<void> | null = null
 let isQuitting = false
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
-const createTimeout = (delayMs: number): Promise<void> =>
-  new Promise((resolve) => {
-    const timer = setTimeout(resolve, delayMs)
-    timer.unref()
-  })
+if (!hasSingleInstanceLock) {
+  app.quit()
+}
+
+const runStep = async (label: string, operation: () => Promise<void> | void): Promise<void> => {
+  try {
+    await operation()
+  } catch (error) {
+    console.error(`[main] ${label}`, error)
+  }
+}
 
 const performShutdownSequence = (): Promise<void> => {
   if (hasShutdownCompleted) {
@@ -38,35 +41,15 @@ const performShutdownSequence = (): Promise<void> => {
   }
 
   shutdownPromise = (async () => {
-    try {
-      await shutdownPipeline()
-    } catch (error) {
-      console.error('[shutdown] pipeline teardown failed', error)
-    }
-
-    try {
-      await Promise.race([shutdownRecording(), createTimeout(GRACEFUL_QUIT_TIMEOUT_MS)])
-    } catch (error) {
-      console.error('[shutdown] recording teardown failed', error)
-    }
-
-    try {
-      await shutdownTranscription()
-    } catch (error) {
-      console.error('[shutdown] transcription teardown failed', error)
-    }
-
-    try {
-      shutdownShortcuts()
-    } catch (error) {
-      console.error('[shutdown] shortcuts teardown failed', error)
-    }
-
-    try {
-      closeDb()
-    } catch (error) {
-      console.error('[shutdown] database teardown failed', error)
-    }
+    await runStep('pipeline teardown failed', () => mainContext.ipc.pipelineIpc.shutdown())
+    await runStep('recording teardown failed', () =>
+      withShutdownTimeout(() => mainContext.ipc.recordingIpc.shutdown(), GRACEFUL_QUIT_TIMEOUT_MS)
+    )
+    await runStep('transcription teardown failed', () =>
+      mainContext.ipc.transcriptionIpc.shutdown()
+    )
+    await runStep('shortcuts teardown failed', () => mainContext.ipc.shortcutsIpc.shutdown())
+    await runStep('database teardown failed', () => closeDb())
 
     hasShutdownCompleted = true
   })()
@@ -91,7 +74,7 @@ function createWindow(): void {
     minHeight: 550,
     show: false,
     autoHideMenuBar: true,
-    title: 'OpenVocally',
+    title: 'OpenVocaly',
     ...(isLinux() ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -138,7 +121,11 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
-  app.setName('OpenVocally')
+  if (!hasSingleInstanceLock) {
+    return
+  }
+
+  app.setName('OpenVocaly')
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.openvocally.app')
@@ -151,35 +138,48 @@ app.whenReady().then(async () => {
   })
 
   // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  ipcMain.on('ping', () => logger.debug('pong'))
 
-  registerStorageIpc()
-  registerPermissionsIpc()
-  registerShortcutsIpc()
-  registerRecordingIpc()
-  registerTranscriptionIpc()
-  registerPipelineIpc()
-  initializeShortcuts()
+  await runStep('database failed to initialize', () =>
+    mainContext.repositories.databaseLifecycle.initialize()
+  )
 
-  try {
-    await initializeTranscription()
-  } catch (error) {
-    console.error('[transcription] failed to initialize transcription subsystem', error)
-  }
+  mainContext.ipc.storageIpc.registerIpcHandlers()
+  mainContext.ipc.permissionsIpc.registerIpcHandlers()
+  mainContext.ipc.shortcutsIpc.registerIpcHandlers()
+  mainContext.ipc.recordingIpc.registerIpcHandlers()
+  mainContext.ipc.transcriptionIpc.registerIpcHandlers()
+  mainContext.ipc.pipelineIpc.registerIpcHandlers()
+  mainContext.ipc.shortcutsIpc.initialize()
 
-  try {
-    await initializeRecording()
-  } catch (error) {
-    console.error('[recording] failed to initialize recording subsystem', error)
-  }
-
-  try {
-    await initializePipeline()
-  } catch (error) {
-    console.error('[pipeline] failed to initialize dictation pipeline', error)
-  }
+  await runStep('transcription failed to initialize transcription subsystem', () =>
+    mainContext.ipc.transcriptionIpc.initialize()
+  )
+  await runStep('recording failed to initialize recording subsystem', () =>
+    mainContext.ipc.recordingIpc.initialize()
+  )
+  await runStep('pipeline failed to initialize dictation pipeline', () =>
+    mainContext.ipc.pipelineIpc.initialize()
+  )
 
   createWindow()
+
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createWindow()
+      return
+    }
+
+    if (!mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore()
+    }
+
+    mainWindow.focus()
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

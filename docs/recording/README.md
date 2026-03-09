@@ -3,6 +3,7 @@
 This folder documents the recording subsystem (capture/runtime/artifact domain).
 
 For top-level dictation/transcription lifecycle, see `docs/dictation`.
+For main-process composition/lifecycle, see `docs/main`.
 
 ## Files
 

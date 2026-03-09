@@ -31,8 +31,8 @@ export function ModelsLayoutView(): JSX.Element {
         }
       >
         <TabsList>
-          <TabsTrigger value="cloud">Cloud</TabsTrigger>
           <TabsTrigger value="local">Local</TabsTrigger>
+          <TabsTrigger value="cloud">Cloud</TabsTrigger>
         </TabsList>
       </Tabs>
 

@@ -8,7 +8,7 @@ sequenceDiagram
   participant R as Recording Orchestrator (main)
   participant C as Capture Runtime (main)
   participant CR as Capture Renderer (renderer)
-  participant A as Artifact Store (main)
+  participant A as Artifact Manager (main)
   participant B as Recording Artifact Bus (main)
 
   DP->>R: startRecording(mode)
@@ -37,7 +37,7 @@ sequenceDiagram
   participant R as Recording Orchestrator
   participant C as Capture Runtime
   participant CR as Capture Renderer
-  participant A as Artifact Store
+  participant A as Artifact Manager
 
   DP->>R: cancelRecording()
   R->>C: sendCommand(cancel, reason=aborted)

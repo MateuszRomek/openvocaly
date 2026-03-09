@@ -23,7 +23,7 @@ flowchart LR
   E -->|started/chunk/meter/stopped/error| C
   C --> B
 
-  B --> F[main/recording/storage/artifact-store]
+  B --> F[main/recording/storage/artifact-manager]
   B --> G[main/recording/artifact-bus]
   B --> H[main/recording/session-bus]
 ```
@@ -43,7 +43,7 @@ flowchart LR
   - owns hidden capture BrowserWindow lifecycle and capture IPC bridge.
   - queues commands before ready handshake and replays FIFO.
 
-- `src/main/recording/storage/artifact-store.ts`
+- `src/main/recording/storage/artifact-manager.ts`
   - owns recording artifact directories and failure metadata persistence.
   - promotes stale active artifacts on startup and cleans expired failures.
 

@@ -35,9 +35,7 @@ export function RecordingMicrophoneSection(): React.JSX.Element {
     <div className="space-y-2">
       <div className="space-y-1.5">
         <h4 className="text-base font-medium">Input device</h4>
-        <p className="text-muted-foreground text-sm">
-          Choose the microphone used for recording.
-        </p>
+        <p className="text-muted-foreground text-sm">Choose the microphone used for recording.</p>
       </div>
       {isPermissionBlocked ? (
         <p className="text-muted-foreground text-xs">

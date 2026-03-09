@@ -19,9 +19,7 @@ export function AppearanceSection(): React.JSX.Element {
   const left = (
     <div className="space-y-1.5">
       <h4 className="text-base font-medium">Appearance</h4>
-      <p className="text-muted-foreground text-sm">
-        Choose a theme. Changes apply right away.
-      </p>
+      <p className="text-muted-foreground text-sm">Choose a theme. Changes apply right away.</p>
     </div>
   )
 

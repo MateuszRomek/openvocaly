@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { createIpcRegistrar } from '../helpers/ipc'
 import type {
   ListLocalModelsResponse,
   LocalModelActionInput,
@@ -13,92 +14,96 @@ import type {
   TranscriptionProviderApiKeyUpdateInput
 } from '../../shared/transcription'
 import { createLocalDownloadProgressEmitter } from './ipc-helpers/local-model-download-progress-emitter'
-import { transcriptionService } from './service'
+import type { TranscriptionService } from './service'
 
-let transcriptionIpcRegistered = false
-
-export const registerTranscriptionIpc = (): void => {
-  if (transcriptionIpcRegistered) {
-    return
-  }
-
-  ipcMain.handle(
-    'transcription:getPreferences',
-    (): TranscriptionPreferencesResponse => transcriptionService.getPreferences()
-  )
-
-  ipcMain.handle(
-    'transcription:updatePreferences',
-    (
-      _event,
-      input: TranscriptionPreferencesUpdateInput
-    ): Promise<TranscriptionPreferencesResponse> => transcriptionService.updatePreferences(input)
-  )
-
-  ipcMain.handle(
-    'transcription:setProviderApiKey',
-    (
-      _event,
-      input: TranscriptionProviderApiKeyUpdateInput
-    ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
-      transcriptionService.setProviderApiKey(input)
-  )
-
-  ipcMain.handle(
-    'transcription:clearProviderApiKey',
-    (
-      _event,
-      input: TranscriptionProviderApiKeyClearInput
-    ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
-      transcriptionService.clearProviderApiKey(input.providerId)
-  )
-
-  ipcMain.handle(
-    'transcription:listLocalModels',
-    (): Promise<ListLocalModelsResponse> => transcriptionService.listLocalModels()
-  )
-
-  ipcMain.handle(
-    'transcription:downloadLocalModel',
-    async (_event, input: LocalModelActionInput): Promise<LocalModelActionResponse> => {
-      const emitProgress = createLocalDownloadProgressEmitter((progress) => {
-        _event.sender.send('transcription:localModelDownloadProgress', progress)
-      })
-
-      return transcriptionService.downloadLocalModel(input, emitProgress)
-    }
-  )
-
-  ipcMain.handle(
-    'transcription:cancelLocalModelDownload',
-    (): LocalModelActionResponse => transcriptionService.cancelLocalModelDownload()
-  )
-
-  ipcMain.handle(
-    'transcription:deleteLocalModel',
-    (_event, input: LocalModelActionInput): Promise<LocalModelActionResponse> =>
-      transcriptionService.deleteLocalModel(input)
-  )
-
-  ipcMain.handle(
-    'transcription:getLocalRuntimeStatus',
-    (): LocalRuntimeStatusResponse => transcriptionService.getLocalRuntimeStatus()
-  )
-
-  ipcMain.handle(
-    'transcription:startLocalRuntime',
-    (_event, input: LocalModelActionInput): Promise<LocalModelActionResponse> =>
-      transcriptionService.startLocalRuntime(input)
-  )
-
-  ipcMain.handle(
-    'transcription:stopLocalRuntime',
-    (): Promise<LocalModelActionResponse> => transcriptionService.stopLocalRuntime()
-  )
-
-  transcriptionIpcRegistered = true
+export type TranscriptionIpcModule = {
+  registerIpcHandlers: () => void
+  initialize: () => Promise<void>
+  shutdown: () => Promise<void>
 }
 
-export const initializeTranscription = (): Promise<void> => transcriptionService.initialize()
+export const createTranscriptionIpcModule = (
+  transcriptionService: TranscriptionService
+): TranscriptionIpcModule => {
+  const registerIpcHandlers = createIpcRegistrar(() => {
+    ipcMain.handle(
+      'transcription:getPreferences',
+      (): TranscriptionPreferencesResponse => transcriptionService.getPreferences()
+    )
 
-export const shutdownTranscription = (): Promise<void> => transcriptionService.shutdown()
+    ipcMain.handle(
+      'transcription:updatePreferences',
+      (
+        _event,
+        params: TranscriptionPreferencesUpdateInput
+      ): Promise<TranscriptionPreferencesResponse> => transcriptionService.updatePreferences(params)
+    )
+
+    ipcMain.handle(
+      'transcription:setProviderApiKey',
+      (
+        _event,
+        params: TranscriptionProviderApiKeyUpdateInput
+      ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
+        transcriptionService.setProviderApiKey(params)
+    )
+
+    ipcMain.handle(
+      'transcription:clearProviderApiKey',
+      (
+        _event,
+        params: TranscriptionProviderApiKeyClearInput
+      ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
+        transcriptionService.clearProviderApiKey(params.providerId)
+    )
+
+    ipcMain.handle(
+      'transcription:listLocalModels',
+      (): Promise<ListLocalModelsResponse> => transcriptionService.listLocalModels()
+    )
+
+    ipcMain.handle(
+      'transcription:downloadLocalModel',
+      async (_event, params: LocalModelActionInput): Promise<LocalModelActionResponse> => {
+        const emitProgress = createLocalDownloadProgressEmitter((progress) => {
+          _event.sender.send('transcription:localModelDownloadProgress', progress)
+        })
+
+        return transcriptionService.downloadLocalModel(params, emitProgress)
+      }
+    )
+
+    ipcMain.handle(
+      'transcription:cancelLocalModelDownload',
+      (): LocalModelActionResponse => transcriptionService.cancelLocalModelDownload()
+    )
+
+    ipcMain.handle(
+      'transcription:deleteLocalModel',
+      (_event, params: LocalModelActionInput): Promise<LocalModelActionResponse> =>
+        transcriptionService.deleteLocalModel(params)
+    )
+
+    ipcMain.handle(
+      'transcription:getLocalRuntimeStatus',
+      (): LocalRuntimeStatusResponse => transcriptionService.getLocalRuntimeStatus()
+    )
+
+    ipcMain.handle(
+      'transcription:startLocalRuntime',
+      (_event, params: LocalModelActionInput): Promise<LocalModelActionResponse> =>
+        transcriptionService.startLocalRuntime(params)
+    )
+
+    ipcMain.handle(
+      'transcription:stopLocalRuntime',
+      (): Promise<LocalModelActionResponse> => transcriptionService.stopLocalRuntime()
+    )
+  })
+
+  return {
+    registerIpcHandlers,
+    initialize: () => transcriptionService.initialize(),
+    shutdown: () => transcriptionService.shutdown()
+  }
+}

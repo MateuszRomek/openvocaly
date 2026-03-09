@@ -2,8 +2,6 @@
 
 ## Shared protocol source of truth
 
-All dictation protocol types/channels are defined in:
-
 - `src/shared/dictation.ts`
 
 ## Stable overlay channel
@@ -33,10 +31,26 @@ Exposed in `src/preload/index.ts`:
 - `recording`
 - `stopping`
 - `transcribing`
+- `awaiting_manual_paste`
 - `complete`
 - `failed`
 
-Failure reasons:
+## Dictation failure reasons
 
-- recording-domain reasons (`microphone_permission_denied`, `capture_error`, `aborted`)
-- `transcription_error`
+- recording-domain reasons:
+  - `microphone_permission_denied`
+  - `capture_error`
+  - `aborted`
+- dictation-domain reasons:
+  - `transcription_error`
+  - `paste_not_supported`
+  - `paste_permission_denied`
+  - `paste_runtime_error`
+
+## Manual paste state payload
+
+When phase is `awaiting_manual_paste`, state may include:
+
+- `remainingMs`
+- `timeoutMs`
+- `hint`

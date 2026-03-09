@@ -1,43 +1,48 @@
 import { ipcMain } from 'electron'
+import { createIpcRegistrar } from '../helpers/ipc'
 import type {
   AccessibilityRequestResponse,
   MicrophoneRequestResponse,
   OpenSystemSettingsResponse,
   PermissionsStatusResponse
 } from '../../shared/permissions'
-import { permissionsService } from './service'
+import type { PermissionsService } from './service'
 
-let permissionsIpcRegistered = false
+export type PermissionsIpcModule = {
+  registerIpcHandlers: () => void
+}
 
-export const registerPermissionsIpc = (): void => {
-  if (permissionsIpcRegistered) {
-    return
+export const createPermissionsIpcModule = (
+  permissionsService: PermissionsService
+): PermissionsIpcModule => {
+  const registerIpcHandlers = createIpcRegistrar(() => {
+    ipcMain.handle(
+      'permissions:getStatus',
+      (): PermissionsStatusResponse => permissionsService.getPermissionsStatus()
+    )
+
+    ipcMain.handle(
+      'permissions:requestAccessibility',
+      (): AccessibilityRequestResponse => permissionsService.requestAccessibility()
+    )
+
+    ipcMain.handle(
+      'permissions:requestMicrophone',
+      async (): Promise<MicrophoneRequestResponse> => permissionsService.requestMicrophone()
+    )
+
+    ipcMain.handle(
+      'permissions:openAccessibilitySettings',
+      (): OpenSystemSettingsResponse => permissionsService.openAccessibilitySettings()
+    )
+
+    ipcMain.handle(
+      'permissions:openMicrophoneSettings',
+      (): OpenSystemSettingsResponse => permissionsService.openMicrophoneSettings()
+    )
+  })
+
+  return {
+    registerIpcHandlers
   }
-
-  ipcMain.handle(
-    'permissions:getStatus',
-    (): PermissionsStatusResponse => permissionsService.getPermissionsStatus()
-  )
-
-  ipcMain.handle(
-    'permissions:requestAccessibility',
-    (): AccessibilityRequestResponse => permissionsService.requestAccessibility()
-  )
-
-  ipcMain.handle(
-    'permissions:requestMicrophone',
-    async (): Promise<MicrophoneRequestResponse> => permissionsService.requestMicrophone()
-  )
-
-  ipcMain.handle(
-    'permissions:openAccessibilitySettings',
-    (): OpenSystemSettingsResponse => permissionsService.openAccessibilitySettings()
-  )
-
-  ipcMain.handle(
-    'permissions:openMicrophoneSettings',
-    (): OpenSystemSettingsResponse => permissionsService.openMicrophoneSettings()
-  )
-
-  permissionsIpcRegistered = true
 }

@@ -11,7 +11,7 @@ import { resolveTranscriptionModelId } from './provider-helpers'
 import { transcriptionProviders, transcriptionProvidersById } from './providers'
 import type { TranscriptionProviderDefinition } from './providers/types'
 
-export interface TranscriptionProviderCredentialsStore {
+export interface TranscriptionProviderCredentialsAccess {
   isSecureStorageAvailable(): boolean
   hasApiKey(providerId: TranscriptionProviderId): boolean
   getApiKeyPreview(providerId: TranscriptionProviderId): string | null
@@ -19,7 +19,7 @@ export interface TranscriptionProviderCredentialsStore {
 }
 
 export class TranscriptionProviderFactory {
-  constructor(private readonly credentialsStore: TranscriptionProviderCredentialsStore) {}
+  constructor(private readonly credentialsAccess: TranscriptionProviderCredentialsAccess) {}
 
   private resolveProviderModelId(
     provider: TranscriptionProviderDefinition,
@@ -41,7 +41,7 @@ export class TranscriptionProviderFactory {
     }
 
     if (provider.kind === 'cloud') {
-      return this.credentialsStore.hasApiKey(provider.id)
+      return this.credentialsAccess.hasApiKey(provider.id)
     }
 
     const isActiveProvider = preferences?.providerId === provider.id
@@ -57,7 +57,7 @@ export class TranscriptionProviderFactory {
       return null
     }
 
-    return this.credentialsStore.getApiKeyPreview(provider.id)
+    return this.credentialsAccess.getApiKeyPreview(provider.id)
   }
 
   private toMissingRequirementResult(
@@ -154,7 +154,7 @@ export class TranscriptionProviderFactory {
     })
 
     return {
-      secureStorageAvailable: this.credentialsStore.isSecureStorageAvailable(),
+      secureStorageAvailable: this.credentialsAccess.isSecureStorageAvailable(),
       providers: options
     }
   }
@@ -202,7 +202,7 @@ export class TranscriptionProviderFactory {
 
     try {
       if (provider.kind === 'cloud') {
-        const apiKey = this.credentialsStore.getApiKey(provider.id)
+        const apiKey = this.credentialsAccess.getApiKey(provider.id)
         if (!apiKey) {
           return this.toMissingRequirementResult(provider.label, 'missing_api_key')
         }

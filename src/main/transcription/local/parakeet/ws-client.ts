@@ -9,9 +9,13 @@ import { findRuntimePort, resolveRuntimeBinaryPath } from './runtime-discovery'
 
 const STARTUP_TIMEOUT_SECONDS = 60
 const STARTUP_TIMEOUT_MS = STARTUP_TIMEOUT_SECONDS * 1000
+const STARTUP_PORT_RETRY_MAX_ATTEMPTS = 4
 const TRANSCRIPTION_TIMEOUT_SECONDS = 300
 const TRANSCRIPTION_TIMEOUT_MS = TRANSCRIPTION_TIMEOUT_SECONDS * 1000
 const DISABLED_LOG_FILE_PATH = process.platform === 'win32' ? 'NUL' : '/dev/null'
+
+const isAddressInUseError = (message: string): boolean =>
+  /address already in use|eaddrinuse|asio\.system:48/i.test(message)
 
 export type ParakeetRuntimeStatus = {
   available: boolean
@@ -129,38 +133,66 @@ export class ParakeetWsClient {
 
     const modelDir = getParakeetModelDir(modelId)
     await mkdir(getParakeetModelsRootDir(), { recursive: true })
-    this.port = await findRuntimePort()
-
-    const args = [
-      `--tokens=${join(modelDir, 'tokens.txt')}`,
-      `--encoder=${join(modelDir, 'encoder.int8.onnx')}`,
-      `--decoder=${join(modelDir, 'decoder.int8.onnx')}`,
-      `--joiner=${join(modelDir, 'joiner.int8.onnx')}`,
-      `--port=${this.port}`,
-      `--log-file=${DISABLED_LOG_FILE_PATH}`,
-      '--num-threads=4'
-    ]
     const runtimeDir = dirname(this.binaryPath)
+    const triedPorts = new Set<number>()
 
-    const processRef = spawn(this.binaryPath, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-      env: {
-        ...process.env,
-        DYLD_LIBRARY_PATH: [runtimeDir, process.env['DYLD_LIBRARY_PATH']].filter(Boolean).join(':'),
-        LD_LIBRARY_PATH: [runtimeDir, process.env['LD_LIBRARY_PATH']].filter(Boolean).join(':')
+    for (let attempt = 1; attempt <= STARTUP_PORT_RETRY_MAX_ATTEMPTS; attempt += 1) {
+      this.port = await findRuntimePort({ exclude: triedPorts })
+      const selectedPort = this.port
+      triedPorts.add(selectedPort)
+
+      const args = [
+        `--tokens=${join(modelDir, 'tokens.txt')}`,
+        `--encoder=${join(modelDir, 'encoder.int8.onnx')}`,
+        `--decoder=${join(modelDir, 'decoder.int8.onnx')}`,
+        `--joiner=${join(modelDir, 'joiner.int8.onnx')}`,
+        `--port=${this.port}`,
+        `--log-file=${DISABLED_LOG_FILE_PATH}`,
+        '--num-threads=4'
+      ]
+
+      const processRef = spawn(this.binaryPath, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+        env: {
+          ...process.env,
+          DYLD_LIBRARY_PATH: [runtimeDir, process.env['DYLD_LIBRARY_PATH']]
+            .filter(Boolean)
+            .join(':'),
+          LD_LIBRARY_PATH: [runtimeDir, process.env['LD_LIBRARY_PATH']].filter(Boolean).join(':')
+        }
+      })
+      this.process = processRef
+      this.modelId = modelId
+
+      processRef.on('close', () => {
+        this.process = null
+        this.port = null
+        this.modelId = null
+      })
+
+      try {
+        await this.waitUntilReady(processRef)
+        return
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to start local Parakeet runtime.'
+        const retryableBindError = isAddressInUseError(message)
+        const canRetry = retryableBindError && attempt < STARTUP_PORT_RETRY_MAX_ATTEMPTS
+
+        await this.stop()
+
+        if (canRetry) {
+          console.warn('[transcription] local runtime bind conflict, retrying on another port', {
+            attempt,
+            port: selectedPort
+          })
+          continue
+        }
+
+        throw error
       }
-    })
-    this.process = processRef
-    this.modelId = modelId
-
-    processRef.on('close', () => {
-      this.process = null
-      this.port = null
-      this.modelId = null
-    })
-
-    await this.waitUntilReady(processRef)
+    }
   }
 
   async stop(): Promise<void> {

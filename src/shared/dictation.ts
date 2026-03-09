@@ -2,9 +2,20 @@ import type { RecordingFailureReason, RecordingMode, RecordingPhase } from './re
 
 export const DICTATION_OVERLAY_STATE_CHANNEL = 'dictation:overlay-state'
 
-export type DictationPhase = RecordingPhase | 'transcribing'
+export type DictationPhase = RecordingPhase | 'transcribing' | 'awaiting_manual_paste'
 
-export type DictationFailureReason = RecordingFailureReason | 'transcription_error'
+export type DictationFailureReason =
+  | RecordingFailureReason
+  | 'transcription_error'
+  | 'paste_not_supported'
+  | 'paste_permission_denied'
+  | 'paste_runtime_error'
+
+export type DictationManualPasteState = {
+  remainingMs: number
+  timeoutMs: number
+  hint: string
+}
 
 export type DictationRuntimeState = {
   phase: DictationPhase
@@ -13,6 +24,7 @@ export type DictationRuntimeState = {
   meterLevel: number
   failureReason?: DictationFailureReason
   message?: string
+  manualPaste?: DictationManualPasteState
 }
 
 export type DictationRuntimeStateResponse = {
@@ -26,4 +38,5 @@ export type DictationOverlayState = {
   bands: number[]
   failureReason?: DictationFailureReason
   message?: string
+  manualPaste?: DictationManualPasteState
 }

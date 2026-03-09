@@ -5,7 +5,7 @@ import {
   toRuntimeState,
   type RecordingMachine
 } from '../core/state-machine'
-import type { ActiveArtifact } from '../storage/artifact-store'
+import type { ActiveArtifact } from '../storage/artifact-manager'
 
 export type RecordingSessionState = {
   machine: RecordingMachine

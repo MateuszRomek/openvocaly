@@ -1,69 +1,70 @@
 # Dictation Runtime Flows
 
-## 1) Toggle start -> stop -> transcription success
+## 1) Toggle start -> stop -> transcription -> auto-paste success
 
 ```mermaid
 sequenceDiagram
   participant U as User
   participant S as Shortcut Service
   participant B as Recording Command Bus
-  participant D as Dictation Pipeline Orchestrator
+  participant D as Dictation Pipeline
   participant R as Recording Orchestrator
   participant A as Recording Artifact Bus
-  participant T as Transcription Service
+  participant T as Transcription Workflow/Service
+  participant P as Paste Service
   participant O as Overlay Publisher
 
-  U->>S: toggle shortcut
+  U->>S: toggle
   S->>B: emit(toggle)
-  B->>D: command toggle
+  B->>D: command
   D->>R: startRecording(toggle)
-  R-->>D: session snapshots (starting/recording + meter)
+  R-->>D: recording snapshots
   D->>O: publish starting/recording
 
-  U->>S: toggle shortcut
+  U->>S: toggle
   S->>B: emit(toggle)
-  B->>D: command toggle
+  B->>D: command
   D->>R: stopRecording()
   R-->>A: emit(artifact)
-  R-->>D: session snapshot complete
   D->>O: publish transcribing
 
   A-->>D: artifact
-  D->>D: delegate transcription workflow
-  D->>T: transcribeArtifact(artifact)
-  T-->>D: workflow result = complete
-  D->>O: publish complete
-  D->>D: resolve terminal delay policy + schedule idle reset
-  D->>O: publish null
+  D->>T: processArtifact(artifact)
+  T-->>D: complete(transcriptText)
+
+  D->>P: processTranscript(transcriptText)
+  P-->>D: auto_paste_success
+  D->>O: publish null (idle)
 ```
 
 ## 2) Transcription failure
 
-```mermaid
-sequenceDiagram
-  participant D as Dictation Pipeline
-  participant T as Transcription Service
-  participant AS as Artifact Store
-  participant R as Recording Orchestrator
-  participant O as Overlay Publisher
+1. artifact is processed by transcription workflow,
+2. workflow returns `failed`,
+3. dictation transitions to `failed(transcription_error)`,
+4. terminal delay policy applies,
+5. state resets to idle.
 
-  D->>D: delegate transcription workflow
-  D->>T: transcribeArtifact(artifact)
-  T-->>D: workflow result = failed(transcription_error)
-  D->>AS: persist failure artifact
-  D->>R: playCue(error)
-  D->>O: publish failed(transcription_error)
-  D->>D: resolve failure delay policy + schedule idle reset
-  D->>O: publish null
-```
+## 3) Auto-paste fallback to manual paste
 
-## 3) Capture failure
+1. transcription succeeds,
+2. paste auto path is skipped/fails,
+3. dictation transitions to `awaiting_manual_paste`,
+4. overlay gets manual countdown/hint updates,
+5. manual session resolves to success/timeout/cancel,
+6. pipeline returns to idle for all manual session outcomes.
 
-- Recording orchestrator emits failed snapshot with recording-domain reason.
-- Dictation pipeline maps it to top-level failed state.
-- Dictation terminal timer policy applies, then state resets to idle.
+## 4) Paste hard-fail paths
 
-## 4) Single-session gating
+- unsupported adapter -> `failed(paste_not_supported)`.
+- missing accessibility permission -> `failed(paste_permission_denied)`.
+- runtime paste error -> `failed(paste_runtime_error)`.
 
-- While phase is `transcribing`, `complete`, or `failed` (pre-reset), begin commands are ignored.
-- New recording can start only after top-level state returns to `idle`.
+All failed terminal states follow the same delayed reset policy.
+
+## 5) Capture failure
+
+1. recording emits failed snapshot,
+2. dictation maps to failed state with capture-domain reason,
+3. terminal delay policy runs,
+4. idle reset occurs.

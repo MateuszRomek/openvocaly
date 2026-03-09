@@ -41,15 +41,15 @@ export class ParakeetRuntime {
   }
 
   async downloadModel(
-    input: LocalModelActionInput,
+    params: LocalModelActionInput,
     onProgress?: (progress: LocalModelDownloadProgress) => void
   ): Promise<LocalModelActionResponse> {
-    if (!parakeetModelManager.ensureSupportedModel(input.modelId)) {
+    if (!parakeetModelManager.ensureSupportedModel(params.modelId)) {
       return { ok: false, message: 'Unsupported local model.' }
     }
 
     try {
-      await parakeetModelManager.downloadModel(input.modelId, onProgress)
+      await parakeetModelManager.downloadModel(params.modelId, onProgress)
       return { ok: true }
     } catch (error) {
       const message =
@@ -65,12 +65,12 @@ export class ParakeetRuntime {
       : { ok: false, message: 'No cancellable download in progress.' }
   }
 
-  async deleteModel(input: LocalModelActionInput): Promise<LocalModelActionResponse> {
-    if (!parakeetModelManager.ensureSupportedModel(input.modelId)) {
+  async deleteModel(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
+    if (!parakeetModelManager.ensureSupportedModel(params.modelId)) {
       return { ok: false, message: 'Unsupported local model.' }
     }
 
-    const deleted = await parakeetModelManager.deleteModel(input.modelId)
+    const deleted = await parakeetModelManager.deleteModel(params.modelId)
     if (deleted) {
       await this.wsClient.stop()
       return { ok: true }
@@ -93,21 +93,21 @@ export class ParakeetRuntime {
     }
   }
 
-  async startRuntime(input: LocalModelActionInput): Promise<LocalModelActionResponse> {
+  async startRuntime(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
     if (!this.isPlatformSupported()) {
       return { ok: false, message: 'Local Parakeet is currently supported on macOS only.' }
     }
 
-    if (!parakeetModelManager.ensureSupportedModel(input.modelId)) {
+    if (!parakeetModelManager.ensureSupportedModel(params.modelId)) {
       return { ok: false, message: 'Unsupported local model.' }
     }
 
-    if (!parakeetModelManager.isModelDownloaded(input.modelId)) {
+    if (!parakeetModelManager.isModelDownloaded(params.modelId)) {
       return { ok: false, message: 'Local model is not downloaded.' }
     }
 
     try {
-      await this.wsClient.start(input.modelId)
+      await this.wsClient.start(params.modelId)
       return { ok: true }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start local runtime.'

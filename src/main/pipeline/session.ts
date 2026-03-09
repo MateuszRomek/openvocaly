@@ -1,4 +1,5 @@
 import type {
+  DictationManualPasteState,
   DictationPhase,
   DictationFailureReason,
   DictationOverlayState,
@@ -16,9 +17,11 @@ export type DictationSessionState = {
   meterBands: number[]
   failureReason?: DictationFailureReason
   message?: string
+  manualPaste?: DictationManualPasteState
 }
 
 type DictationStatePatch = Partial<DictationSessionState>
+type DictationPhasePatchInput = Partial<Omit<DictationSessionState, 'phase'>>
 
 /**
  * Encapsulates dictation session state and transition-safe mutations.
@@ -34,7 +37,8 @@ export class DictationSessionStateManager {
     meterLevel: 0,
     meterBands: [],
     failureReason: undefined,
-    message: undefined
+    message: undefined,
+    manualPaste: undefined
   }
 
   get phase(): DictationSessionState['phase'] {
@@ -153,6 +157,25 @@ export class DictationSessionStateManager {
     )
   }
 
+  setAwaitingManualPaste(
+    params: {
+      sessionId: string | null
+      mode: RecordingMode | null
+    } & DictationManualPasteState
+  ): void {
+    this.patchState(
+      this.toPhasePatch('awaiting_manual_paste', {
+        mode: params.mode,
+        sessionId: params.sessionId,
+        manualPaste: {
+          remainingMs: params.remainingMs,
+          timeoutMs: params.timeoutMs,
+          hint: params.hint
+        }
+      })
+    )
+  }
+
   resetToIdle(): void {
     this.state = {
       phase: 'idle',
@@ -161,7 +184,8 @@ export class DictationSessionStateManager {
       meterLevel: 0,
       meterBands: [],
       failureReason: undefined,
-      message: undefined
+      message: undefined,
+      manualPaste: undefined
     }
   }
 
@@ -173,7 +197,8 @@ export class DictationSessionStateManager {
         sessionId: this.state.sessionId,
         meterLevel: this.state.meterLevel,
         failureReason: this.state.failureReason,
-        message: this.state.message
+        message: this.state.message,
+        manualPaste: this.state.manualPaste ? { ...this.state.manualPaste } : undefined
       }
     }
   }
@@ -189,7 +214,8 @@ export class DictationSessionStateManager {
       meterLevel: this.state.meterLevel,
       bands: this.state.meterBands,
       failureReason: this.state.failureReason,
-      message: this.state.message
+      message: this.state.message,
+      manualPaste: this.state.manualPaste ? { ...this.state.manualPaste } : undefined
     }
   }
 
@@ -202,23 +228,23 @@ export class DictationSessionStateManager {
 
   private toPhasePatch(
     phase: DictationSessionState['phase'],
-    input: {
-      mode?: RecordingMode | null
-      sessionId?: string | null
-      meterLevel?: number
-      meterBands?: number[]
-      failureReason?: DictationFailureReason
-      message?: string
-    } = {}
+    params: DictationPhasePatchInput = {}
   ): DictationStatePatch {
     return {
       phase,
-      mode: input.mode ?? null,
-      sessionId: input.sessionId ?? null,
-      meterLevel: input.meterLevel ?? 0,
-      meterBands: input.meterBands ? [...input.meterBands] : [],
-      failureReason: input.failureReason,
-      message: input.message
+      mode: params.mode ?? null,
+      sessionId: params.sessionId ?? null,
+      meterLevel: params.meterLevel ?? 0,
+      meterBands: params.meterBands ? [...params.meterBands] : [],
+      failureReason: params.failureReason,
+      message: params.message,
+      manualPaste: params.manualPaste
+        ? {
+            remainingMs: params.manualPaste.remainingMs,
+            timeoutMs: params.manualPaste.timeoutMs,
+            hint: params.manualPaste.hint
+          }
+        : undefined
     }
   }
 }

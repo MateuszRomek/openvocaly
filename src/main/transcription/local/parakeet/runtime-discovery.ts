@@ -6,15 +6,26 @@ import { app } from 'electron'
 const PORT_RANGE_START = 6006
 const PORT_RANGE_END = 6029
 
-export const findRuntimePort = async (): Promise<number> => {
+type FindRuntimePortOptions = {
+  exclude?: Set<number>
+}
+
+export const findRuntimePort = async (options?: FindRuntimePortOptions): Promise<number> => {
+  const exclude = options?.exclude ?? new Set<number>()
+
   for (let port = PORT_RANGE_START; port <= PORT_RANGE_END; port += 1) {
+    if (exclude.has(port)) {
+      continue
+    }
+
     const isFree = await new Promise<boolean>((resolve) => {
       const server = createServer()
       server.once('error', () => resolve(false))
       server.once('listening', () => {
         server.close(() => resolve(true))
       })
-      server.listen(port, '127.0.0.1')
+      // Let OS pick the best local interface family for the probe to avoid false positives.
+      server.listen(port)
     })
     if (isFree) {
       return port

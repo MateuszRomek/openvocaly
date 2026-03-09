@@ -11,7 +11,7 @@ import {
 import { drainCaptureCommandQueue } from './command-queue'
 
 type CaptureEventListener = (event: RecordingCaptureEvent) => void
-const CAPTURE_IDLE_DESTROY_DELAY_MS = 60 * 1000
+const CAPTURE_IDLE_DESTROY_DELAY_MS = 5 * 60 * 1000
 
 const resolveCaptureRendererTarget = (): string => {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
