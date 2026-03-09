@@ -35,7 +35,7 @@ export class PttRuntimeManager {
   constructor(
     private readonly getShortcutState: () => ShortcutActionStateMap,
     private readonly dependencies: {
-      permissionsService: Pick<PermissionsService, 'isAccessibilityGranted'>
+      permissionsService: PermissionsService
       emitRecordingShortcutEvent: (event: RecordingShortcutEvent) => void
       persistBinding: (
         action: 'recording.push_to_talk',

@@ -16,12 +16,7 @@ export type StorageIpcModule = {
   registerIpcHandlers: () => void
 }
 
-export const createStorageIpcModule = (
-  storageRepository: Pick<
-    StorageRepository,
-    'createSession' | 'addTranscript' | 'listTranscripts' | 'listSessions'
-  >
-): StorageIpcModule => {
+export const createStorageIpcModule = (storageRepository: StorageRepository): StorageIpcModule => {
   const registerIpcHandlers = createIpcRegistrar(() => {
     ipcMain.handle(
       'storage:createSession',

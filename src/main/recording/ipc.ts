@@ -13,10 +13,7 @@ export type RecordingIpcModule = {
 }
 
 export const createRecordingIpcModule = (
-  recordingService: Pick<
-    RecordingServiceOrchestrator,
-    'getPreferences' | 'updatePreferences' | 'initialize' | 'shutdown'
-  >
+  recordingService: RecordingServiceOrchestrator
 ): RecordingIpcModule => {
   const registerIpcHandlers = createIpcRegistrar(() => {
     ipcMain.handle(

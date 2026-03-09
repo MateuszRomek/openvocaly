@@ -13,14 +13,7 @@ export type PermissionsIpcModule = {
 }
 
 export const createPermissionsIpcModule = (
-  permissionsService: Pick<
-    PermissionsService,
-    | 'getPermissionsStatus'
-    | 'requestAccessibility'
-    | 'requestMicrophone'
-    | 'openAccessibilitySettings'
-    | 'openMicrophoneSettings'
-  >
+  permissionsService: PermissionsService
 ): PermissionsIpcModule => {
   const registerIpcHandlers = createIpcRegistrar(() => {
     ipcMain.handle(

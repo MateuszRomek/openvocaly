@@ -21,8 +21,8 @@ export type TranscriptionWorkflowResult =
 export class DictationTranscriptionWorkflow {
   constructor(
     private readonly dependencies: {
-      recordingService: Pick<RecordingServiceOrchestrator, 'playCue'>
-      transcriptionService: Pick<TranscriptionService, 'transcribeArtifact'>
+      recordingService: RecordingServiceOrchestrator
+      transcriptionService: TranscriptionService
     },
     private readonly artifactManager: RecordingArtifactManager = new RecordingArtifactManager()
   ) {}

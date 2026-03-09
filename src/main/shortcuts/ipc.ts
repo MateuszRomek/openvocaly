@@ -18,12 +18,7 @@ export type ShortcutsIpcModule = {
 /**
  * Registers shortcut IPC handlers once per process lifetime.
  */
-export const createShortcutsIpcModule = (
-  shortcutService: Pick<
-    ShortcutService,
-    'getConfig' | 'update' | 'reset' | 'getRuntimeStatus' | 'initialize' | 'shutdown'
-  >
-): ShortcutsIpcModule => {
+export const createShortcutsIpcModule = (shortcutService: ShortcutService): ShortcutsIpcModule => {
   const registerIpcHandlers = createIpcRegistrar(() => {
     ipcMain.handle('shortcuts:getConfig', (): ShortcutConfigResponse => shortcutService.getConfig())
 

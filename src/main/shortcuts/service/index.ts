@@ -53,7 +53,7 @@ export class ShortcutService {
   private readonly shortcutBindingsRepository: ShortcutBindingsRepository
 
   constructor(dependencies: {
-    permissionsService: Pick<PermissionsService, 'isAccessibilityGranted'>
+    permissionsService: PermissionsService
     emitRecordingShortcutEvent?: (event: RecordingShortcutEvent) => void
     shortcutBindingsRepository?: ShortcutBindingsRepository
   }) {

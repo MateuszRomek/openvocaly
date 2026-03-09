@@ -30,7 +30,7 @@ export class DictationPasteService {
   private activeFallbackSession: ManualFallbackSession | null = null
 
   constructor(
-    private readonly permissionsService: Pick<PermissionsService, 'isAccessibilityGranted'>,
+    private readonly permissionsService: PermissionsService,
     adapter: PastePlatformAdapter = getPastePlatformAdapter(resolveDesktopPlatform()),
     private readonly createClipboardTransaction: () => ClipboardTransaction = () =>
       new ClipboardTransaction()

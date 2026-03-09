@@ -10,10 +10,7 @@ export type PipelineIpcModule = {
 }
 
 export const createPipelineIpcModule = (
-  dictationPipelineOrchestrator: Pick<
-    DictationPipelineOrchestrator,
-    'getRuntimeState' | 'initialize' | 'shutdown'
-  >
+  dictationPipelineOrchestrator: DictationPipelineOrchestrator
 ): PipelineIpcModule => {
   const registerIpcHandlers = createIpcRegistrar(() => {
     ipcMain.handle(

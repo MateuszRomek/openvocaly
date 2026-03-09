@@ -23,22 +23,7 @@ export type TranscriptionIpcModule = {
 }
 
 export const createTranscriptionIpcModule = (
-  transcriptionService: Pick<
-    TranscriptionService,
-    | 'getPreferences'
-    | 'updatePreferences'
-    | 'setProviderApiKey'
-    | 'clearProviderApiKey'
-    | 'listLocalModels'
-    | 'downloadLocalModel'
-    | 'cancelLocalModelDownload'
-    | 'deleteLocalModel'
-    | 'getLocalRuntimeStatus'
-    | 'startLocalRuntime'
-    | 'stopLocalRuntime'
-    | 'initialize'
-    | 'shutdown'
-  >
+  transcriptionService: TranscriptionService
 ): TranscriptionIpcModule => {
   const registerIpcHandlers = createIpcRegistrar(() => {
     ipcMain.handle(

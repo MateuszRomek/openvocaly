@@ -65,9 +65,9 @@ export class RecordingServiceOrchestrator {
 
   constructor(
     private readonly dependencies: {
-      permissionsService: Pick<PermissionsService, 'getPermissionsStatus'>
-      artifactBus: Pick<RecordingArtifactBus, 'emit'>
-      sessionBus: Pick<RecordingSessionBus, 'emit'>
+      permissionsService: PermissionsService
+      artifactBus: RecordingArtifactBus
+      sessionBus: RecordingSessionBus
     },
     options: {
       captureRuntime?: RecordingCaptureRuntime
