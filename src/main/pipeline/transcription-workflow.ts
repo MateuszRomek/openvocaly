@@ -1,5 +1,6 @@
 import type { RecordingArtifact } from '../../shared/recording'
 import { RecordingArtifactManager } from '../recording/storage/artifact-manager'
+import { createLogger } from '../helpers/logger'
 import type { RecordingServiceOrchestrator } from '../recording/service/orchestrator'
 import type { TranscriptionService } from '../transcription/service'
 
@@ -19,6 +20,8 @@ export type TranscriptionWorkflowResult =
  * - trigger error cue on transcription failure.
  */
 export class DictationTranscriptionWorkflow {
+  private readonly logger = createLogger('pipeline.transcription-workflow')
+
   constructor(
     private readonly dependencies: {
       recordingService: RecordingServiceOrchestrator
@@ -30,9 +33,11 @@ export class DictationTranscriptionWorkflow {
   async processArtifact(artifact: RecordingArtifact): Promise<TranscriptionWorkflowResult> {
     const transcriptionResult =
       await this.dependencies.transcriptionService.transcribeArtifact(artifact)
-    console.log('[pipeline] transcription result', {
-      artifact,
-      transcriptionResult
+    this.logger.debug({
+      sessionId: artifact.sessionId,
+      ok: transcriptionResult.ok,
+      failureCode: transcriptionResult.ok ? undefined : transcriptionResult.code,
+      transcriptLength: transcriptionResult.ok ? transcriptionResult.transcript.text.length : 0
     })
 
     if (transcriptionResult.ok) {

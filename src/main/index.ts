@@ -5,9 +5,11 @@ import icon from '../../resources/icon.png?asset'
 import { createMainAppContext } from './app-context'
 import { closeDb } from './db'
 import { withShutdownTimeout } from './helpers/lifecycle'
+import { createLogger } from './helpers/logger'
 import { isLinux, isMacOS, isWindows } from './helpers/platform'
 
 const GRACEFUL_QUIT_TIMEOUT_MS = 2500
+const logger = createLogger('main.index')
 
 const mainContext = createMainAppContext()
 
@@ -136,7 +138,7 @@ app.whenReady().then(async () => {
   })
 
   // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  ipcMain.on('ping', () => logger.debug('pong'))
 
   await runStep('database failed to initialize', () =>
     mainContext.repositories.databaseLifecycle.initialize()

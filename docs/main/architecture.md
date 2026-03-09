@@ -55,6 +55,18 @@ IPC registration now follows a uniform module pattern:
 - duplicate `ipcMain.handle(...)` registration is prevented by shared helper:
   - `src/main/helpers/ipc.ts` (`createIpcRegistrar`).
 
+## Logging
+
+Main-process debug logging uses Pino:
+
+- logger helper: `src/main/helpers/logger.ts`,
+- env override: `LOGLEVEL` (or `LOG_LEVEL`),
+- pretty output in development: `LOG_PRETTY` (`1` by default in dev, disable with `0`/`false`),
+- default level: `info`.
+- sensitive fields are redacted via logger config (for example API keys, auth headers, transcript text, file paths).
+
+`console.warn`/`console.error` remain valid for warning/error paths during migration.
+
 ## Repository Pattern
 
 Database access is isolated under `src/main/repositories`:

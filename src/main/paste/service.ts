@@ -1,5 +1,6 @@
 import { createUnrefDelay } from '../helpers/timers'
 import { resolveDesktopPlatform } from '../helpers/platform'
+import { createLogger } from '../helpers/logger'
 import { getPastePlatformAdapter } from './adapters'
 import { ClipboardTransaction } from './clipboard-transaction'
 import type { PastePlatformAdapter } from './platform-adapter'
@@ -26,6 +27,7 @@ export type { DictationPasteOutcome, ManualPasteState } from './service/types'
  * Platform behavior is delegated through PastePlatformAdapter.
  */
 export class DictationPasteService {
+  private readonly logger = createLogger('paste.service')
   private readonly adapter: PastePlatformAdapter
   private activeFallbackSession: ManualFallbackSession | null = null
 
@@ -40,7 +42,7 @@ export class DictationPasteService {
 
   async processTranscript(params: ProcessTranscriptInput): Promise<DictationPasteOutcome> {
     const capabilities = this.adapter.capabilities()
-    console.log('[paste] process transcript start', {
+    this.logger.debug({
       sessionId: params.sessionId,
       platform: capabilities.platform,
       capabilities
@@ -87,7 +89,7 @@ export class DictationPasteService {
 
     try {
       clipboardTransaction.writeText(transcriptText)
-      console.log('[paste] transcript copied to clipboard', {
+      this.logger.debug({
         sessionId: params.sessionId,
         length: transcriptText.length
       })
@@ -97,7 +99,7 @@ export class DictationPasteService {
         let autoPasteSkipReason: string | null = null
         if (capabilities.supportsEditableProbe) {
           const probeResult = await this.adapter.probeEditableTarget()
-          console.log('[paste] editable probe result', {
+          this.logger.debug({
             sessionId: params.sessionId,
             probeResult
           })
@@ -108,15 +110,16 @@ export class DictationPasteService {
           shouldAttemptAutoPaste = probeDecision.shouldAttemptAutoPaste
           autoPasteSkipReason = probeDecision.reason ?? null
           if (!probeDecision.shouldAttemptAutoPaste && probeDecision.reason) {
-            console.log(`[paste] skipping auto paste on ${probeDecision.reason}`, {
+            this.logger.debug({
               sessionId: params.sessionId,
+              reason: probeDecision.reason,
               probeResult
             })
           }
         }
 
         if (!shouldAttemptAutoPaste) {
-          console.log('[paste] auto paste skipped', {
+          this.logger.debug({
             sessionId: params.sessionId,
             reason: autoPasteSkipReason
           })
@@ -124,7 +127,7 @@ export class DictationPasteService {
 
         if (shouldAttemptAutoPaste) {
           const pasteResult = await this.adapter.simulatePasteShortcut()
-          console.log('[paste] auto paste result', {
+          this.logger.debug({
             sessionId: params.sessionId,
             pasteResult
           })
