@@ -20,11 +20,11 @@ export const createDefaultPreferences = (): TranscriptionPreferences => ({
 })
 
 const normalizePreferences = (
-  input: TranscriptionPreferencesUpdateInput | Partial<TranscriptionPreferences> | undefined,
+  params: TranscriptionPreferencesUpdateInput | Partial<TranscriptionPreferences> | undefined,
   fallback: TranscriptionPreferences
 ): TranscriptionPreferences => {
-  const providerId = isTranscriptionProviderId(input?.providerId)
-    ? input.providerId
+  const providerId = isTranscriptionProviderId(params?.providerId)
+    ? params.providerId
     : isSelectableTranscriptionProviderId(fallback.providerId)
       ? fallback.providerId
       : DEFAULT_TRANSCRIPTION_PROVIDER_ID
@@ -34,8 +34,8 @@ const normalizePreferences = (
     : resolveDefaultTranscriptionProviderId()
 
   const modelCandidate =
-    typeof input?.modelId === 'string'
-      ? input.modelId
+    typeof params?.modelId === 'string'
+      ? params.modelId
       : typeof fallback.modelId === 'string'
         ? fallback.modelId
         : resolveDefaultTranscriptionModelId(normalizedProviderId)

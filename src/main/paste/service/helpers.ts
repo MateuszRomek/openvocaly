@@ -9,7 +9,7 @@ export const resolvePasteShortcutLabel = (platform: DesktopPlatform): string => 
 }
 
 export const getManualPasteHint = (platform: DesktopPlatform): string =>
-  `Focus input, press ${resolvePasteShortcutLabel(platform)} • Esc to cancel`
+  `Focus text field, press ${resolvePasteShortcutLabel(platform)} • Esc to cancel`
 
 export const getUnsupportedPlatformMessage = (platform: DesktopPlatform): string =>
   `Auto-paste is not supported on ${platform} yet. Transcript was copied to clipboard.`

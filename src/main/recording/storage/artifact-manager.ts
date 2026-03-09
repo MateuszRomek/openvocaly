@@ -16,7 +16,7 @@ import {
   metadataPathForSession,
   resolveArtifactPaths,
   toFailedAudioPath
-} from './artifact-store-helpers'
+} from './artifact-manager-helpers'
 
 export type ActiveArtifact = {
   artifact: RecordingArtifact
@@ -32,7 +32,7 @@ export type ActiveArtifact = {
  * - Active artifacts are temporary and either finalized or promoted to failed.
  * - Failed metadata/audio older than FAILED_RETENTION_MS are cleaned up.
  */
-export class RecordingArtifactStore {
+export class RecordingArtifactManager {
   private readonly paths = resolveArtifactPaths()
 
   /**

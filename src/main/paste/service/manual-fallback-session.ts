@@ -2,7 +2,7 @@ import { createSettleOnce, type SettleOnceController } from '../../helpers/settl
 import type { PastePlatformAdapter } from '../platform-adapter'
 import type { ManualFallbackOutcome, ManualPasteState } from './types'
 
-type ManualFallbackSessionInput = {
+type ManualFallbackSessionOptions = {
   sessionId: string
   timeoutMs: number
   replayDelayMs: number
@@ -29,14 +29,14 @@ export class ManualFallbackSession {
   private cleanupFns: Array<() => void> = []
   private manualPasteInFlight = false
 
-  constructor(input: ManualFallbackSessionInput) {
-    this.sessionId = input.sessionId
-    this.timeoutMs = input.timeoutMs
-    this.replayDelayMs = input.replayDelayMs
-    this.hint = input.hint
-    this.supportsManualPasteWatcher = input.supportsManualPasteWatcher
-    this.adapter = input.adapter
-    this.onManualPasteState = input.onManualPasteState
+  constructor(options: ManualFallbackSessionOptions) {
+    this.sessionId = options.sessionId
+    this.timeoutMs = options.timeoutMs
+    this.replayDelayMs = options.replayDelayMs
+    this.hint = options.hint
+    this.supportsManualPasteWatcher = options.supportsManualPasteWatcher
+    this.adapter = options.adapter
+    this.onManualPasteState = options.onManualPasteState
   }
 
   async run(): Promise<ManualFallbackOutcome> {

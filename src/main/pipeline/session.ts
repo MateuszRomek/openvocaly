@@ -158,19 +158,19 @@ export class DictationSessionStateManager {
   }
 
   setAwaitingManualPaste(
-    input: {
+    params: {
       sessionId: string | null
       mode: RecordingMode | null
     } & DictationManualPasteState
   ): void {
     this.patchState(
       this.toPhasePatch('awaiting_manual_paste', {
-        mode: input.mode,
-        sessionId: input.sessionId,
+        mode: params.mode,
+        sessionId: params.sessionId,
         manualPaste: {
-          remainingMs: input.remainingMs,
-          timeoutMs: input.timeoutMs,
-          hint: input.hint
+          remainingMs: params.remainingMs,
+          timeoutMs: params.timeoutMs,
+          hint: params.hint
         }
       })
     )
@@ -228,25 +228,23 @@ export class DictationSessionStateManager {
 
   private toPhasePatch(
     phase: DictationSessionState['phase'],
-    input: DictationPhasePatchInput = {}
+    params: DictationPhasePatchInput = {}
   ): DictationStatePatch {
     return {
       phase,
-      mode: input.mode ?? null,
-      sessionId: input.sessionId ?? null,
-      meterLevel: input.meterLevel ?? 0,
-      meterBands: input.meterBands ? [...input.meterBands] : [],
-      failureReason: input.failureReason,
-      message: input.message,
-      manualPaste: input.manualPaste
+      mode: params.mode ?? null,
+      sessionId: params.sessionId ?? null,
+      meterLevel: params.meterLevel ?? 0,
+      meterBands: params.meterBands ? [...params.meterBands] : [],
+      failureReason: params.failureReason,
+      message: params.message,
+      manualPaste: params.manualPaste
         ? {
-            remainingMs: input.manualPaste.remainingMs,
-            timeoutMs: input.manualPaste.timeoutMs,
-            hint: input.manualPaste.hint
+            remainingMs: params.manualPaste.remainingMs,
+            timeoutMs: params.manualPaste.timeoutMs,
+            hint: params.manualPaste.hint
           }
         : undefined
     }
   }
 }
-
-export const dictationSessionStateManager = new DictationSessionStateManager()

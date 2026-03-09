@@ -32,12 +32,12 @@ type CaptureFailureInput = {
 }
 
 export type CaptureEventDelegates = {
-  onChunk: (input: CaptureChunkInput) => Promise<void>
-  onStarted: (input: CaptureStartedInput) => Promise<void>
-  onDeviceResolved: (input: CaptureDeviceResolvedInput) => Promise<void>
-  onAudioLevels: (input: CaptureAudioLevelsInput) => Promise<void>
-  onStopped: (input: CaptureStoppedInput) => Promise<void>
-  onFailure: (input: CaptureFailureInput) => Promise<void>
+  onChunk: (params: CaptureChunkInput) => Promise<void>
+  onStarted: (params: CaptureStartedInput) => Promise<void>
+  onDeviceResolved: (params: CaptureDeviceResolvedInput) => Promise<void>
+  onAudioLevels: (params: CaptureAudioLevelsInput) => Promise<void>
+  onStopped: (params: CaptureStoppedInput) => Promise<void>
+  onFailure: (params: CaptureFailureInput) => Promise<void>
 }
 
 type RouteCaptureEventInput = {

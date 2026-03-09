@@ -53,18 +53,18 @@ export const resolveSelfProcessNames = (appName: string): Set<string> => {
 
 // Matches a probe result against the current process identity by pid first, then app-name aliases.
 export const isSelfFrontProcess = (
-  input: FrontProcessInput,
+  params: FrontProcessInput,
   selfProcessNames: ReadonlySet<string>
 ): boolean => {
-  if (typeof input.frontProcessPid === 'number' && input.frontProcessPid === process.pid) {
+  if (typeof params.frontProcessPid === 'number' && params.frontProcessPid === process.pid) {
     return true
   }
 
-  if (!input.frontProcessName) {
+  if (!params.frontProcessName) {
     return false
   }
 
-  return selfProcessNames.has(input.frontProcessName.toLowerCase())
+  return selfProcessNames.has(params.frontProcessName.toLowerCase())
 }
 
 export const parseEditableProbeOutput = (output: string): ParsedEditableProbeOutput => {
@@ -84,8 +84,8 @@ export const parseEditableProbeOutput = (output: string): ParsedEditableProbeOut
 }
 
 // Candidate order is intentional: packaged app paths first, then dev/workspace fallback.
-export const buildNativePasteBinaryCandidates = (input: NativeBinaryCandidatesInput): string[] => {
-  const { resourcesPath, appPath, cwd, binaryName } = input
+export const buildNativePasteBinaryCandidates = (params: NativeBinaryCandidatesInput): string[] => {
+  const { resourcesPath, appPath, cwd, binaryName } = params
   const candidates = [
     resourcesPath ? join(resourcesPath, 'bin', binaryName) : null,
     resourcesPath ? join(resourcesPath, 'resources', 'bin', binaryName) : null,

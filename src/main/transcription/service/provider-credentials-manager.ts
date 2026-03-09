@@ -1,12 +1,10 @@
 import { safeStorage } from 'electron'
-import { eq } from 'drizzle-orm'
-import { getDb, initDb } from '../../db'
 import type {
   TranscriptionProviderApiKeyMutationResponse,
   TranscriptionProviderApiKeyUpdateInput,
   TranscriptionProviderId
 } from '../../../shared/transcription'
-import { appSettings } from '../../../shared/schema'
+import { SettingsRepository } from '../../repositories/settings-repository'
 
 const PROVIDER_CREDENTIALS_SETTING_KEY = 'transcription.provider_credentials'
 
@@ -23,16 +21,17 @@ type PersistedProviderCredentialsMap = Partial<
  * Persists cloud-provider credentials encrypted with Electron safeStorage.
  * Only encrypted payloads are stored in SQLite.
  */
-export class TranscriptionProviderCredentialsStore {
+export class TranscriptionProviderCredentialsManager {
   private initialized = false
   private credentials: PersistedProviderCredentialsMap = {}
+
+  constructor(private readonly settingsRepository: SettingsRepository = new SettingsRepository()) {}
 
   async initialize(): Promise<void> {
     if (this.initialized) {
       return
     }
 
-    initDb()
     this.loadFromDb()
     this.initialized = true
   }
@@ -81,11 +80,11 @@ export class TranscriptionProviderCredentialsStore {
   }
 
   async setApiKey(
-    input: TranscriptionProviderApiKeyUpdateInput
+    params: TranscriptionProviderApiKeyUpdateInput
   ): Promise<TranscriptionProviderApiKeyMutationResponse> {
     await this.initialize()
 
-    const normalizedApiKey = input.apiKey.trim()
+    const normalizedApiKey = params.apiKey.trim()
     if (normalizedApiKey.length === 0) {
       return {
         ok: false,
@@ -103,7 +102,7 @@ export class TranscriptionProviderCredentialsStore {
 
     try {
       const encryptedApiKey = safeStorage.encryptString(normalizedApiKey).toString('base64')
-      this.credentials[input.providerId] = {
+      this.credentials[params.providerId] = {
         encryptedApiKey,
         updatedAt: Date.now()
       }
@@ -129,20 +128,15 @@ export class TranscriptionProviderCredentialsStore {
   }
 
   private loadFromDb(): void {
-    const db = getDb()
-    const row = db
-      .select({ valueJson: appSettings.valueJson })
-      .from(appSettings)
-      .where(eq(appSettings.key, PROVIDER_CREDENTIALS_SETTING_KEY))
-      .get()
+    const valueJson = this.settingsRepository.getValueJson(PROVIDER_CREDENTIALS_SETTING_KEY)
 
-    if (!row) {
+    if (!valueJson) {
       this.credentials = {}
       return
     }
 
     try {
-      const parsed = JSON.parse(row.valueJson) as PersistedProviderCredentialsMap
+      const parsed = JSON.parse(valueJson) as PersistedProviderCredentialsMap
       this.credentials = parsed ?? {}
     } catch (error) {
       console.error('[transcription] failed to parse provider credentials, resetting', error)
@@ -152,23 +146,7 @@ export class TranscriptionProviderCredentialsStore {
   }
 
   private persistToDb(): void {
-    const db = getDb()
     const valueJson = JSON.stringify(this.credentials)
-    const updatedAt = Date.now()
-
-    db.insert(appSettings)
-      .values({
-        key: PROVIDER_CREDENTIALS_SETTING_KEY,
-        valueJson,
-        updatedAt
-      })
-      .onConflictDoUpdate({
-        target: appSettings.key,
-        set: {
-          valueJson,
-          updatedAt
-        }
-      })
-      .run()
+    this.settingsRepository.upsertValueJson(PROVIDER_CREDENTIALS_SETTING_KEY, valueJson)
   }
 }

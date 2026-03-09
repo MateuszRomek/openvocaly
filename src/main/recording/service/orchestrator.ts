@@ -11,8 +11,8 @@ import type {
   RecordingRuntimeStateResponse
 } from '../../../shared/recording'
 import { isActiveCapturePhase, isIdlePhase } from '../../../shared/lifecycle'
-import { permissionsService } from '../../permissions/service'
-import { recordingArtifactBus } from '../artifact-bus'
+import type { PermissionsService } from '../../permissions/service'
+import type { RecordingArtifactBus } from '../artifact-bus'
 import { RecordingCaptureRuntime } from '../capture/runtime'
 import { clamp01, normalizeBands } from '../core/math'
 import {
@@ -22,8 +22,8 @@ import {
   moveToStarting,
   moveToStopping
 } from '../core/state-machine'
-import { recordingSessionBus } from '../session-bus'
-import { RecordingArtifactStore } from '../storage/artifact-store'
+import type { RecordingSessionBus } from '../session-bus'
+import { RecordingArtifactManager } from '../storage/artifact-manager'
 import { routeCaptureEvent } from './capture-event-handler'
 import {
   toArtifactCreationFailure,
@@ -31,7 +31,7 @@ import {
   toChunkWriteFailure,
   toFinalizeArtifactFailure
 } from './failure-policy'
-import { RecordingPreferencesStore } from './preferences-store'
+import { RecordingPreferencesManager } from './preferences-manager'
 import {
   createRecordingSessionState,
   resetSessionLevels,
@@ -59,17 +59,34 @@ export class RecordingServiceOrchestrator {
   private unsubscribeCapture: (() => void) | null = null
   private cleanupInterval: NodeJS.Timeout | null = null
 
-  private readonly captureRuntime = new RecordingCaptureRuntime()
-  private readonly artifactStore = new RecordingArtifactStore()
-  private readonly preferencesStore = new RecordingPreferencesStore()
+  private readonly captureRuntime: RecordingCaptureRuntime
+  private readonly artifactManager: RecordingArtifactManager
+  private readonly preferencesManager: RecordingPreferencesManager
+
+  constructor(
+    private readonly dependencies: {
+      permissionsService: Pick<PermissionsService, 'getPermissionsStatus'>
+      artifactBus: Pick<RecordingArtifactBus, 'emit'>
+      sessionBus: Pick<RecordingSessionBus, 'emit'>
+    },
+    options: {
+      captureRuntime?: RecordingCaptureRuntime
+      artifactManager?: RecordingArtifactManager
+      preferencesManager?: RecordingPreferencesManager
+    } = {}
+  ) {
+    this.captureRuntime = options.captureRuntime ?? new RecordingCaptureRuntime()
+    this.artifactManager = options.artifactManager ?? new RecordingArtifactManager()
+    this.preferencesManager = options.preferencesManager ?? new RecordingPreferencesManager()
+  }
 
   async initialize(): Promise<void> {
     if (this.initialized) {
       return
     }
 
-    await this.preferencesStore.initialize()
-    await this.artifactStore.initialize()
+    await this.preferencesManager.initialize()
+    await this.artifactManager.initialize()
 
     this.captureRuntime.initialize()
     void this.captureRuntime.warmup().catch((error) => {
@@ -83,7 +100,7 @@ export class RecordingServiceOrchestrator {
     })
 
     this.cleanupInterval = setNodeInterval(() => {
-      void this.artifactStore.cleanupExpiredFailures().catch((error) => {
+      void this.artifactManager.cleanupExpiredFailures().catch((error) => {
         console.error('[recording] failed to cleanup expired artifacts', error)
       })
     }, CLEANUP_INTERVAL_MS)
@@ -134,14 +151,14 @@ export class RecordingServiceOrchestrator {
 
   getPreferences(): RecordingPreferencesResponse {
     return {
-      preferences: this.preferencesStore.get()
+      preferences: this.preferencesManager.get()
     }
   }
 
   async updatePreferences(
-    input: RecordingPreferencesUpdateInput
+    params: RecordingPreferencesUpdateInput
   ): Promise<RecordingPreferencesResponse> {
-    const preferences = await this.preferencesStore.update(input)
+    const preferences = await this.preferencesManager.update(params)
 
     return {
       preferences
@@ -153,7 +170,8 @@ export class RecordingServiceOrchestrator {
       return
     }
 
-    const microphoneState = permissionsService.getPermissionsStatus().microphone.state
+    const microphoneState =
+      this.dependencies.permissionsService.getPermissionsStatus().microphone.state
 
     if (microphoneState !== 'granted') {
       await this.failCaptureSession(
@@ -164,7 +182,7 @@ export class RecordingServiceOrchestrator {
     }
 
     try {
-      this.state.activeArtifact = await this.artifactStore.createActiveArtifact(
+      this.state.activeArtifact = await this.artifactManager.createActiveArtifact(
         mode,
         DEFAULT_OUTPUT_FORMAT
       )
@@ -178,7 +196,7 @@ export class RecordingServiceOrchestrator {
     this.publishSessionSnapshot()
 
     try {
-      const preferences = this.preferencesStore.get()
+      const preferences = this.preferencesManager.get()
       await this.captureRuntime.sendCommand({
         type: 'start',
         sessionId: this.state.activeArtifact.artifact.sessionId,
@@ -222,7 +240,7 @@ export class RecordingServiceOrchestrator {
       await this.captureRuntime.sendCommand({
         type: 'cancel',
         reason: 'aborted',
-        soundCues: this.preferencesStore.get().soundCues
+        soundCues: this.preferencesManager.get().soundCues
       })
     } catch (error) {
       const failure = toCaptureRuntimeCommandFailure('cancel', error)
@@ -231,7 +249,7 @@ export class RecordingServiceOrchestrator {
   }
 
   async playCue(cue: RecordingCueKind): Promise<void> {
-    const soundCues = this.preferencesStore.get().soundCues
+    const soundCues = this.preferencesManager.get().soundCues
     if (!soundCues.enabled) {
       return
     }
@@ -337,7 +355,7 @@ export class RecordingServiceOrchestrator {
       return
     }
 
-    recordingArtifactBus.emit(finalizedArtifact)
+    this.dependencies.artifactBus.emit(finalizedArtifact)
     this.state.activeArtifact = null
     this.state.machine = moveToComplete(this.state.machine)
     resetSessionLevels(this.state)
@@ -386,21 +404,21 @@ export class RecordingServiceOrchestrator {
     message?: string
   ): Promise<void> {
     try {
-      await this.artifactStore.markFailure(artifact, reason, message)
+      await this.artifactManager.markFailure(artifact, reason, message)
     } catch (error) {
       console.error('[recording] failed to persist failure artifact', error)
     }
   }
 
   private async persistResolvedMicrophoneDevice(deviceId: string | null): Promise<void> {
-    const currentDeviceId = this.preferencesStore.get().microphone.selectedDeviceId
+    const currentDeviceId = this.preferencesManager.get().microphone.selectedDeviceId
 
     if (currentDeviceId === deviceId) {
       return
     }
 
     try {
-      await this.preferencesStore.update({
+      await this.preferencesManager.update({
         microphone: {
           selectedDeviceId: deviceId
         }
@@ -411,7 +429,7 @@ export class RecordingServiceOrchestrator {
   }
 
   private publishSessionSnapshot(): void {
-    recordingSessionBus.emit(toRecordingSessionSnapshot(this.state))
+    this.dependencies.sessionBus.emit(toRecordingSessionSnapshot(this.state))
   }
 
   private handleUnhandledAsyncError(context: string, error: unknown): void {
@@ -430,5 +448,3 @@ export class RecordingServiceOrchestrator {
     )
   }
 }
-
-export const recordingService = new RecordingServiceOrchestrator()

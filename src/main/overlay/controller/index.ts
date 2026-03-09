@@ -291,7 +291,7 @@ export class RecordingOverlayController {
     this.overlayFollowLastDisplayId = null
   }
 
-  private applyOverlayLayout(input: {
+  private applyOverlayLayout(params: {
     state: Pick<DictationOverlayState, 'phase' | 'failureReason' | 'message'> | null
     animate: boolean
   }): void {
@@ -300,10 +300,10 @@ export class RecordingOverlayController {
       return
     }
 
-    const targetSize = resolveOverlaySizeForState(input.state)
+    const targetSize = resolveOverlaySizeForState(params.state)
     const targetBounds = resolveOverlayBoundsOnActiveDisplay(targetSize)
 
-    if (!input.animate || !overlayWindow.isVisible()) {
+    if (!params.animate || !overlayWindow.isVisible()) {
       this.clearResizeAnimationTimer()
       overlayWindow.setBounds(targetBounds)
       return

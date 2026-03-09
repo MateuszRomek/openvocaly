@@ -8,8 +8,8 @@ This folder documents the top-level dictation pipeline subsystem.
 - `flows.md` - dictation lifecycle flows and failure behavior.
 - `contracts.md` - shared types, overlay channel, and IPC APIs.
 
-## Fast path for new contributors
+## Related docs
 
-1. Read `architecture.md` first.
-2. Read `flows.md` for end-to-end lifecycle.
-3. Use `contracts.md` before changing shared APIs/channels.
+- `docs/recording` for capture-domain runtime details.
+- `docs/transcription` for provider/model and local runtime details.
+- `docs/paste` for post-transcription paste/copy behavior.

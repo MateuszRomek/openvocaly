@@ -1,6 +1,6 @@
-import { permissionsService } from '../../permissions/service'
 import { isMacOS } from '../../helpers/platform'
-import { emitRecordingShortcutEvent } from '../recording-events'
+import type { PermissionsService } from '../../permissions/service'
+import type { RecordingShortcutEvent } from '../recording-events'
 import { createMacPttBinding, type NativePttEvent } from '../ptt-matcher'
 import { NativePttHook } from '../native-ptt-hook'
 import type { ShortcutActionStateMap } from '../types'
@@ -9,7 +9,6 @@ import type {
   ShortcutRuntimeStatusResponse
 } from '../../../shared/shortcuts'
 import type { PersistedShortcutBinding } from '../accelerator'
-import { persistBinding } from './persistence'
 
 type PttHoldState = 'idle' | 'holding'
 
@@ -33,7 +32,17 @@ export class PttRuntimeManager {
     isListening: false
   }
 
-  constructor(private readonly getShortcutState: () => ShortcutActionStateMap) {}
+  constructor(
+    private readonly getShortcutState: () => ShortcutActionStateMap,
+    private readonly dependencies: {
+      permissionsService: Pick<PermissionsService, 'isAccessibilityGranted'>
+      emitRecordingShortcutEvent: (event: RecordingShortcutEvent) => void
+      persistBinding: (
+        action: 'recording.push_to_talk',
+        binding: PersistedShortcutBinding
+      ) => ShortcutMutationResponse
+    }
+  ) {}
 
   resetForStartup(): void {
     this.pttHoldState = 'idle'
@@ -107,7 +116,7 @@ export class PttRuntimeManager {
       return
     }
 
-    if (!permissionsService.isAccessibilityGranted()) {
+    if (!this.dependencies.permissionsService.isAccessibilityGranted()) {
       this.nativePttHook.clearBinding()
       this.nativePttHook.stop()
       this.releasePushToTalkHoldIfNeeded()
@@ -212,7 +221,7 @@ export class PttRuntimeManager {
       }
     }
 
-    const persistResult = persistBinding('recording.push_to_talk', nextBinding)
+    const persistResult = this.dependencies.persistBinding('recording.push_to_talk', nextBinding)
 
     if (!persistResult.ok) {
       if (wasReady) {
@@ -266,7 +275,7 @@ export class PttRuntimeManager {
 
     this.pttHoldState = 'idle'
     if (options?.emitStop ?? true) {
-      emitRecordingShortcutEvent('push_to_talk_stop')
+      this.dependencies.emitRecordingShortcutEvent('push_to_talk_stop')
     }
   }
 
@@ -281,7 +290,7 @@ export class PttRuntimeManager {
       }
 
       this.pttHoldState = 'holding'
-      emitRecordingShortcutEvent('push_to_talk_start')
+      this.dependencies.emitRecordingShortcutEvent('push_to_talk_start')
       return
     }
 
@@ -290,6 +299,6 @@ export class PttRuntimeManager {
     }
 
     this.pttHoldState = 'idle'
-    emitRecordingShortcutEvent('push_to_talk_stop')
+    this.dependencies.emitRecordingShortcutEvent('push_to_talk_stop')
   }
 }

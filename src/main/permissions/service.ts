@@ -15,7 +15,7 @@ const MICROPHONE_SETTINGS_URL =
 /**
  * Main-process facade for platform permission checks/requests and settings deep-links.
  */
-class PermissionsService {
+export class PermissionsService {
   getPermissionsStatus(): PermissionsStatusResponse {
     return {
       microphone: this.getMicrophonePermissionState(),
@@ -162,5 +162,3 @@ class PermissionsService {
     }
   }
 }
-
-export const permissionsService = new PermissionsService()

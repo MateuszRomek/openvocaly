@@ -2,20 +2,14 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { createMainAppContext } from './app-context'
 import { closeDb } from './db'
+import { withShutdownTimeout } from './helpers/lifecycle'
 import { isLinux, isMacOS, isWindows } from './helpers/platform'
-import { initializePipeline, registerPipelineIpc, shutdownPipeline } from './pipeline/ipc'
-import { registerPermissionsIpc } from './permissions/ipc'
-import { initializeRecording, registerRecordingIpc, shutdownRecording } from './recording/ipc'
-import { initializeShortcuts, registerShortcutsIpc, shutdownShortcuts } from './shortcuts/ipc'
-import { registerStorageIpc } from './storage'
-import {
-  initializeTranscription,
-  registerTranscriptionIpc,
-  shutdownTranscription
-} from './transcription/ipc'
 
 const GRACEFUL_QUIT_TIMEOUT_MS = 2500
+
+const mainContext = createMainAppContext()
 
 let mainWindow: BrowserWindow | null = null
 let hasShutdownCompleted = false
@@ -27,11 +21,13 @@ if (!hasSingleInstanceLock) {
   app.quit()
 }
 
-const createTimeout = (delayMs: number): Promise<void> =>
-  new Promise((resolve) => {
-    const timer = setTimeout(resolve, delayMs)
-    timer.unref()
-  })
+const runStep = async (label: string, operation: () => Promise<void> | void): Promise<void> => {
+  try {
+    await operation()
+  } catch (error) {
+    console.error(`[main] ${label}`, error)
+  }
+}
 
 const performShutdownSequence = (): Promise<void> => {
   if (hasShutdownCompleted) {
@@ -43,35 +39,15 @@ const performShutdownSequence = (): Promise<void> => {
   }
 
   shutdownPromise = (async () => {
-    try {
-      await shutdownPipeline()
-    } catch (error) {
-      console.error('[shutdown] pipeline teardown failed', error)
-    }
-
-    try {
-      await Promise.race([shutdownRecording(), createTimeout(GRACEFUL_QUIT_TIMEOUT_MS)])
-    } catch (error) {
-      console.error('[shutdown] recording teardown failed', error)
-    }
-
-    try {
-      await shutdownTranscription()
-    } catch (error) {
-      console.error('[shutdown] transcription teardown failed', error)
-    }
-
-    try {
-      shutdownShortcuts()
-    } catch (error) {
-      console.error('[shutdown] shortcuts teardown failed', error)
-    }
-
-    try {
-      closeDb()
-    } catch (error) {
-      console.error('[shutdown] database teardown failed', error)
-    }
+    await runStep('pipeline teardown failed', () => mainContext.ipc.pipelineIpc.shutdown())
+    await runStep('recording teardown failed', () =>
+      withShutdownTimeout(() => mainContext.ipc.recordingIpc.shutdown(), GRACEFUL_QUIT_TIMEOUT_MS)
+    )
+    await runStep('transcription teardown failed', () =>
+      mainContext.ipc.transcriptionIpc.shutdown()
+    )
+    await runStep('shortcuts teardown failed', () => mainContext.ipc.shortcutsIpc.shutdown())
+    await runStep('database teardown failed', () => closeDb())
 
     hasShutdownCompleted = true
   })()
@@ -162,31 +138,27 @@ app.whenReady().then(async () => {
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
-  registerStorageIpc()
-  registerPermissionsIpc()
-  registerShortcutsIpc()
-  registerRecordingIpc()
-  registerTranscriptionIpc()
-  registerPipelineIpc()
-  initializeShortcuts()
+  await runStep('database failed to initialize', () =>
+    mainContext.repositories.databaseLifecycle.initialize()
+  )
 
-  try {
-    await initializeTranscription()
-  } catch (error) {
-    console.error('[transcription] failed to initialize transcription subsystem', error)
-  }
+  mainContext.ipc.storageIpc.registerIpcHandlers()
+  mainContext.ipc.permissionsIpc.registerIpcHandlers()
+  mainContext.ipc.shortcutsIpc.registerIpcHandlers()
+  mainContext.ipc.recordingIpc.registerIpcHandlers()
+  mainContext.ipc.transcriptionIpc.registerIpcHandlers()
+  mainContext.ipc.pipelineIpc.registerIpcHandlers()
+  mainContext.ipc.shortcutsIpc.initialize()
 
-  try {
-    await initializeRecording()
-  } catch (error) {
-    console.error('[recording] failed to initialize recording subsystem', error)
-  }
-
-  try {
-    await initializePipeline()
-  } catch (error) {
-    console.error('[pipeline] failed to initialize dictation pipeline', error)
-  }
+  await runStep('transcription failed to initialize transcription subsystem', () =>
+    mainContext.ipc.transcriptionIpc.initialize()
+  )
+  await runStep('recording failed to initialize recording subsystem', () =>
+    mainContext.ipc.recordingIpc.initialize()
+  )
+  await runStep('pipeline failed to initialize dictation pipeline', () =>
+    mainContext.ipc.pipelineIpc.initialize()
+  )
 
   createWindow()
 

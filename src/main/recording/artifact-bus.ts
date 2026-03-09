@@ -1,29 +1,24 @@
 import type { RecordingArtifact } from '../../shared/recording'
-import { EventBus } from '../events/event-bus'
+import { createDomainBus } from '../events/domain-bus'
 
 const RECORDING_ARTIFACT_READY_EVENT = 'recording.artifact-ready'
 
 type RecordingArtifactReadyListener = (artifact: RecordingArtifact) => void
 
-class RecordingArtifactBus {
+const artifactReadyDomainBus = createDomainBus(RECORDING_ARTIFACT_READY_EVENT, {
+  toEvent: (artifact: RecordingArtifact) => ({
+    artifact,
+    emittedAt: Date.now()
+  }),
+  fromEvent: (event: { artifact: RecordingArtifact }): RecordingArtifact => event.artifact
+})
+
+export class RecordingArtifactBus {
   emit(artifact: RecordingArtifact): void {
-    EventBus.emit(RECORDING_ARTIFACT_READY_EVENT, {
-      artifact,
-      emittedAt: Date.now()
-    })
+    artifactReadyDomainBus.emit(artifact)
   }
 
   subscribe(listener: RecordingArtifactReadyListener): () => void {
-    const wrapped = (event: { artifact: RecordingArtifact }): void => {
-      listener(event.artifact)
-    }
-
-    EventBus.on(RECORDING_ARTIFACT_READY_EVENT, wrapped)
-
-    return () => {
-      EventBus.off(RECORDING_ARTIFACT_READY_EVENT, wrapped)
-    }
+    return artifactReadyDomainBus.subscribe(listener)
   }
 }
-
-export const recordingArtifactBus = new RecordingArtifactBus()

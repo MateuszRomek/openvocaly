@@ -30,5 +30,3 @@ export class DictationIdleResetController {
     this.clear()
   }
 }
-
-export const dictationIdleResetController = new DictationIdleResetController()

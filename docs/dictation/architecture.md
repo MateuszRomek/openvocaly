@@ -4,12 +4,13 @@
 
 The dictation pipeline subsystem owns end-to-end dictation session lifecycle:
 
-- shortcut command gating,
-- top-level session state machine,
-- transcription execution,
-- terminal success/failure policy,
-- overlay publication,
-- dictation runtime state API.
+- shortcut command intent gating,
+- top-level dictation state machine,
+- transcription orchestration handoff,
+- post-transcription paste/copy orchestration,
+- terminal success/failure reset policy,
+- overlay state publication,
+- dictation runtime state IPC API.
 
 ## High-level data path
 
@@ -25,47 +26,51 @@ flowchart LR
   E --> C
   F --> C
 
-  C --> G[main/transcription/service]
-  C --> H[main/pipeline/overlay-publisher]
-  H --> I[main/overlay/controller]
-  I --> J[renderer/overlay.tsx]
+  C --> G[main/pipeline/transcription-workflow]
+  G --> H[main/transcription/service]
+
+  C --> I[main/paste/service]
+
+  C --> J[main/pipeline/overlay-publisher]
+  J --> K[main/overlay/controller]
+  K --> L[renderer/overlay.tsx]
 ```
 
 ## Ownership and responsibilities
 
 - `src/main/pipeline/dictation-pipeline-orchestrator.ts`
-  - coordinates top-level dictation flow and wires event sources.
-  - delegates command-policy, state mutation, transcription workflow, and terminal timing to collaborators.
-  - enforces single active session (no overlap during transcribing/terminal pre-reset) via command intent rules.
+  - coordinates top-level dictation flow.
+  - subscribes command/session/artifact buses.
+  - delegates state mutation and side effects to collaborators.
 
 - `src/main/pipeline/session.ts` (`DictationSessionStateManager`)
-  - owns dictation in-memory state and transition-safe mutations.
-  - provides serialized views for runtime API and overlay payloads.
+  - owns in-memory dictation state and transition-safe mutations.
 
 - `src/main/pipeline/command-intent.ts`
-  - pure mapping from `(command + current phase/mode)` to executable intent.
-  - central place for shortcut gating policy.
+  - maps `(phase, mode, command)` to executable intent.
 
 - `src/main/pipeline/transcription-workflow.ts`
-  - runs artifact transcription workflow.
-  - persists success/failure artifact outcomes and triggers failure cue.
+  - executes transcription workflow and artifact persistence outcomes.
+
+- `src/main/paste/service.ts`
+  - owns transcript paste/copy post-processing (auto + manual fallback).
 
 - `src/main/pipeline/terminal-policy.ts`
-  - defines terminal-state display durations before idle reset.
+  - determines failed/terminal overlay delay before idle reset.
 
 - `src/main/pipeline/idle-reset-controller.ts`
-  - owns single pending idle-reset timer lifecycle.
+  - owns single pending idle-reset timer.
 
 - `src/main/pipeline/overlay-publisher.ts`
-  - owns overlay publish policy for dictation state.
-  - applies immediate phase updates and throttled audio-level updates.
+  - applies immediate phase updates and throttled meter updates.
 
 - `src/main/pipeline/ipc.ts`
-  - exposes dictation runtime state over IPC (`dictation:getRuntimeState`).
+  - exposes `dictation:getRuntimeState`.
 
 ## Core invariants
 
-1. Recording state is capture-domain only.
-2. Transcription outcomes are represented only in dictation-domain state.
-3. Overlay reflects dictation state, not recording-internal state.
-4. A new dictation session cannot start while transcribing or terminal delay is active.
+1. Recording lifecycle is capture-domain only.
+2. Dictation state is the source of truth for overlay state.
+3. Post-transcription paste outcomes are represented in dictation failures/phases.
+4. Unsupported paste platforms fail early with `paste_not_supported` (no manual-wait fallback).
+5. New session start is gated while terminal/transcribing/manual-paste states are active.

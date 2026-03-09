@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { createIpcRegistrar } from '../helpers/ipc'
 import type {
   ShortcutConfigResponse,
   ShortcutMutationResponse,
@@ -6,47 +7,55 @@ import type {
   ShortcutRuntimeStatusResponse,
   ShortcutUpdateInput
 } from '../../shared/shortcuts'
-import { shortcutService } from './service'
+import type { ShortcutService } from './service'
 
-let shortcutsIpcRegistered = false
+export type ShortcutsIpcModule = {
+  registerIpcHandlers: () => void
+  initialize: () => void
+  shutdown: () => void
+}
 
 /**
  * Registers shortcut IPC handlers once per process lifetime.
- * Guarded by `shortcutsIpcRegistered` to prevent duplicate `ipcMain.handle` bindings.
  */
-export const registerShortcutsIpc = (): void => {
-  if (shortcutsIpcRegistered) {
-    return
+export const createShortcutsIpcModule = (
+  shortcutService: Pick<
+    ShortcutService,
+    'getConfig' | 'update' | 'reset' | 'getRuntimeStatus' | 'initialize' | 'shutdown'
+  >
+): ShortcutsIpcModule => {
+  const registerIpcHandlers = createIpcRegistrar(() => {
+    ipcMain.handle('shortcuts:getConfig', (): ShortcutConfigResponse => shortcutService.getConfig())
+
+    ipcMain.handle(
+      'shortcuts:update',
+      (_event, params: ShortcutUpdateInput): ShortcutMutationResponse =>
+        shortcutService.update(params)
+    )
+
+    ipcMain.handle(
+      'shortcuts:reset',
+      (_event, params?: ShortcutResetInput): ShortcutMutationResponse =>
+        shortcutService.reset(params)
+    )
+
+    ipcMain.handle(
+      'shortcuts:getRuntimeStatus',
+      /**
+       * Runtime status is separate from persisted shortcut config because
+       * permission/hook readiness can change while the app is running.
+       */
+      (): ShortcutRuntimeStatusResponse => shortcutService.getRuntimeStatus()
+    )
+  })
+
+  return {
+    registerIpcHandlers,
+    initialize: () => {
+      shortcutService.initialize()
+    },
+    shutdown: () => {
+      shortcutService.shutdown()
+    }
   }
-
-  ipcMain.handle('shortcuts:getConfig', (): ShortcutConfigResponse => shortcutService.getConfig())
-
-  ipcMain.handle(
-    'shortcuts:update',
-    (_event, input: ShortcutUpdateInput): ShortcutMutationResponse => shortcutService.update(input)
-  )
-
-  ipcMain.handle(
-    'shortcuts:reset',
-    (_event, input?: ShortcutResetInput): ShortcutMutationResponse => shortcutService.reset(input)
-  )
-
-  ipcMain.handle(
-    'shortcuts:getRuntimeStatus',
-    /**
-     * Runtime status is separate from persisted shortcut config because
-     * permission/hook readiness can change while the app is running.
-     */
-    (): ShortcutRuntimeStatusResponse => shortcutService.getRuntimeStatus()
-  )
-
-  shortcutsIpcRegistered = true
-}
-
-export const initializeShortcuts = (): void => {
-  shortcutService.initialize()
-}
-
-export const shutdownShortcuts = (): void => {
-  shortcutService.shutdown()
 }

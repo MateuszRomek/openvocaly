@@ -1,31 +1,39 @@
 import { ipcMain } from 'electron'
+import { createIpcRegistrar } from '../helpers/ipc'
 import type {
   RecordingPreferencesResponse,
   RecordingPreferencesUpdateInput
 } from '../../shared/recording'
-import { recordingService } from './service/orchestrator'
+import type { RecordingServiceOrchestrator } from './service/orchestrator'
 
-let recordingIpcRegistered = false
-
-export const registerRecordingIpc = (): void => {
-  if (recordingIpcRegistered) {
-    return
-  }
-
-  ipcMain.handle(
-    'recording:getPreferences',
-    (): RecordingPreferencesResponse => recordingService.getPreferences()
-  )
-
-  ipcMain.handle(
-    'recording:updatePreferences',
-    (_event, input: RecordingPreferencesUpdateInput): Promise<RecordingPreferencesResponse> =>
-      recordingService.updatePreferences(input)
-  )
-
-  recordingIpcRegistered = true
+export type RecordingIpcModule = {
+  registerIpcHandlers: () => void
+  initialize: () => Promise<void>
+  shutdown: () => Promise<void>
 }
 
-export const initializeRecording = (): Promise<void> => recordingService.initialize()
+export const createRecordingIpcModule = (
+  recordingService: Pick<
+    RecordingServiceOrchestrator,
+    'getPreferences' | 'updatePreferences' | 'initialize' | 'shutdown'
+  >
+): RecordingIpcModule => {
+  const registerIpcHandlers = createIpcRegistrar(() => {
+    ipcMain.handle(
+      'recording:getPreferences',
+      (): RecordingPreferencesResponse => recordingService.getPreferences()
+    )
 
-export const shutdownRecording = (): Promise<void> => recordingService.shutdown()
+    ipcMain.handle(
+      'recording:updatePreferences',
+      (_event, params: RecordingPreferencesUpdateInput): Promise<RecordingPreferencesResponse> =>
+        recordingService.updatePreferences(params)
+    )
+  })
+
+  return {
+    registerIpcHandlers,
+    initialize: () => recordingService.initialize(),
+    shutdown: () => recordingService.shutdown()
+  }
+}

@@ -98,5 +98,3 @@ export class DictationOverlayPublisher {
     this.lastPublishedAt = Date.now()
   }
 }
-
-export const dictationOverlayPublisher = new DictationOverlayPublisher()

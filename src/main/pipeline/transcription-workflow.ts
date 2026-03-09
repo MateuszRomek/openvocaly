@@ -1,7 +1,7 @@
 import type { RecordingArtifact } from '../../shared/recording'
-import { recordingService } from '../recording/service/orchestrator'
-import { RecordingArtifactStore } from '../recording/storage/artifact-store'
-import { transcriptionService } from '../transcription/service'
+import { RecordingArtifactManager } from '../recording/storage/artifact-manager'
+import type { RecordingServiceOrchestrator } from '../recording/service/orchestrator'
+import type { TranscriptionService } from '../transcription/service'
 
 export type TranscriptionWorkflowResult =
   | { type: 'complete'; transcriptText: string }
@@ -20,18 +20,23 @@ export type TranscriptionWorkflowResult =
  */
 export class DictationTranscriptionWorkflow {
   constructor(
-    private readonly artifactStore: RecordingArtifactStore = new RecordingArtifactStore()
+    private readonly dependencies: {
+      recordingService: Pick<RecordingServiceOrchestrator, 'playCue'>
+      transcriptionService: Pick<TranscriptionService, 'transcribeArtifact'>
+    },
+    private readonly artifactManager: RecordingArtifactManager = new RecordingArtifactManager()
   ) {}
 
   async processArtifact(artifact: RecordingArtifact): Promise<TranscriptionWorkflowResult> {
-    const transcriptionResult = await transcriptionService.transcribeArtifact(artifact)
+    const transcriptionResult =
+      await this.dependencies.transcriptionService.transcribeArtifact(artifact)
     console.log('[pipeline] transcription result', {
       artifact,
       transcriptionResult
     })
 
     if (transcriptionResult.ok) {
-      await this.artifactStore.markTranscriptionSuccess(artifact)
+      await this.artifactManager.markTranscriptionSuccess(artifact)
       return {
         type: 'complete',
         transcriptText: transcriptionResult.transcript.text
@@ -39,7 +44,7 @@ export class DictationTranscriptionWorkflow {
     }
 
     try {
-      await this.artifactStore.markFailure(
+      await this.artifactManager.markFailure(
         artifact,
         'transcription_error',
         transcriptionResult.message
@@ -48,7 +53,7 @@ export class DictationTranscriptionWorkflow {
       console.error('[pipeline] failed to persist transcription failure artifact', error)
     }
 
-    await recordingService.playCue('error').catch((error) => {
+    await this.dependencies.recordingService.playCue('error').catch((error) => {
       console.error('[pipeline] failed to play transcription failure cue', error)
     })
 
@@ -58,5 +63,3 @@ export class DictationTranscriptionWorkflow {
     }
   }
 }
-
-export const dictationTranscriptionWorkflow = new DictationTranscriptionWorkflow()

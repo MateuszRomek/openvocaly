@@ -14,27 +14,45 @@ import type {
   TranscriptionProviderApiKeyUpdateInput,
   TranscriptionResult
 } from '../../../shared/transcription'
+import { SettingsRepository } from '../../repositories/settings-repository'
+import { StorageRepository } from '../../repositories/storage-repository'
 import { parakeetRuntime } from '../local/parakeet/runtime'
 import { TranscriptionProviderFactory } from '../provider-factory'
-import { TranscriptionPreferencesStore } from './preferences-store'
-import { TranscriptionProviderCredentialsStore } from './provider-credentials-store'
-import { TranscriptStore } from './transcript-store'
+import { TranscriptionPreferencesManager } from './preferences-manager'
+import { TranscriptionProviderCredentialsManager } from './provider-credentials-manager'
 
-class TranscriptionService {
+export class TranscriptionService {
   private initialized = false
-  private readonly preferencesStore = new TranscriptionPreferencesStore()
-  private readonly credentialsStore = new TranscriptionProviderCredentialsStore()
-  private readonly transcriptStore = new TranscriptStore()
-  private readonly providerFactory = new TranscriptionProviderFactory(this.credentialsStore)
+  private readonly preferencesManager: TranscriptionPreferencesManager
+  private readonly credentialsManager: TranscriptionProviderCredentialsManager
+  private readonly storageRepository: StorageRepository
+  private readonly providerFactory: TranscriptionProviderFactory
+
+  constructor(
+    options: {
+      settingsRepository?: SettingsRepository
+      storageRepository?: StorageRepository
+      preferencesManager?: TranscriptionPreferencesManager
+      credentialsManager?: TranscriptionProviderCredentialsManager
+    } = {}
+  ) {
+    const settingsRepository = options.settingsRepository ?? new SettingsRepository()
+    this.storageRepository = options.storageRepository ?? new StorageRepository()
+
+    this.preferencesManager =
+      options.preferencesManager ?? new TranscriptionPreferencesManager(settingsRepository)
+    this.credentialsManager =
+      options.credentialsManager ?? new TranscriptionProviderCredentialsManager(settingsRepository)
+    this.providerFactory = new TranscriptionProviderFactory(this.credentialsManager)
+  }
 
   async initialize(): Promise<void> {
     if (this.initialized) {
       return
     }
 
-    await this.preferencesStore.initialize()
-    await this.credentialsStore.initialize()
-    await this.transcriptStore.initialize()
+    await this.preferencesManager.initialize()
+    await this.credentialsManager.initialize()
     this.initialized = true
   }
 
@@ -49,7 +67,7 @@ class TranscriptionService {
   }
 
   getPreferences(): TranscriptionPreferencesResponse {
-    const preferences = this.preferencesStore.get()
+    const preferences = this.preferencesManager.get()
 
     return {
       preferences,
@@ -58,11 +76,11 @@ class TranscriptionService {
   }
 
   async updatePreferences(
-    input: TranscriptionPreferencesUpdateInput
+    params: TranscriptionPreferencesUpdateInput
   ): Promise<TranscriptionPreferencesResponse> {
     await this.initialize()
-    const previousPreferences = this.preferencesStore.get()
-    const preferences = await this.preferencesStore.update(input)
+    const previousPreferences = this.preferencesManager.get()
+    const preferences = await this.preferencesManager.update(params)
 
     if (this.shouldStopLocalRuntime(previousPreferences, preferences)) {
       await parakeetRuntime.stopRuntime()
@@ -89,15 +107,15 @@ class TranscriptionService {
   }
 
   async setProviderApiKey(
-    input: TranscriptionProviderApiKeyUpdateInput
+    params: TranscriptionProviderApiKeyUpdateInput
   ): Promise<TranscriptionProviderApiKeyMutationResponse> {
-    return this.credentialsStore.setApiKey(input)
+    return this.credentialsManager.setApiKey(params)
   }
 
   async clearProviderApiKey(
     providerId: TranscriptionProviderApiKeyUpdateInput['providerId']
   ): Promise<TranscriptionProviderApiKeyMutationResponse> {
-    return this.credentialsStore.clearApiKey(providerId)
+    return this.credentialsManager.clearApiKey(providerId)
   }
 
   async listLocalModels(): Promise<ListLocalModelsResponse> {
@@ -105,26 +123,26 @@ class TranscriptionService {
   }
 
   async downloadLocalModel(
-    input: LocalModelActionInput,
+    params: LocalModelActionInput,
     onProgress?: (progress: LocalModelDownloadProgress) => void
   ): Promise<LocalModelActionResponse> {
-    return parakeetRuntime.downloadModel(input, onProgress)
+    return parakeetRuntime.downloadModel(params, onProgress)
   }
 
   cancelLocalModelDownload(): LocalModelActionResponse {
     return parakeetRuntime.cancelDownload()
   }
 
-  async deleteLocalModel(input: LocalModelActionInput): Promise<LocalModelActionResponse> {
-    return parakeetRuntime.deleteModel(input)
+  async deleteLocalModel(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
+    return parakeetRuntime.deleteModel(params)
   }
 
   getLocalRuntimeStatus(): LocalRuntimeStatusResponse {
     return parakeetRuntime.getRuntimeStatus()
   }
 
-  async startLocalRuntime(input: LocalModelActionInput): Promise<LocalModelActionResponse> {
-    return parakeetRuntime.startRuntime(input)
+  async startLocalRuntime(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
+    return parakeetRuntime.startRuntime(params)
   }
 
   async stopLocalRuntime(): Promise<LocalModelActionResponse> {
@@ -134,14 +152,29 @@ class TranscriptionService {
   async transcribeArtifact(artifact: RecordingArtifact): Promise<TranscriptionResult> {
     await this.initialize()
 
-    const result = await this.providerFactory.transcribe(artifact, this.preferencesStore.get())
+    const result = await this.providerFactory.transcribe(artifact, this.preferencesManager.get())
 
     if (!result.ok) {
       return result
     }
 
     try {
-      await this.transcriptStore.saveFromArtifact(artifact, result.transcript)
+      const sessionResult = this.storageRepository.createSession({
+        startedAt: artifact.startedAt,
+        durationMs: artifact.durationMs ?? null,
+        title: null,
+        source: `recording:${artifact.sessionId}`
+      })
+
+      this.storageRepository.addTranscript({
+        sessionId: sessionResult.id,
+        createdAt: Date.now(),
+        text: result.transcript.text,
+        language: result.transcript.language ?? null,
+        confidence: result.transcript.confidence ?? null,
+        durationMs: result.transcript.durationMs ?? artifact.durationMs ?? null
+      })
+
       return result
     } catch (error) {
       const message =
@@ -155,5 +188,3 @@ class TranscriptionService {
     }
   }
 }
-
-export const transcriptionService = new TranscriptionService()

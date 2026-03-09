@@ -1,5 +1,5 @@
 import type { RecordingShortcutCommandType } from '../../shared/recording'
-import { EventBus } from '../events/event-bus'
+import { createDomainBus } from '../events/domain-bus'
 import type { RecordingCommandEvent } from '../events/event-bus-events'
 
 const RECORDING_COMMAND_EVENT = 'recording.command'
@@ -8,26 +8,25 @@ export type RecordingCommand = RecordingCommandEvent
 
 type RecordingCommandListener = (command: RecordingCommand) => void
 
+const recordingCommandDomainBus = createDomainBus(RECORDING_COMMAND_EVENT, {
+  toEvent: (command: RecordingCommand): RecordingCommand => command,
+  fromEvent: (event: RecordingCommand): RecordingCommand => event
+})
+
 /**
  * Dedicated command channel between shortcuts and recording orchestration layers.
  */
-class RecordingCommandBus {
+export class RecordingCommandBus {
   emit(type: RecordingShortcutCommandType): void {
     const command: RecordingCommand = {
       type,
       emittedAt: Date.now()
     }
 
-    EventBus.emit(RECORDING_COMMAND_EVENT, command)
+    recordingCommandDomainBus.emit(command)
   }
 
   subscribe(listener: RecordingCommandListener): () => void {
-    EventBus.on(RECORDING_COMMAND_EVENT, listener)
-
-    return () => {
-      EventBus.off(RECORDING_COMMAND_EVENT, listener)
-    }
+    return recordingCommandDomainBus.subscribe(listener)
   }
 }
-
-export const recordingCommandBus = new RecordingCommandBus()

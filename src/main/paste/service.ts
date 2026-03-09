@@ -1,9 +1,9 @@
 import { createUnrefDelay } from '../helpers/timers'
-import { permissionsService } from '../permissions/service'
 import { resolveDesktopPlatform } from '../helpers/platform'
 import { getPastePlatformAdapter } from './adapters'
 import { ClipboardTransaction } from './clipboard-transaction'
 import type { PastePlatformAdapter } from './platform-adapter'
+import type { PermissionsService } from '../permissions/service'
 import {
   CLIPBOARD_RESTORE_DELAY_AFTER_MANUAL_PASTE_MS,
   CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS,
@@ -30,6 +30,7 @@ export class DictationPasteService {
   private activeFallbackSession: ManualFallbackSession | null = null
 
   constructor(
+    private readonly permissionsService: Pick<PermissionsService, 'isAccessibilityGranted'>,
     adapter: PastePlatformAdapter = getPastePlatformAdapter(resolveDesktopPlatform()),
     private readonly createClipboardTransaction: () => ClipboardTransaction = () =>
       new ClipboardTransaction()
@@ -37,20 +38,20 @@ export class DictationPasteService {
     this.adapter = adapter
   }
 
-  async processTranscript(input: ProcessTranscriptInput): Promise<DictationPasteOutcome> {
+  async processTranscript(params: ProcessTranscriptInput): Promise<DictationPasteOutcome> {
     const capabilities = this.adapter.capabilities()
     console.log('[paste] process transcript start', {
-      sessionId: input.sessionId,
+      sessionId: params.sessionId,
       platform: capabilities.platform,
       capabilities
     })
 
     if (
       capabilities.requiresAccessibilityPermission &&
-      !permissionsService.isAccessibilityGranted()
+      !this.permissionsService.isAccessibilityGranted()
     ) {
       console.warn('[paste] permission denied for paste flow', {
-        sessionId: input.sessionId
+        sessionId: params.sessionId
       })
       return {
         type: 'permission_denied',
@@ -59,7 +60,7 @@ export class DictationPasteService {
       }
     }
 
-    const transcriptText = input.transcriptText.trim()
+    const transcriptText = params.transcriptText.trim()
     if (!transcriptText) {
       return {
         type: 'error',
@@ -69,7 +70,7 @@ export class DictationPasteService {
 
     if (capabilities.implementationState !== 'ready') {
       console.warn('[paste] platform adapter not implemented', {
-        sessionId: input.sessionId,
+        sessionId: params.sessionId,
         platform: capabilities.platform
       })
 
@@ -87,7 +88,7 @@ export class DictationPasteService {
     try {
       clipboardTransaction.writeText(transcriptText)
       console.log('[paste] transcript copied to clipboard', {
-        sessionId: input.sessionId,
+        sessionId: params.sessionId,
         length: transcriptText.length
       })
 
@@ -97,7 +98,7 @@ export class DictationPasteService {
         if (capabilities.supportsEditableProbe) {
           const probeResult = await this.adapter.probeEditableTarget()
           console.log('[paste] editable probe result', {
-            sessionId: input.sessionId,
+            sessionId: params.sessionId,
             probeResult
           })
 
@@ -108,7 +109,7 @@ export class DictationPasteService {
           autoPasteSkipReason = probeDecision.reason ?? null
           if (!probeDecision.shouldAttemptAutoPaste && probeDecision.reason) {
             console.log(`[paste] skipping auto paste on ${probeDecision.reason}`, {
-              sessionId: input.sessionId,
+              sessionId: params.sessionId,
               probeResult
             })
           }
@@ -116,7 +117,7 @@ export class DictationPasteService {
 
         if (!shouldAttemptAutoPaste) {
           console.log('[paste] auto paste skipped', {
-            sessionId: input.sessionId,
+            sessionId: params.sessionId,
             reason: autoPasteSkipReason
           })
         }
@@ -124,7 +125,7 @@ export class DictationPasteService {
         if (shouldAttemptAutoPaste) {
           const pasteResult = await this.adapter.simulatePasteShortcut()
           console.log('[paste] auto paste result', {
-            sessionId: input.sessionId,
+            sessionId: params.sessionId,
             pasteResult
           })
 
@@ -138,8 +139,8 @@ export class DictationPasteService {
       }
 
       const manualOutcome = await this.awaitManualFallback({
-        sessionId: input.sessionId,
-        onManualPasteState: input.onManualPasteState,
+        sessionId: params.sessionId,
+        onManualPasteState: params.onManualPasteState,
         hint: getManualPasteHint(capabilities.platform),
         supportsManualPasteWatcher: capabilities.supportsManualPasteWatcher
       })
@@ -157,7 +158,7 @@ export class DictationPasteService {
         message: error instanceof Error ? error.message : 'Auto-paste flow failed unexpectedly.'
       }
     } finally {
-      if (this.activeFallbackSession?.sessionId === input.sessionId) {
+      if (this.activeFallbackSession?.sessionId === params.sessionId) {
         this.activeFallbackSession.cancel()
         this.clearActiveFallback()
       }
@@ -186,20 +187,20 @@ export class DictationPasteService {
     this.clearActiveFallback()
   }
 
-  private async awaitManualFallback(input: {
+  private async awaitManualFallback(params: {
     sessionId: string
     onManualPasteState: (state: ManualPasteState) => Promise<void> | void
     hint: string
     supportsManualPasteWatcher: boolean
   }): Promise<ManualFallbackOutcome> {
     const session = new ManualFallbackSession({
-      sessionId: input.sessionId,
+      sessionId: params.sessionId,
       timeoutMs: MANUAL_FALLBACK_TIMEOUT_MS,
       replayDelayMs: MANUAL_SHORTCUT_REPLAY_DELAY_MS,
-      hint: input.hint,
-      supportsManualPasteWatcher: input.supportsManualPasteWatcher,
+      hint: params.hint,
+      supportsManualPasteWatcher: params.supportsManualPasteWatcher,
       adapter: this.adapter,
-      onManualPasteState: input.onManualPasteState
+      onManualPasteState: params.onManualPasteState
     })
 
     this.activeFallbackSession = session
@@ -216,5 +217,3 @@ export class DictationPasteService {
     this.activeFallbackSession = null
   }
 }
-
-export const dictationPasteService = new DictationPasteService()

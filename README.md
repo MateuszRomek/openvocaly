@@ -76,11 +76,11 @@ npm run build:linux
 
 ## Project Structure
 
-- `src/main` - Electron main process, IPC handlers, shortcuts, recording orchestration
+- `src/main` - Electron main process, composition root, IPC modules, services, repositories
 - `src/preload` - secure bridge exposed to renderer
 - `src/renderer` - React UI and capture runtime
 - `src/shared` - IPC contracts and shared types
-- `docs/recording` - recording architecture, flows, and contracts
+- `docs` - architecture/flow/contract docs for main, dictation, recording, transcription, and paste
 
 ## Build Output
 
@@ -89,7 +89,7 @@ npm run build:linux
 
 ## Documentation
 
-See the `docs/` folder for project documentation.
+Start with `docs/README.md` for subsystem map and recommended reading order.
 
 ## License
 

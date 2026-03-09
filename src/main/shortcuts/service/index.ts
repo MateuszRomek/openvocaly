@@ -1,8 +1,7 @@
 import { globalShortcut } from 'electron'
-import { initDb } from '../../db'
-import { emitRecordingShortcutEvent } from '../recording-events'
-import { ensureDefaultShortcutBindings, listShortcutBindings } from '../repository'
+import type { RecordingShortcutEvent } from '../recording-events'
 import {
+  SHORTCUT_ACTIONS,
   type ShortcutAction,
   type ShortcutConfigResponse,
   type ShortcutMutationResponse,
@@ -11,16 +10,19 @@ import {
   type ShortcutUpdateInput
 } from '../../../shared/shortcuts'
 import { createInitialShortcutState } from '../constants'
+import type { PermissionsService } from '../../permissions/service'
+import { ShortcutBindingsRepository } from '../../repositories/shortcut-bindings-repository'
 import {
+  areCanonicalShortcutsEqual,
   parseAccelerator,
   toPersistedShortcutBinding,
+  type CanonicalShortcut,
   type PersistedShortcutBinding
 } from '../accelerator'
 import type { ShortcutActionStateMap } from '../types'
 import { selectShortcutConfigResponse } from './shortcut-config-selector'
 import { createDefaultBindings, defaultBindingForAction } from './defaults'
 import { tryRegisterAction, type SupportedGlobalShortcutAction } from './global-shortcut'
-import { hasDuplicateAccelerator, persistBinding } from './persistence'
 import {
   decideShortcutReset,
   decideShortcutUpdate,
@@ -40,23 +42,39 @@ import {
 /**
  * Owns shortcut lifecycle: registration, persistence integration, and PTT runtime bridging.
  */
-class ShortcutService {
+export class ShortcutService {
   private initialized = false
   private startupFailure = false
   private shortcutState: ShortcutActionStateMap =
     createInitialShortcutState(createDefaultBindings())
 
-  private readonly pttRuntime = new PttRuntimeManager(() => this.shortcutState)
+  private readonly pttRuntime: PttRuntimeManager
+  private readonly emitRecordingShortcutEvent: (event: RecordingShortcutEvent) => void
+  private readonly shortcutBindingsRepository: ShortcutBindingsRepository
+
+  constructor(dependencies: {
+    permissionsService: Pick<PermissionsService, 'isAccessibilityGranted'>
+    emitRecordingShortcutEvent?: (event: RecordingShortcutEvent) => void
+    shortcutBindingsRepository?: ShortcutBindingsRepository
+  }) {
+    this.emitRecordingShortcutEvent = dependencies.emitRecordingShortcutEvent ?? (() => undefined)
+    this.shortcutBindingsRepository =
+      dependencies.shortcutBindingsRepository ?? new ShortcutBindingsRepository()
+    this.pttRuntime = new PttRuntimeManager(() => this.shortcutState, {
+      permissionsService: dependencies.permissionsService,
+      emitRecordingShortcutEvent: this.emitRecordingShortcutEvent,
+      persistBinding: (action, binding) => this.persistBinding(action, binding)
+    })
+  }
 
   initialize(): void {
     if (this.initialized) {
       return
     }
 
-    initDb()
-    ensureDefaultShortcutBindings()
+    this.shortcutBindingsRepository.ensureDefaultBindings()
 
-    this.shortcutState = createInitialShortcutState(listShortcutBindings())
+    this.shortcutState = createInitialShortcutState(this.shortcutBindingsRepository.listBindings())
     this.startupFailure = false
     this.pttRuntime.resetForStartup()
 
@@ -101,17 +119,17 @@ class ShortcutService {
     }
   }
 
-  update(input: ShortcutUpdateInput): ShortcutMutationResponse {
+  update(params: ShortcutUpdateInput): ShortcutMutationResponse {
     this.ensureInitialized()
     this.pttRuntime.refreshRuntimeStatus()
 
-    const parsedShortcut = parseAccelerator(input.accelerator)
+    const parsedShortcut = parseAccelerator(params.accelerator)
     const binding = parsedShortcut ? toPersistedShortcutBinding(parsedShortcut) : null
     const decision = decideShortcutUpdate({
-      action: input.action,
+      action: params.action,
       binding,
       hasDuplicateAccelerator: parsedShortcut
-        ? hasDuplicateAccelerator(this.shortcutState, input.action, parsedShortcut)
+        ? this.hasDuplicateAccelerator(params.action, parsedShortcut)
         : false,
       pttReady: this.pttRuntime.isReady(),
       pttAvailability: this.pttRuntime.getRuntimeStatus().availability
@@ -130,16 +148,16 @@ class ShortcutService {
       action: decision.action,
       nextBinding: decision.binding,
       registerAction: this.registerSupportedGlobalAction,
-      persistBinding
+      persistBinding: (action, binding) => this.persistBinding(action, binding)
     })
   }
 
-  reset(input?: ShortcutResetInput): ShortcutMutationResponse {
+  reset(params?: ShortcutResetInput): ShortcutMutationResponse {
     this.ensureInitialized()
     this.pttRuntime.refreshRuntimeStatus()
 
     const decision = decideShortcutReset({
-      action: input?.action,
+      action: params?.action,
       pttReady: this.pttRuntime.isReady(),
       defaultBindingForAction
     })
@@ -174,7 +192,7 @@ class ShortcutService {
       action,
       nextBinding,
       registerAction: this.registerSupportedGlobalAction,
-      persistBinding
+      persistBinding: (nextAction, binding) => this.persistBinding(nextAction, binding)
     })
   }
 
@@ -202,7 +220,7 @@ class ShortcutService {
   ): ShortcutMutationResponse {
     // Persists action binding without touching OS/global registration.
     // Used for actions that are currently unavailable at runtime (e.g. PTT not ready).
-    const persistResult = persistBinding(action, binding)
+    const persistResult = this.persistBinding(action, binding)
 
     if (!persistResult.ok) {
       return persistResult
@@ -221,15 +239,39 @@ class ShortcutService {
     return { ok: true }
   }
 
+  private persistBinding(
+    action: ShortcutAction,
+    binding: PersistedShortcutBinding
+  ): ShortcutMutationResponse {
+    try {
+      this.shortcutBindingsRepository.setBinding(action, binding)
+      return { ok: true }
+    } catch (error) {
+      if (this.shortcutBindingsRepository.isUniqueConstraintError(error)) {
+        return { ok: false, errorCode: 'duplicate_accelerator' }
+      }
+
+      return { ok: false, errorCode: 'registration_failed' }
+    }
+  }
+
+  private hasDuplicateAccelerator(action: ShortcutAction, shortcut: CanonicalShortcut): boolean {
+    return SHORTCUT_ACTIONS.some((candidateAction) => {
+      if (candidateAction === action) {
+        return false
+      }
+
+      return areCanonicalShortcutsEqual(this.shortcutState[candidateAction].storedBinding, shortcut)
+    })
+  }
+
   private handleGlobalShortcutAction = (action: SupportedGlobalShortcutAction): void => {
     if (action === 'recording.toggle') {
-      emitRecordingShortcutEvent('toggle')
+      this.emitRecordingShortcutEvent('toggle')
       return
     }
 
     this.pttRuntime.releasePushToTalkHoldIfNeeded({ emitStop: false })
-    emitRecordingShortcutEvent('cancel')
+    this.emitRecordingShortcutEvent('cancel')
   }
 }
-
-export const shortcutService = new ShortcutService()
