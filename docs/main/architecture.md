@@ -64,7 +64,7 @@ Database access is isolated under `src/main/repositories`:
 - `shortcut-bindings-repository.ts` - shortcut bindings persistence,
 - `storage-repository.ts` - sessions/transcripts persistence and listings.
 
-Service/store modules should consume repositories, not `getDb()`/`initDb()` directly.
+Service/manager modules should consume repositories, not `getDb()`/`initDb()` directly.
 
 ## Eventing
 
@@ -72,6 +72,7 @@ In-process domain events use typed event bus contracts:
 
 - shared event bus: `src/main/events/event-bus.ts`,
 - event payload types: `src/main/events/event-bus-events.ts`,
+- domain wrapper helper: `src/main/events/domain-bus.ts`,
 - recording wrappers:
   - `src/main/recording/command-bus.ts`,
   - `src/main/recording/session-bus.ts`,
@@ -82,3 +83,4 @@ In-process domain events use typed event bus contracts:
 - Domain orchestration in services, persistence in repositories, transport in IPC modules.
 - Platform-specific behavior lives behind adapters/policies (for example paste/overlay macOS behavior).
 - Shared contracts are defined in `src/shared/**`; avoid ad-hoc runtime payload shapes.
+- Service wiring in app context uses concrete class types by default; narrower contracts are introduced only where isolation is explicitly needed.

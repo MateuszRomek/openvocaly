@@ -28,7 +28,7 @@ The transcription subsystem owns:
 
 ## Persistence Boundaries
 
-Transcription uses repositories/stores with clear boundaries:
+Transcription uses repositories/managers with clear boundaries:
 
 - preferences + cloud credential payloads -> `SettingsRepository` (`app_settings`),
 - transcript/session writes -> `StorageRepository` (`sessions`, `transcripts`).
