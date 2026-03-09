@@ -1,7 +1,6 @@
 import type { DictationFailureReason, DictationRuntimeStateResponse } from '../../shared/dictation'
 import type { RecordingArtifact, RecordingMode } from '../../shared/recording'
-import { dictationPasteService } from '../paste'
-import type { ManualPasteState } from '../paste/service'
+import { dictationPasteService, type ManualPasteState } from '../paste/service'
 import type { RecordingCommand } from '../recording/command-bus'
 import { recordingCommandBus } from '../recording/command-bus'
 import { recordingArtifactBus } from '../recording/artifact-bus'
@@ -9,11 +8,11 @@ import { recordingService } from '../recording/service/orchestrator'
 import type { RecordingSessionSnapshot } from '../recording/service/session'
 import { recordingSessionBus } from '../recording/session-bus'
 import { resolveDictationCommandIntent } from './command-intent'
-import { DictationIdleResetController } from './idle-reset-controller'
-import { DictationOverlayPublisher } from './overlay-publisher'
-import { DictationSessionStateManager } from './session'
+import { dictationIdleResetController } from './idle-reset-controller'
+import { dictationOverlayPublisher } from './overlay-publisher'
+import { dictationSessionStateManager } from './session'
 import { resolveTerminalDisplayDelayMs } from './terminal-policy'
-import { DictationTranscriptionWorkflow } from './transcription-workflow'
+import { dictationTranscriptionWorkflow } from './transcription-workflow'
 
 /**
  * Coordinates top-level dictation lifecycle in main process.
@@ -31,10 +30,10 @@ class DictationPipelineOrchestrator {
   private unsubscribeRecordingSession: (() => void) | null = null
   private unsubscribeArtifactReady: (() => void) | null = null
 
-  private readonly overlayPublisher = new DictationOverlayPublisher()
-  private readonly session = new DictationSessionStateManager()
-  private readonly idleReset = new DictationIdleResetController()
-  private readonly transcriptionWorkflow = new DictationTranscriptionWorkflow()
+  private readonly overlayPublisher = dictationOverlayPublisher
+  private readonly session = dictationSessionStateManager
+  private readonly idleReset = dictationIdleResetController
+  private readonly transcriptionWorkflow = dictationTranscriptionWorkflow
   private readonly pasteService = dictationPasteService
 
   async initialize(): Promise<void> {

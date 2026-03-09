@@ -58,3 +58,5 @@ export class DictationTranscriptionWorkflow {
     }
   }
 }
+
+export const dictationTranscriptionWorkflow = new DictationTranscriptionWorkflow()

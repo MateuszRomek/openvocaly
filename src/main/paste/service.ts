@@ -216,3 +216,5 @@ export class DictationPasteService {
     this.activeFallbackSession = null
   }
 }
+
+export const dictationPasteService = new DictationPasteService()

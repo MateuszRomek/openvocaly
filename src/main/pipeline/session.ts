@@ -248,3 +248,5 @@ export class DictationSessionStateManager {
     }
   }
 }
+
+export const dictationSessionStateManager = new DictationSessionStateManager()
