@@ -27,10 +27,8 @@ export const SHORTCUT_ERROR_MESSAGES: Record<ShortcutErrorCode, string> = {
     'Could not register this shortcut. It may be used by your system or another app.',
   registration_failed: 'Could not register this shortcut. Try a different one.',
   unsupported_action: 'This action is not available right now.',
-  requires_native_keyup_hook:
-    'Push-to-talk is not available in this build yet.',
-  permission_denied:
-    'Allow Accessibility access to use this shortcut globally.',
+  requires_native_keyup_hook: 'Push-to-talk is not available in this build yet.',
+  permission_denied: 'Allow Accessibility access to use this shortcut globally.',
   hook_unavailable: 'Push-to-talk is not available in this environment.',
   hook_init_failed: 'Push-to-talk could not start. Restart the app and try again.'
 }
@@ -56,8 +54,7 @@ export const PTT_STATUS_BADGE: Record<
 }
 
 export const PTT_STATUS_MESSAGE: Record<Exclude<ShortcutPttAvailability, 'ready'>, string> = {
-  permission_required:
-    'Allow Accessibility access in Permissions to use push-to-talk.',
+  permission_required: 'Allow Accessibility access in Permissions to use push-to-talk.',
   unsupported_platform: 'Push-to-talk is currently available only on macOS.',
   hook_init_failed: 'Push-to-talk could not start. Restart the app and try again.'
 }

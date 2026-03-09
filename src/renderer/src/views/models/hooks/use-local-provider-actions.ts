@@ -7,7 +7,9 @@ import type { TranscriptionProviderId } from './use-transcription-provider-catal
 import type { LocalModelId } from '../types/local-models'
 import { supportsLocalRuntimeActions } from '../constants/local-provider-capabilities'
 
-type ManagedLocalModelId = Parameters<Window['api']['transcription']['local']['downloadModel']>[0]['modelId']
+type ManagedLocalModelId = Parameters<
+  Window['api']['transcription']['local']['downloadModel']
+>[0]['modelId']
 
 export type UseLocalProviderActionsResult = {
   actionError: string | null

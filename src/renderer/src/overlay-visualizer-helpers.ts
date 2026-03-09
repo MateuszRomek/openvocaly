@@ -54,7 +54,7 @@ const toGaussian = (distance: number, spread: number): number =>
 const getProcessingWave = (index: number, now: number): number => {
   // Sweep a highlighted wave head from left to right during transcription.
   const cycleProgress = (now % PROCESSING_SWEEP_SECONDS) / PROCESSING_SWEEP_SECONDS
-  const travelDistance = (BAR_COUNT - 1) + PROCESSING_HEAD_PADDING_BARS * 2
+  const travelDistance = BAR_COUNT - 1 + PROCESSING_HEAD_PADDING_BARS * 2
   const headPosition = -PROCESSING_HEAD_PADDING_BARS + cycleProgress * travelDistance
   const distanceFromHead = index - headPosition
 

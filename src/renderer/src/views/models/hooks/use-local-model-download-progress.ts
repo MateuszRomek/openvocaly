@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { LocalModelDownloadProgress } from '../types/local-models'
 
-const isTerminalProgressState = (
-  state: LocalModelDownloadProgress['state']
-): boolean => {
+const isTerminalProgressState = (state: LocalModelDownloadProgress['state']): boolean => {
   return state === 'complete' || state === 'error' || state === 'idle'
 }
 

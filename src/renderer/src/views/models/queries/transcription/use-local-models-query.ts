@@ -12,7 +12,9 @@ type LocalModelsQueryOptions = UseQueryOptions<
   ReturnType<typeof transcriptionKeys.localModels>
 >
 
-export function localModelsQueryOptions(providerId: TranscriptionProviderId): LocalModelsQueryOptions {
+export function localModelsQueryOptions(
+  providerId: TranscriptionProviderId
+): LocalModelsQueryOptions {
   return queryOptions({
     queryKey: transcriptionKeys.localModels(providerId),
     queryFn: async () => window.api.transcription.local.listModels()

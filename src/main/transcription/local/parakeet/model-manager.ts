@@ -33,10 +33,7 @@ type ParakeetModelManagerDeps = {
 export class ParakeetModelManager {
   private activeDownload: DownloadState | null = null
   private readonly archiveExtractor: ArchiveExtractor
-  private readonly progressStore: DownloadProgressStore<
-    ParakeetModelId,
-    LocalModelDownloadProgress
-  >
+  private readonly progressStore: DownloadProgressStore<ParakeetModelId, LocalModelDownloadProgress>
 
   constructor(deps: ParakeetModelManagerDeps = {}) {
     this.archiveExtractor = deps.archiveExtractor ?? createArchiveExtractor()
