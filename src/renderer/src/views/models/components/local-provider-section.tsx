@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 import { AlertTriangleIcon } from 'lucide-react'
 import { SectionCard } from '@renderer/components/section-card'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/ui/alert'
-import { LocalProviderSectionProvider } from '../contexts/local-provider-section-context'
+import { LocalProviderSectionProvider } from '../contexts/local-provider-section-provider'
 import type { LocalProviderSection as LocalProviderSectionData } from '../hooks/use-local-provider-settings'
 import { LocalModelCard } from './local-model-card'
 

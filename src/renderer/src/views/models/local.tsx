@@ -3,7 +3,7 @@ import { AlertTriangleIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/ui/alert'
 import { LocalProviderSection } from './components/local-provider-section'
 import { MODELS_COPY } from './constants/copy'
-import { LocalModelsControllerProvider } from './contexts/local-models-controller-context'
+import { LocalModelsControllerProvider } from './contexts/local-models-controller-provider'
 import { useLocalProviderSettings } from './hooks/use-local-provider-settings'
 
 export function LocalModelsView(): JSX.Element {
