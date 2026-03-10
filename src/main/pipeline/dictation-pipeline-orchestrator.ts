@@ -222,6 +222,9 @@ export class DictationPipelineOrchestrator {
       transcriptText,
       onManualPasteState: async (manualState) => {
         await this.transitionToAwaitingManualPaste(artifact.sessionId, artifact.mode, manualState)
+      },
+      onPostPasteTargetApp: async (targetApp) => {
+        this.persistTargetAppForSuccessfulPaste(artifact.sessionId, targetApp)
       }
     })
 

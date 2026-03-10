@@ -28,6 +28,11 @@ export type ParsedEditableProbeOutput = {
   focusedSubrole?: string
 }
 
+export type ParsedNativeProbeOutput = ParsedEditableProbeOutput & {
+  ok: boolean
+  message?: string
+}
+
 export const runAppleScript = async (lines: readonly string[]): Promise<string> => {
   const args = lines.flatMap((line) => ['-e', line])
   const { stdout } = await execFileAsync('osascript', args)
@@ -89,6 +94,59 @@ export const parseEditableProbeOutput = (output: string): ParsedEditableProbeOut
     frontProcessPid: Number.isFinite(parsedProcessPid) ? parsedProcessPid : undefined,
     focusedRole: normalizeAppleScriptText(role),
     focusedSubrole: normalizeAppleScriptText(subrole)
+  }
+}
+
+const parseOptionalString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  return normalizeAppleScriptText(value)
+}
+
+const parseOptionalPid = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value)
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return undefined
+}
+
+export const parseNativeProbeOutput = (output: string): ParsedNativeProbeOutput => {
+  const parsed = JSON.parse(output) as Record<string, unknown>
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Native probe returned invalid JSON payload.')
+  }
+
+  const isEditable = parsed['isEditable']
+  if (typeof isEditable !== 'boolean') {
+    throw new Error('Native probe payload missing boolean isEditable field.')
+  }
+
+  const ok = parsed['ok']
+  if (typeof ok !== 'boolean') {
+    throw new Error('Native probe payload missing boolean ok field.')
+  }
+
+  return {
+    ok,
+    isEditable,
+    frontProcessName: parseOptionalString(parsed['frontProcessName']),
+    frontProcessIdentifier: parseOptionalString(parsed['frontProcessIdentifier']),
+    frontProcessPath: parseOptionalString(parsed['frontProcessPath']),
+    frontProcessPid: parseOptionalPid(parsed['frontProcessPid']),
+    focusedRole: parseOptionalString(parsed['focusedRole']),
+    focusedSubrole: parseOptionalString(parsed['focusedSubrole']),
+    message: parseOptionalString(parsed['message'])
   }
 }
 
@@ -159,4 +217,13 @@ export const toNativePasteExitMessage = (code: number | null, stderrOutput: stri
   }
 
   return `Native macOS paste binary exited with code ${code ?? 'unknown'}.`
+}
+
+export const toNativeProbeExitMessage = (code: number | null, stderrOutput: string): string => {
+  const details = stderrOutput.trim()
+  if (details.length > 0) {
+    return `Native macOS probe command exited with code ${code ?? 'unknown'}: ${details}`
+  }
+
+  return `Native macOS probe command exited with code ${code ?? 'unknown'}.`
 }

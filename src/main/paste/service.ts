@@ -9,11 +9,13 @@ import type {
   PasteProbeResult
 } from './platform-adapter'
 import type { PermissionsService } from '../permissions/service'
+import type { SessionTargetApp } from '../../shared/storage'
 import {
   CLIPBOARD_RESTORE_DELAY_AFTER_MANUAL_PASTE_MS,
   CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS,
   MANUAL_FALLBACK_TIMEOUT_MS,
-  MANUAL_SHORTCUT_REPLAY_DELAY_MS
+  MANUAL_SHORTCUT_REPLAY_DELAY_MS,
+  POST_PASTE_TARGET_PROBE_TIMEOUT_MS
 } from './service/constants'
 import { getManualPasteHint, getUnsupportedPlatformMessage } from './service/helpers'
 import { ManualFallbackSession } from './service/manual-fallback-session'
@@ -136,9 +138,11 @@ export class DictationPasteService {
             await createUnrefDelay(CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS)
             clipboardTransaction.restore()
             clipboardRestored = true
+            const targetApp = toSessionTargetApp(probeResult)
+            this.schedulePostPasteTargetAppProbe(params)
             return {
               type: 'auto_paste_success',
-              targetApp: toSessionTargetApp(probeResult)
+              targetApp
             }
           }
         }
@@ -153,6 +157,7 @@ export class DictationPasteService {
 
       if (manualOutcome.type === 'manual_paste_success') {
         await createUnrefDelay(CLIPBOARD_RESTORE_DELAY_AFTER_MANUAL_PASTE_MS)
+        this.schedulePostPasteTargetAppProbe(params)
       }
 
       clipboardTransaction.restore()
@@ -231,5 +236,74 @@ export class DictationPasteService {
     }
 
     return this.adapter.evaluateAutoPasteProbe?.(probeResult) ?? DEFAULT_AUTO_PASTE_PROBE_DECISION
+  }
+
+  private schedulePostPasteTargetAppProbe(params: ProcessTranscriptInput): void {
+    if (!params.onPostPasteTargetApp) {
+      return
+    }
+
+    void this.emitPostPasteTargetApp(params.onPostPasteTargetApp)
+  }
+
+  private async emitPostPasteTargetApp(
+    onPostPasteTargetApp: (targetApp: SessionTargetApp) => Promise<void> | void
+  ): Promise<void> {
+    const probeResult = await this.probeEditableTargetWithTimeout(
+      POST_PASTE_TARGET_PROBE_TIMEOUT_MS
+    )
+    const targetApp = toSessionTargetApp(probeResult)
+    if (!targetApp) {
+      return
+    }
+
+    try {
+      await onPostPasteTargetApp(targetApp)
+    } catch (error) {
+      this.logger.debug({
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Post-paste target app callback failed unexpectedly.'
+      })
+    }
+  }
+
+  private async probeEditableTargetWithTimeout(
+    timeoutMs: number
+  ): Promise<PasteProbeResult | null> {
+    return await new Promise((resolve) => {
+      let settled = false
+      const timeout = setTimeout(() => {
+        if (settled) {
+          return
+        }
+
+        settled = true
+        resolve(null)
+      }, timeoutMs)
+      timeout.unref()
+
+      void this.adapter
+        .probeEditableTarget()
+        .then((probeResult) => {
+          if (settled) {
+            return
+          }
+
+          settled = true
+          clearTimeout(timeout)
+          resolve(probeResult)
+        })
+        .catch(() => {
+          if (settled) {
+            return
+          }
+
+          settled = true
+          clearTimeout(timeout)
+          resolve(null)
+        })
+    })
   }
 }

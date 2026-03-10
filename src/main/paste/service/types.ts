@@ -22,4 +22,5 @@ export type ProcessTranscriptInput = {
   sessionId: string
   transcriptText: string
   onManualPasteState: (state: ManualPasteState) => Promise<void> | void
+  onPostPasteTargetApp?: (targetApp: SessionTargetApp) => Promise<void> | void
 }

@@ -1,6 +1,7 @@
 export const MANUAL_PASTE_ACCELERATOR = 'CommandOrControl+V'
 export const NATIVE_PASTE_BINARY_NAME = 'macos-fast-paste'
 export const NATIVE_PASTE_TIMEOUT_MS = 1_500
+export const NATIVE_PROBE_TIMEOUT_MS = 120
 
 // Known aliases for this app process. Used to avoid auto-paste into our own focused window.
 export const SELF_PROCESS_NAME_ALIASES = ['OpenVocaly'] as const
