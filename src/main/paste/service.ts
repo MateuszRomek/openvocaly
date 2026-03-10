@@ -3,16 +3,23 @@ import { resolveDesktopPlatform } from '../helpers/platform'
 import { createLogger } from '../helpers/logger'
 import { getPastePlatformAdapter } from './adapters'
 import { ClipboardTransaction } from './clipboard-transaction'
-import type { PastePlatformAdapter } from './platform-adapter'
+import type {
+  AutoPasteProbeDecision,
+  PastePlatformAdapter,
+  PasteProbeResult
+} from './platform-adapter'
 import type { PermissionsService } from '../permissions/service'
+import type { SessionTargetApp } from '../../shared/storage'
 import {
   CLIPBOARD_RESTORE_DELAY_AFTER_MANUAL_PASTE_MS,
   CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS,
   MANUAL_FALLBACK_TIMEOUT_MS,
-  MANUAL_SHORTCUT_REPLAY_DELAY_MS
+  MANUAL_SHORTCUT_REPLAY_DELAY_MS,
+  POST_PASTE_TARGET_PROBE_TIMEOUT_MS
 } from './service/constants'
 import { getManualPasteHint, getUnsupportedPlatformMessage } from './service/helpers'
 import { ManualFallbackSession } from './service/manual-fallback-session'
+import { toSessionTargetApp } from './service/target-app'
 import type {
   DictationPasteOutcome,
   ManualFallbackOutcome,
@@ -21,6 +28,10 @@ import type {
 } from './service/types'
 
 export type { DictationPasteOutcome, ManualPasteState } from './service/types'
+
+const DEFAULT_AUTO_PASTE_PROBE_DECISION: AutoPasteProbeDecision = {
+  shouldAttemptAutoPaste: true
+}
 
 /**
  * Owns transcript post-processing for paste/copy paths.
@@ -95,37 +106,28 @@ export class DictationPasteService {
       })
 
       if (capabilities.supportsAutoPaste) {
-        let shouldAttemptAutoPaste = true
-        let autoPasteSkipReason: string | null = null
-        if (capabilities.supportsEditableProbe) {
-          const probeResult = await this.adapter.probeEditableTarget()
+        const probeResult = capabilities.supportsEditableProbe
+          ? await this.adapter.probeEditableTarget()
+          : null
+
+        if (probeResult) {
           this.logger.debug({
             sessionId: params.sessionId,
             probeResult
           })
-
-          const probeDecision = this.adapter.evaluateAutoPasteProbe?.(probeResult) ?? {
-            shouldAttemptAutoPaste: true
-          }
-          shouldAttemptAutoPaste = probeDecision.shouldAttemptAutoPaste
-          autoPasteSkipReason = probeDecision.reason ?? null
-          if (!probeDecision.shouldAttemptAutoPaste && probeDecision.reason) {
-            this.logger.debug({
-              sessionId: params.sessionId,
-              reason: probeDecision.reason,
-              probeResult
-            })
-          }
         }
 
-        if (!shouldAttemptAutoPaste) {
+        const probeDecision = this.resolveAutoPasteProbeDecision(probeResult)
+
+        if (!probeDecision.shouldAttemptAutoPaste) {
           this.logger.debug({
             sessionId: params.sessionId,
-            reason: autoPasteSkipReason
+            reason: probeDecision.reason ?? null,
+            probeResult
           })
         }
 
-        if (shouldAttemptAutoPaste) {
+        if (probeDecision.shouldAttemptAutoPaste) {
           const pasteResult = await this.adapter.simulatePasteShortcut()
           this.logger.debug({
             sessionId: params.sessionId,
@@ -136,7 +138,12 @@ export class DictationPasteService {
             await createUnrefDelay(CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS)
             clipboardTransaction.restore()
             clipboardRestored = true
-            return { type: 'auto_paste_success' }
+            const targetApp = toSessionTargetApp(probeResult)
+            this.schedulePostPasteTargetAppProbe(params)
+            return {
+              type: 'auto_paste_success',
+              targetApp
+            }
           }
         }
       }
@@ -150,6 +157,7 @@ export class DictationPasteService {
 
       if (manualOutcome.type === 'manual_paste_success') {
         await createUnrefDelay(CLIPBOARD_RESTORE_DELAY_AFTER_MANUAL_PASTE_MS)
+        this.schedulePostPasteTargetAppProbe(params)
       }
 
       clipboardTransaction.restore()
@@ -218,5 +226,84 @@ export class DictationPasteService {
 
   private clearActiveFallback(): void {
     this.activeFallbackSession = null
+  }
+
+  private resolveAutoPasteProbeDecision(
+    probeResult: PasteProbeResult | null
+  ): AutoPasteProbeDecision {
+    if (!probeResult) {
+      return DEFAULT_AUTO_PASTE_PROBE_DECISION
+    }
+
+    return this.adapter.evaluateAutoPasteProbe?.(probeResult) ?? DEFAULT_AUTO_PASTE_PROBE_DECISION
+  }
+
+  private schedulePostPasteTargetAppProbe(params: ProcessTranscriptInput): void {
+    if (!params.onPostPasteTargetApp) {
+      return
+    }
+
+    void this.emitPostPasteTargetApp(params.onPostPasteTargetApp)
+  }
+
+  private async emitPostPasteTargetApp(
+    onPostPasteTargetApp: (targetApp: SessionTargetApp) => Promise<void> | void
+  ): Promise<void> {
+    const probeResult = await this.probeEditableTargetWithTimeout(
+      POST_PASTE_TARGET_PROBE_TIMEOUT_MS
+    )
+    const targetApp = toSessionTargetApp(probeResult)
+    if (!targetApp) {
+      return
+    }
+
+    try {
+      await onPostPasteTargetApp(targetApp)
+    } catch (error) {
+      this.logger.debug({
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Post-paste target app callback failed unexpectedly.'
+      })
+    }
+  }
+
+  private async probeEditableTargetWithTimeout(
+    timeoutMs: number
+  ): Promise<PasteProbeResult | null> {
+    return await new Promise((resolve) => {
+      let settled = false
+      const timeout = setTimeout(() => {
+        if (settled) {
+          return
+        }
+
+        settled = true
+        resolve(null)
+      }, timeoutMs)
+      timeout.unref()
+
+      void this.adapter
+        .probeEditableTarget()
+        .then((probeResult) => {
+          if (settled) {
+            return
+          }
+
+          settled = true
+          clearTimeout(timeout)
+          resolve(probeResult)
+        })
+        .catch(() => {
+          if (settled) {
+            return
+          }
+
+          settled = true
+          clearTimeout(timeout)
+          resolve(null)
+        })
+    })
   }
 }

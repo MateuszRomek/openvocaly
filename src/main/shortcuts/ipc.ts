@@ -11,7 +11,7 @@ import type { ShortcutService } from './service'
 
 export type ShortcutsIpcModule = {
   registerIpcHandlers: () => void
-  initialize: () => void
+  initialize: () => Promise<void>
   shutdown: () => void
 }
 
@@ -20,18 +20,21 @@ export type ShortcutsIpcModule = {
  */
 export const createShortcutsIpcModule = (shortcutService: ShortcutService): ShortcutsIpcModule => {
   const registerIpcHandlers = createIpcRegistrar(() => {
-    ipcMain.handle('shortcuts:getConfig', (): ShortcutConfigResponse => shortcutService.getConfig())
+    ipcMain.handle(
+      'shortcuts:getConfig',
+      async (): Promise<ShortcutConfigResponse> => await shortcutService.getConfig()
+    )
 
     ipcMain.handle(
       'shortcuts:update',
-      (_event, params: ShortcutUpdateInput): ShortcutMutationResponse =>
-        shortcutService.update(params)
+      async (_event, params: ShortcutUpdateInput): Promise<ShortcutMutationResponse> =>
+        await shortcutService.update(params)
     )
 
     ipcMain.handle(
       'shortcuts:reset',
-      (_event, params?: ShortcutResetInput): ShortcutMutationResponse =>
-        shortcutService.reset(params)
+      async (_event, params?: ShortcutResetInput): Promise<ShortcutMutationResponse> =>
+        await shortcutService.reset(params)
     )
 
     ipcMain.handle(
@@ -40,14 +43,14 @@ export const createShortcutsIpcModule = (shortcutService: ShortcutService): Shor
        * Runtime status is separate from persisted shortcut config because
        * permission/hook readiness can change while the app is running.
        */
-      (): ShortcutRuntimeStatusResponse => shortcutService.getRuntimeStatus()
+      async (): Promise<ShortcutRuntimeStatusResponse> => await shortcutService.getRuntimeStatus()
     )
   })
 
   return {
     registerIpcHandlers,
-    initialize: () => {
-      shortcutService.initialize()
+    initialize: async () => {
+      await shortcutService.initialize()
     },
     shutdown: () => {
       shortcutService.shutdown()

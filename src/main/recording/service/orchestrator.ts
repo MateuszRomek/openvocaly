@@ -24,6 +24,7 @@ import {
 } from '../core/state-machine'
 import type { RecordingSessionBus } from '../session-bus'
 import { RecordingArtifactManager } from '../storage/artifact-manager'
+import { InitializableComponent } from '../../helpers/initializable-component'
 import { routeCaptureEvent } from './capture-event-handler'
 import {
   toArtifactCreationFailure,
@@ -53,9 +54,8 @@ const CLEANUP_INTERVAL_MS = 12 * 60 * 60 * 1000
  * - sound cue playback
  * - runtime/session snapshots for pipeline orchestration
  */
-export class RecordingServiceOrchestrator {
+export class RecordingServiceOrchestrator extends InitializableComponent {
   private state: RecordingSessionState = createRecordingSessionState()
-  private initialized = false
   private unsubscribeCapture: (() => void) | null = null
   private cleanupInterval: NodeJS.Timeout | null = null
 
@@ -75,6 +75,7 @@ export class RecordingServiceOrchestrator {
       preferencesManager?: RecordingPreferencesManager
     } = {}
   ) {
+    super('RecordingServiceOrchestrator')
     this.captureRuntime = options.captureRuntime ?? new RecordingCaptureRuntime()
     this.artifactManager = options.artifactManager ?? new RecordingArtifactManager()
     this.preferencesManager = options.preferencesManager ?? new RecordingPreferencesManager()
@@ -150,6 +151,7 @@ export class RecordingServiceOrchestrator {
   }
 
   getPreferences(): RecordingPreferencesResponse {
+    this.assertInitialized()
     return {
       preferences: this.preferencesManager.get()
     }
@@ -158,6 +160,7 @@ export class RecordingServiceOrchestrator {
   async updatePreferences(
     params: RecordingPreferencesUpdateInput
   ): Promise<RecordingPreferencesResponse> {
+    this.assertInitialized()
     const preferences = await this.preferencesManager.update(params)
 
     return {

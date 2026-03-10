@@ -1,8 +1,10 @@
 import type { DictationFailureReason, DictationRuntimeStateResponse } from '../../shared/dictation'
 import type { RecordingArtifact, RecordingMode } from '../../shared/recording'
+import type { SessionTargetApp } from '../../shared/storage'
 import type { DictationPasteService, ManualPasteState } from '../paste/service'
 import type { RecordingCommand, RecordingCommandBus } from '../recording/command-bus'
 import type { RecordingArtifactBus } from '../recording/artifact-bus'
+import type { StorageRepository } from '../repositories/storage-repository'
 import type { RecordingServiceOrchestrator } from '../recording/service/orchestrator'
 import type { RecordingSessionSnapshot } from '../recording/service/session'
 import type { RecordingSessionBus } from '../recording/session-bus'
@@ -40,6 +42,7 @@ export class DictationPipelineOrchestrator {
       idleReset: DictationIdleResetController
       transcriptionWorkflow: DictationTranscriptionWorkflow
       pasteService: DictationPasteService
+      storageRepository: StorageRepository
     }
   ) {}
 
@@ -219,6 +222,11 @@ export class DictationPipelineOrchestrator {
       transcriptText,
       onManualPasteState: async (manualState) => {
         await this.transitionToAwaitingManualPaste(artifact.sessionId, artifact.mode, manualState)
+      },
+      onPostPasteTargetApp: async (targetApp) => {
+        await this.persistTargetAppForSuccessfulPaste(artifact.sessionId, targetApp, {
+          onlyIfMissing: true
+        })
       }
     })
 
@@ -227,15 +235,18 @@ export class DictationPipelineOrchestrator {
     }
 
     if (pasteOutcome.type === 'auto_paste_success') {
+      await this.persistTargetAppForSuccessfulPaste(artifact.sessionId, pasteOutcome.targetApp)
       await this.resetToIdleAndHideOverlay()
       return
     }
 
-    if (
-      pasteOutcome.type === 'manual_paste_success' ||
-      pasteOutcome.type === 'manual_timeout' ||
-      pasteOutcome.type === 'manual_cancelled'
-    ) {
+    if (pasteOutcome.type === 'manual_paste_success') {
+      await this.persistTargetAppForSuccessfulPaste(artifact.sessionId, pasteOutcome.targetApp)
+      await this.resetToIdleAndHideOverlay()
+      return
+    }
+
+    if (pasteOutcome.type === 'manual_timeout' || pasteOutcome.type === 'manual_cancelled') {
       await this.resetToIdleAndHideOverlay()
       return
     }
@@ -269,6 +280,36 @@ export class DictationPipelineOrchestrator {
       artifact.sessionId,
       artifact.mode
     )
+  }
+
+  private async persistTargetAppForSuccessfulPaste(
+    recordingSessionId: string,
+    targetApp: SessionTargetApp | null,
+    options: {
+      onlyIfMissing?: boolean
+    } = {}
+  ): Promise<void> {
+    if (!targetApp) {
+      return
+    }
+
+    const hasAnyValue = Boolean(targetApp.name || targetApp.identifier || targetApp.appPath)
+    if (!hasAnyValue) {
+      return
+    }
+
+    try {
+      await this.dependencies.storageRepository.updateSessionTargetAppByRecordingSession({
+        recordingSessionId,
+        targetApp,
+        onlyIfMissing: options.onlyIfMissing
+      })
+    } catch (error) {
+      console.error('[pipeline] failed to persist target app metadata', {
+        recordingSessionId,
+        error
+      })
+    }
   }
 
   private async transitionToTranscribing(

@@ -14,7 +14,7 @@ type RegisterAction = (
 type PersistBinding = (
   action: SupportedGlobalShortcutAction,
   binding: PersistedShortcutBinding
-) => ShortcutMutationResponse
+) => Promise<ShortcutMutationResponse>
 
 /**
  * Registers supported global shortcuts during startup using persisted bindings first,
@@ -80,7 +80,7 @@ export const registerSupportedShortcutsOnStartup = ({
  *
  * Returns mutation status suitable for IPC response payloads.
  */
-export const applySupportedGlobalBinding = ({
+export const applySupportedGlobalBinding = async ({
   shortcutState,
   action,
   nextBinding,
@@ -92,7 +92,7 @@ export const applySupportedGlobalBinding = ({
   nextBinding: PersistedShortcutBinding
   registerAction: RegisterAction
   persistBinding: PersistBinding
-}): ShortcutMutationResponse => {
+}): Promise<ShortcutMutationResponse> => {
   const state = shortcutState[action]
   const previousEffective = state.effectiveAccelerator
   const previousStored = state.storedBinding
@@ -127,7 +127,7 @@ export const applySupportedGlobalBinding = ({
     }
   }
 
-  const persistResult = persistBinding(action, nextBinding)
+  const persistResult = await persistBinding(action, nextBinding)
 
   if (!persistResult.ok) {
     if (registrationChanged) {

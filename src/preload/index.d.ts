@@ -7,7 +7,9 @@ import type {
   ListSessionsInput,
   ListSessionsResult,
   ListTranscriptsInput,
-  ListTranscriptsResult
+  ListTranscriptsResult,
+  ResolveAppIconInput,
+  ResolveAppIconResult
 } from '../shared/storage'
 import type {
   ShortcutConfigResponse,
@@ -54,6 +56,7 @@ declare global {
         addTranscript: (input: AddTranscriptInput) => Promise<AddTranscriptResult>
         listTranscripts: (input?: ListTranscriptsInput) => Promise<ListTranscriptsResult>
         listSessions: (input?: ListSessionsInput) => Promise<ListSessionsResult>
+        resolveAppIcon: (input?: ResolveAppIconInput) => Promise<ResolveAppIconResult>
       }
       shortcuts: {
         getConfig: () => Promise<ShortcutConfigResponse>

@@ -5,6 +5,8 @@ import type {
   TranscriptionProviderId
 } from '../../../shared/transcription'
 import { SettingsRepository } from '../../repositories/settings-repository'
+import { AsyncSerialScheduler } from '../../helpers/async-serial-scheduler'
+import { InitializableComponent } from '../../helpers/initializable-component'
 
 const PROVIDER_CREDENTIALS_SETTING_KEY = 'transcription.provider_credentials'
 
@@ -21,18 +23,20 @@ type PersistedProviderCredentialsMap = Partial<
  * Persists cloud-provider credentials encrypted with Electron safeStorage.
  * Only encrypted payloads are stored in SQLite.
  */
-export class TranscriptionProviderCredentialsManager {
-  private initialized = false
+export class TranscriptionProviderCredentialsManager extends InitializableComponent {
   private credentials: PersistedProviderCredentialsMap = {}
+  private readonly mutationScheduler = new AsyncSerialScheduler()
 
-  constructor(private readonly settingsRepository: SettingsRepository = new SettingsRepository()) {}
+  constructor(private readonly settingsRepository: SettingsRepository = new SettingsRepository()) {
+    super('TranscriptionProviderCredentialsManager')
+  }
 
   async initialize(): Promise<void> {
     if (this.initialized) {
       return
     }
 
-    this.loadFromDb()
+    await this.loadFromDb()
     this.initialized = true
   }
 
@@ -45,11 +49,13 @@ export class TranscriptionProviderCredentialsManager {
   }
 
   hasApiKey(providerId: TranscriptionProviderId): boolean {
+    this.assertInitialized()
     const entry = this.credentials[providerId]
     return Boolean(entry?.encryptedApiKey)
   }
 
   getApiKeyPreview(providerId: TranscriptionProviderId): string | null {
+    this.assertInitialized()
     const apiKey = this.getApiKey(providerId)
     if (!apiKey) {
       return null
@@ -60,6 +66,7 @@ export class TranscriptionProviderCredentialsManager {
   }
 
   getApiKey(providerId: TranscriptionProviderId): string | null {
+    this.assertInitialized()
     const encryptedApiKey = this.credentials[providerId]?.encryptedApiKey
     if (!encryptedApiKey) {
       return null
@@ -82,7 +89,7 @@ export class TranscriptionProviderCredentialsManager {
   async setApiKey(
     params: TranscriptionProviderApiKeyUpdateInput
   ): Promise<TranscriptionProviderApiKeyMutationResponse> {
-    await this.initialize()
+    this.assertInitialized()
 
     const normalizedApiKey = params.apiKey.trim()
     if (normalizedApiKey.length === 0) {
@@ -100,35 +107,39 @@ export class TranscriptionProviderCredentialsManager {
       }
     }
 
-    try {
-      const encryptedApiKey = safeStorage.encryptString(normalizedApiKey).toString('base64')
-      this.credentials[params.providerId] = {
-        encryptedApiKey,
-        updatedAt: Date.now()
-      }
-      this.persistToDb()
+    return await this.mutationScheduler.run(async () => {
+      try {
+        const encryptedApiKey = safeStorage.encryptString(normalizedApiKey).toString('base64')
+        this.credentials[params.providerId] = {
+          encryptedApiKey,
+          updatedAt: Date.now()
+        }
+        await this.persistToDb()
 
-      return { ok: true }
-    } catch (error) {
-      console.error('[transcription] failed to encrypt provider api key', error)
-      return {
-        ok: false,
-        message: 'Failed to save API key securely. Please try again.'
+        return { ok: true }
+      } catch (error) {
+        console.error('[transcription] failed to encrypt provider api key', error)
+        return {
+          ok: false,
+          message: 'Failed to save API key securely. Please try again.'
+        }
       }
-    }
+    })
   }
 
   async clearApiKey(
     providerId: TranscriptionProviderId
   ): Promise<TranscriptionProviderApiKeyMutationResponse> {
-    await this.initialize()
-    delete this.credentials[providerId]
-    this.persistToDb()
-    return { ok: true }
+    this.assertInitialized()
+    return await this.mutationScheduler.run(async () => {
+      delete this.credentials[providerId]
+      await this.persistToDb()
+      return { ok: true }
+    })
   }
 
-  private loadFromDb(): void {
-    const valueJson = this.settingsRepository.getValueJson(PROVIDER_CREDENTIALS_SETTING_KEY)
+  private async loadFromDb(): Promise<void> {
+    const valueJson = await this.settingsRepository.getValueJson(PROVIDER_CREDENTIALS_SETTING_KEY)
 
     if (!valueJson) {
       this.credentials = {}
@@ -141,12 +152,12 @@ export class TranscriptionProviderCredentialsManager {
     } catch (error) {
       console.error('[transcription] failed to parse provider credentials, resetting', error)
       this.credentials = {}
-      this.persistToDb()
+      await this.persistToDb()
     }
   }
 
-  private persistToDb(): void {
+  private async persistToDb(): Promise<void> {
     const valueJson = JSON.stringify(this.credentials)
-    this.settingsRepository.upsertValueJson(PROVIDER_CREDENTIALS_SETTING_KEY, valueJson)
+    await this.settingsRepository.upsertValueJson(PROVIDER_CREDENTIALS_SETTING_KEY, valueJson)
   }
 }

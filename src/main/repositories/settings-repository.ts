@@ -6,9 +6,9 @@ import { getDb } from '../db'
  * Repository for persisted JSON settings backed by `app_settings` table.
  */
 export class SettingsRepository {
-  getValueJson(settingKey: string): string | null {
+  async getValueJson(settingKey: string): Promise<string | null> {
     const db = getDb()
-    const row = db
+    const row = await db
       .select({ valueJson: appSettings.valueJson })
       .from(appSettings)
       .where(eq(appSettings.key, settingKey))
@@ -17,11 +17,12 @@ export class SettingsRepository {
     return row?.valueJson ?? null
   }
 
-  upsertValueJson(settingKey: string, valueJson: string): void {
+  async upsertValueJson(settingKey: string, valueJson: string): Promise<void> {
     const db = getDb()
     const updatedAt = Date.now()
 
-    db.insert(appSettings)
+    await db
+      .insert(appSettings)
       .values({
         key: settingKey,
         valueJson,

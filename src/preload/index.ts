@@ -8,7 +8,9 @@ import type {
   ListSessionsInput,
   ListSessionsResult,
   ListTranscriptsInput,
-  ListTranscriptsResult
+  ListTranscriptsResult,
+  ResolveAppIconInput,
+  ResolveAppIconResult
 } from '../shared/storage'
 import type {
   ShortcutConfigResponse,
@@ -76,7 +78,9 @@ const api = {
     listTranscripts: (input?: ListTranscriptsInput): Promise<ListTranscriptsResult> =>
       ipcRenderer.invoke('storage:listTranscripts', input),
     listSessions: (input?: ListSessionsInput): Promise<ListSessionsResult> =>
-      ipcRenderer.invoke('storage:listSessions', input)
+      ipcRenderer.invoke('storage:listSessions', input),
+    resolveAppIcon: (input?: ResolveAppIconInput): Promise<ResolveAppIconResult> =>
+      ipcRenderer.invoke('storage:resolveAppIcon', input)
   },
   shortcuts: {
     getConfig: (): Promise<ShortcutConfigResponse> => ipcRenderer.invoke('shortcuts:getConfig'),

@@ -40,7 +40,7 @@ export class PttRuntimeManager {
       persistBinding: (
         action: 'recording.push_to_talk',
         binding: PersistedShortcutBinding
-      ) => ShortcutMutationResponse
+      ) => Promise<ShortcutMutationResponse>
     }
   ) {}
 
@@ -200,7 +200,7 @@ export class PttRuntimeManager {
    * 2) persist DB binding,
    * 3) rollback native binding when persistence fails.
    */
-  applyBinding(nextBinding: PersistedShortcutBinding): ShortcutMutationResponse {
+  async applyBinding(nextBinding: PersistedShortcutBinding): Promise<ShortcutMutationResponse> {
     const binding = createMacPttBinding(nextBinding)
     const state = this.getShortcutState()['recording.push_to_talk']
 
@@ -221,7 +221,10 @@ export class PttRuntimeManager {
       }
     }
 
-    const persistResult = this.dependencies.persistBinding('recording.push_to_talk', nextBinding)
+    const persistResult = await this.dependencies.persistBinding(
+      'recording.push_to_talk',
+      nextBinding
+    )
 
     if (!persistResult.ok) {
       if (wasReady) {

@@ -20,6 +20,22 @@ export type AddTranscriptResult = {
   id: number
 }
 
+export type SessionTargetApp = {
+  name: string | null
+  identifier: string | null
+  appPath: string | null
+}
+
+export type UpdateSessionTargetAppByRecordingSessionInput = {
+  recordingSessionId: string
+  targetApp: SessionTargetApp
+  onlyIfMissing?: boolean
+}
+
+export type UpdateSessionTargetAppByRecordingSessionResult = {
+  updated: boolean
+}
+
 export type ListTranscriptsInput = {
   sessionId?: number
   limit?: number
@@ -41,4 +57,16 @@ export type ListSessionsInput = {
 
 export type ListSessionsResult = {
   items: Session[]
+}
+
+export type ResolveAppIconInput = {
+  appPath?: string
+  appIdentifier?: string
+  sizePx?: number
+}
+
+export type ResolveAppIconResult = {
+  ok: boolean
+  dataUrl?: string
+  message?: string
 }

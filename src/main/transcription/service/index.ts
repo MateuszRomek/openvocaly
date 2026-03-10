@@ -16,13 +16,13 @@ import type {
 } from '../../../shared/transcription'
 import { SettingsRepository } from '../../repositories/settings-repository'
 import { StorageRepository } from '../../repositories/storage-repository'
+import { InitializableComponent } from '../../helpers/initializable-component'
 import { parakeetRuntime } from '../local/parakeet/runtime'
 import { TranscriptionProviderFactory } from '../provider-factory'
 import { TranscriptionPreferencesManager } from './preferences-manager'
 import { TranscriptionProviderCredentialsManager } from './provider-credentials-manager'
 
-export class TranscriptionService {
-  private initialized = false
+export class TranscriptionService extends InitializableComponent {
   private readonly preferencesManager: TranscriptionPreferencesManager
   private readonly credentialsManager: TranscriptionProviderCredentialsManager
   private readonly storageRepository: StorageRepository
@@ -36,6 +36,7 @@ export class TranscriptionService {
       credentialsManager?: TranscriptionProviderCredentialsManager
     } = {}
   ) {
+    super('TranscriptionService')
     const settingsRepository = options.settingsRepository ?? new SettingsRepository()
     this.storageRepository = options.storageRepository ?? new StorageRepository()
 
@@ -67,6 +68,7 @@ export class TranscriptionService {
   }
 
   getPreferences(): TranscriptionPreferencesResponse {
+    this.assertInitialized()
     const preferences = this.preferencesManager.get()
 
     return {
@@ -78,7 +80,7 @@ export class TranscriptionService {
   async updatePreferences(
     params: TranscriptionPreferencesUpdateInput
   ): Promise<TranscriptionPreferencesResponse> {
-    await this.initialize()
+    this.assertInitialized()
     const previousPreferences = this.preferencesManager.get()
     const preferences = await this.preferencesManager.update(params)
 
@@ -109,12 +111,14 @@ export class TranscriptionService {
   async setProviderApiKey(
     params: TranscriptionProviderApiKeyUpdateInput
   ): Promise<TranscriptionProviderApiKeyMutationResponse> {
+    this.assertInitialized()
     return this.credentialsManager.setApiKey(params)
   }
 
   async clearProviderApiKey(
     providerId: TranscriptionProviderApiKeyUpdateInput['providerId']
   ): Promise<TranscriptionProviderApiKeyMutationResponse> {
+    this.assertInitialized()
     return this.credentialsManager.clearApiKey(providerId)
   }
 
@@ -150,7 +154,7 @@ export class TranscriptionService {
   }
 
   async transcribeArtifact(artifact: RecordingArtifact): Promise<TranscriptionResult> {
-    await this.initialize()
+    this.assertInitialized()
 
     const result = await this.providerFactory.transcribe(artifact, this.preferencesManager.get())
 
@@ -159,14 +163,14 @@ export class TranscriptionService {
     }
 
     try {
-      const sessionResult = this.storageRepository.createSession({
+      const sessionResult = await this.storageRepository.createSession({
         startedAt: artifact.startedAt,
         durationMs: artifact.durationMs ?? null,
         title: null,
         source: `recording:${artifact.sessionId}`
       })
 
-      this.storageRepository.addTranscript({
+      await this.storageRepository.addTranscript({
         sessionId: sessionResult.id,
         createdAt: Date.now(),
         text: result.transcript.text,

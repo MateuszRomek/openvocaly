@@ -7,9 +7,15 @@ export const sessions = sqliteTable(
     startedAt: integer('started_at').notNull(),
     durationMs: integer('duration_ms'),
     title: text('title'),
-    source: text('source')
+    source: text('source'),
+    targetAppName: text('target_app_name'),
+    targetAppIdentifier: text('target_app_identifier'),
+    targetAppPath: text('target_app_path')
   },
-  (table) => [index('sessions_started_at_idx').on(table.startedAt)]
+  (table) => [
+    index('sessions_started_at_idx').on(table.startedAt),
+    index('sessions_target_app_identifier_idx').on(table.targetAppIdentifier)
+  ]
 )
 
 export const transcripts = sqliteTable(

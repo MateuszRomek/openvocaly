@@ -150,7 +150,9 @@ app.whenReady().then(async () => {
   mainContext.ipc.recordingIpc.registerIpcHandlers()
   mainContext.ipc.transcriptionIpc.registerIpcHandlers()
   mainContext.ipc.pipelineIpc.registerIpcHandlers()
-  mainContext.ipc.shortcutsIpc.initialize()
+  await runStep('shortcuts failed to initialize shortcuts subsystem', () =>
+    mainContext.ipc.shortcutsIpc.initialize()
+  )
 
   await runStep('transcription failed to initialize transcription subsystem', () =>
     mainContext.ipc.transcriptionIpc.initialize()
