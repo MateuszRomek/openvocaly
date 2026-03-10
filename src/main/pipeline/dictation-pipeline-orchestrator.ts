@@ -224,7 +224,9 @@ export class DictationPipelineOrchestrator {
         await this.transitionToAwaitingManualPaste(artifact.sessionId, artifact.mode, manualState)
       },
       onPostPasteTargetApp: async (targetApp) => {
-        await this.persistTargetAppForSuccessfulPaste(artifact.sessionId, targetApp)
+        await this.persistTargetAppForSuccessfulPaste(artifact.sessionId, targetApp, {
+          onlyIfMissing: true
+        })
       }
     })
 
@@ -282,7 +284,10 @@ export class DictationPipelineOrchestrator {
 
   private async persistTargetAppForSuccessfulPaste(
     recordingSessionId: string,
-    targetApp: SessionTargetApp | null
+    targetApp: SessionTargetApp | null,
+    options: {
+      onlyIfMissing?: boolean
+    } = {}
   ): Promise<void> {
     if (!targetApp) {
       return
@@ -296,7 +301,8 @@ export class DictationPipelineOrchestrator {
     try {
       await this.dependencies.storageRepository.updateSessionTargetAppByRecordingSession({
         recordingSessionId,
-        targetApp
+        targetApp,
+        onlyIfMissing: options.onlyIfMissing
       })
     } catch (error) {
       console.error('[pipeline] failed to persist target app metadata', {

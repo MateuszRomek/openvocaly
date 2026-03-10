@@ -29,6 +29,7 @@ export type SessionTargetApp = {
 export type UpdateSessionTargetAppByRecordingSessionInput = {
   recordingSessionId: string
   targetApp: SessionTargetApp
+  onlyIfMissing?: boolean
 }
 
 export type UpdateSessionTargetAppByRecordingSessionResult = {

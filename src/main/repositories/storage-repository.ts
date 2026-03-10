@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import type {
   AddTranscriptInput,
   AddTranscriptResult,
@@ -107,6 +107,15 @@ export class StorageRepository {
   ): Promise<UpdateSessionTargetAppByRecordingSessionResult> {
     const db = getDb()
     const source = `recording:${params.recordingSessionId}`
+    const baseWhere = eq(sessions.source, source)
+    const whereCondition = params.onlyIfMissing
+      ? and(
+          baseWhere,
+          isNull(sessions.targetAppName),
+          isNull(sessions.targetAppIdentifier),
+          isNull(sessions.targetAppPath)
+        )
+      : baseWhere
 
     const result = await db
       .update(sessions)
@@ -115,7 +124,7 @@ export class StorageRepository {
         targetAppIdentifier: params.targetApp.identifier ?? null,
         targetAppPath: params.targetApp.appPath ?? null
       })
-      .where(eq(sessions.source, source))
+      .where(whereCondition)
       .run()
 
     return {
