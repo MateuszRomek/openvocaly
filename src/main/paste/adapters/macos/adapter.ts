@@ -1,6 +1,5 @@
-import { spawn } from 'node:child_process'
 import { app, globalShortcut } from 'electron'
-import { createSettleOnce } from '../../../helpers/settle-once'
+import { MacOSFastPasteClient } from '../../../native/macos/fast-paste-client'
 import type {
   AutoPasteProbeDecision,
   ManualPasteProbeDecision,
@@ -34,6 +33,7 @@ import { evaluateMacOSAutoPasteDecision, evaluateMacOSManualPasteDecision } from
 export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
   private watcherRegistered = false
   private nativePasteBinaryPath: string | null | undefined
+  private readonly nativeFastPasteClient = new MacOSFastPasteClient()
   private readonly selfProcessNames = resolveSelfProcessNames(app.getName())
 
   capabilities(): PastePlatformCapabilities {
@@ -187,141 +187,70 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
   }
 
   private async runNativePasteBinary(binaryPath: string): Promise<PasteActionResult> {
-    return await new Promise((resolve) => {
-      const processRef = spawn(binaryPath, ['paste'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true
-      })
-      let stderrOutput = ''
-      let timeout: NodeJS.Timeout | null = null
+    const result = await this.nativeFastPasteClient.runCommand(
+      binaryPath,
+      'paste',
+      NATIVE_PASTE_TIMEOUT_MS
+    )
+    if (result.ok) {
+      return { ok: true }
+    }
 
-      const settleController = createSettleOnce<PasteActionResult>((result) => {
-        if (timeout) {
-          clearTimeout(timeout)
-        }
-        resolve(result)
-      })
-      const settle = settleController.settle
+    if (result.message) {
+      return {
+        ok: false,
+        message: result.message
+      }
+    }
 
-      processRef.stderr.on('data', (chunk) => {
-        stderrOutput += String(chunk)
-      })
-
-      processRef.on('error', (error) => {
-        settle({
-          ok: false,
-          message: `Native macOS paste binary failed to launch: ${error.message}`
-        })
-      })
-
-      processRef.on('close', (code) => {
-        if (code === 0) {
-          settle({ ok: true })
-          return
-        }
-
-        settle({
-          ok: false,
-          message: toNativePasteExitMessage(code, stderrOutput)
-        })
-      })
-
-      timeout = setTimeout(() => {
-        try {
-          processRef.kill('SIGKILL')
-        } catch {
-          // Ignore timeout kill errors.
-        }
-
-        settle({
-          ok: false,
-          message: `Native macOS paste binary timed out after ${NATIVE_PASTE_TIMEOUT_MS}ms.`
-        })
-      }, NATIVE_PASTE_TIMEOUT_MS)
-      timeout.unref()
-    })
+    return {
+      ok: false,
+      message: toNativePasteExitMessage(result.code, result.stderr)
+    }
   }
 
   private async runNativeProbeBinary(binaryPath: string): Promise<NativeProbeActionResult> {
-    return await new Promise((resolve) => {
-      const processRef = spawn(binaryPath, ['probe'], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true
-      })
-      let stdoutOutput = ''
-      let stderrOutput = ''
-      let timeout: NodeJS.Timeout | null = null
-
-      const settleController = createSettleOnce<NativeProbeActionResult>((result) => {
-        if (timeout) {
-          clearTimeout(timeout)
-        }
-        resolve(result)
-      })
-      const settle = settleController.settle
-
-      processRef.stdout.on('data', (chunk) => {
-        stdoutOutput += String(chunk)
-      })
-
-      processRef.stderr.on('data', (chunk) => {
-        stderrOutput += String(chunk)
-      })
-
-      processRef.on('error', (error) => {
-        settle({
+    const result = await this.nativeFastPasteClient.runCommand(
+      binaryPath,
+      'probe',
+      NATIVE_PROBE_TIMEOUT_MS
+    )
+    if (!result.ok) {
+      if (result.message) {
+        return {
           ok: false,
-          message: `Native macOS probe command failed to launch: ${error.message}`
-        })
-      })
-
-      processRef.on('close', (code) => {
-        if (code !== 0) {
-          settle({
-            ok: false,
-            message: toNativeProbeExitMessage(code, stderrOutput)
-          })
-          return
+          message: result.message
         }
+      }
 
-        try {
-          const parsed = parseNativeProbeOutput(stdoutOutput.trim())
-          settle({
-            ok: true,
-            probeResult: {
-              ok: parsed.ok,
-              isEditable: parsed.isEditable,
-              frontProcessName: parsed.frontProcessName,
-              frontProcessIdentifier: parsed.frontProcessIdentifier,
-              frontProcessPath: parsed.frontProcessPath,
-              frontProcessPid: parsed.frontProcessPid,
-              focusedRole: parsed.focusedRole,
-              focusedSubrole: parsed.focusedSubrole,
-              message: parsed.message
-            }
-          })
-        } catch (error) {
-          settle({
-            ok: false,
-            message: error instanceof Error ? error.message : 'Native probe output parse failed.'
-          })
+      return {
+        ok: false,
+        message: toNativeProbeExitMessage(result.code, result.stderr)
+      }
+    }
+
+    try {
+      const parsed = parseNativeProbeOutput(result.stdout.trim())
+      return {
+        ok: true,
+        probeResult: {
+          ok: parsed.ok,
+          isEditable: parsed.isEditable,
+          frontProcessName: parsed.frontProcessName,
+          frontProcessIdentifier: parsed.frontProcessIdentifier,
+          frontProcessPath: parsed.frontProcessPath,
+          frontProcessPid: parsed.frontProcessPid,
+          focusedRole: parsed.focusedRole,
+          focusedSubrole: parsed.focusedSubrole,
+          message: parsed.message
         }
-      })
-
-      timeout = setTimeout(() => {
-        try {
-          processRef.kill('SIGKILL')
-        } catch {
-          // Ignore timeout kill errors.
-        }
-
-        settle({
-          ok: false,
-          message: `Native macOS probe command timed out after ${NATIVE_PROBE_TIMEOUT_MS}ms.`
-        })
-      }, NATIVE_PROBE_TIMEOUT_MS)
-      timeout.unref()
-    })
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : 'Native probe output parse failed.'
+      }
+    }
   }
 
   private attachSelfProcessFlag(probeResult: PasteProbeResult): PasteProbeResult {
