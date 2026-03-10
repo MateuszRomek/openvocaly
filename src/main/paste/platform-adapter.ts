@@ -14,6 +14,8 @@ export type PasteProbeResult = {
   isEditable: boolean
   isSelfApp?: boolean
   frontProcessName?: string
+  frontProcessIdentifier?: string
+  frontProcessPath?: string
   frontProcessPid?: number
   focusedRole?: string
   focusedSubrole?: string

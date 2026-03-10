@@ -7,7 +7,9 @@ import type {
   ListSessionsInput,
   ListSessionsResult,
   ListTranscriptsInput,
-  ListTranscriptsResult
+  ListTranscriptsResult,
+  UpdateSessionTargetAppByRecordingSessionInput,
+  UpdateSessionTargetAppByRecordingSessionResult
 } from '../../shared/storage'
 import { sessions, transcripts } from '../../shared/schema'
 import { getDb } from '../db'
@@ -37,7 +39,10 @@ export class StorageRepository {
         startedAt,
         durationMs: params.durationMs ?? null,
         title: params.title ?? null,
-        source: params.source ?? null
+        source: params.source ?? null,
+        targetAppName: params.targetAppName ?? null,
+        targetAppIdentifier: params.targetAppIdentifier ?? null,
+        targetAppPath: params.targetAppPath ?? null
       })
       .run()
 
@@ -91,5 +96,26 @@ export class StorageRepository {
       .all()
 
     return { items }
+  }
+
+  updateSessionTargetAppByRecordingSession(
+    params: UpdateSessionTargetAppByRecordingSessionInput
+  ): UpdateSessionTargetAppByRecordingSessionResult {
+    const db = getDb()
+    const source = `recording:${params.recordingSessionId}`
+
+    const result = db
+      .update(sessions)
+      .set({
+        targetAppName: params.targetApp.name ?? null,
+        targetAppIdentifier: params.targetApp.identifier ?? null,
+        targetAppPath: params.targetApp.appPath ?? null
+      })
+      .where(eq(sessions.source, source))
+      .run()
+
+    return {
+      updated: result.changes > 0
+    }
   }
 }

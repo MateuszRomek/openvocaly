@@ -3,7 +3,11 @@ import { resolveDesktopPlatform } from '../helpers/platform'
 import { createLogger } from '../helpers/logger'
 import { getPastePlatformAdapter } from './adapters'
 import { ClipboardTransaction } from './clipboard-transaction'
-import type { PastePlatformAdapter } from './platform-adapter'
+import type {
+  AutoPasteProbeDecision,
+  PastePlatformAdapter,
+  PasteProbeResult
+} from './platform-adapter'
 import type { PermissionsService } from '../permissions/service'
 import {
   CLIPBOARD_RESTORE_DELAY_AFTER_MANUAL_PASTE_MS,
@@ -13,6 +17,7 @@ import {
 } from './service/constants'
 import { getManualPasteHint, getUnsupportedPlatformMessage } from './service/helpers'
 import { ManualFallbackSession } from './service/manual-fallback-session'
+import { toSessionTargetApp } from './service/target-app'
 import type {
   DictationPasteOutcome,
   ManualFallbackOutcome,
@@ -21,6 +26,10 @@ import type {
 } from './service/types'
 
 export type { DictationPasteOutcome, ManualPasteState } from './service/types'
+
+const DEFAULT_AUTO_PASTE_PROBE_DECISION: AutoPasteProbeDecision = {
+  shouldAttemptAutoPaste: true
+}
 
 /**
  * Owns transcript post-processing for paste/copy paths.
@@ -95,37 +104,28 @@ export class DictationPasteService {
       })
 
       if (capabilities.supportsAutoPaste) {
-        let shouldAttemptAutoPaste = true
-        let autoPasteSkipReason: string | null = null
-        if (capabilities.supportsEditableProbe) {
-          const probeResult = await this.adapter.probeEditableTarget()
+        const probeResult = capabilities.supportsEditableProbe
+          ? await this.adapter.probeEditableTarget()
+          : null
+
+        if (probeResult) {
           this.logger.debug({
             sessionId: params.sessionId,
             probeResult
           })
-
-          const probeDecision = this.adapter.evaluateAutoPasteProbe?.(probeResult) ?? {
-            shouldAttemptAutoPaste: true
-          }
-          shouldAttemptAutoPaste = probeDecision.shouldAttemptAutoPaste
-          autoPasteSkipReason = probeDecision.reason ?? null
-          if (!probeDecision.shouldAttemptAutoPaste && probeDecision.reason) {
-            this.logger.debug({
-              sessionId: params.sessionId,
-              reason: probeDecision.reason,
-              probeResult
-            })
-          }
         }
 
-        if (!shouldAttemptAutoPaste) {
+        const probeDecision = this.resolveAutoPasteProbeDecision(probeResult)
+
+        if (!probeDecision.shouldAttemptAutoPaste) {
           this.logger.debug({
             sessionId: params.sessionId,
-            reason: autoPasteSkipReason
+            reason: probeDecision.reason ?? null,
+            probeResult
           })
         }
 
-        if (shouldAttemptAutoPaste) {
+        if (probeDecision.shouldAttemptAutoPaste) {
           const pasteResult = await this.adapter.simulatePasteShortcut()
           this.logger.debug({
             sessionId: params.sessionId,
@@ -136,7 +136,10 @@ export class DictationPasteService {
             await createUnrefDelay(CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS)
             clipboardTransaction.restore()
             clipboardRestored = true
-            return { type: 'auto_paste_success' }
+            return {
+              type: 'auto_paste_success',
+              targetApp: toSessionTargetApp(probeResult)
+            }
           }
         }
       }
@@ -218,5 +221,15 @@ export class DictationPasteService {
 
   private clearActiveFallback(): void {
     this.activeFallbackSession = null
+  }
+
+  private resolveAutoPasteProbeDecision(
+    probeResult: PasteProbeResult | null
+  ): AutoPasteProbeDecision {
+    if (!probeResult) {
+      return DEFAULT_AUTO_PASTE_PROBE_DECISION
+    }
+
+    return this.adapter.evaluateAutoPasteProbe?.(probeResult) ?? DEFAULT_AUTO_PASTE_PROBE_DECISION
   }
 }

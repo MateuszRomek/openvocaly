@@ -1,6 +1,7 @@
 import { createSettleOnce, type SettleOnceController } from '../../helpers/settle-once'
 import type { PastePlatformAdapter } from '../platform-adapter'
 import type { ManualFallbackOutcome, ManualPasteState } from './types'
+import { toSessionTargetApp } from './target-app'
 
 type ManualFallbackSessionOptions = {
   sessionId: string
@@ -162,7 +163,10 @@ export class ManualFallbackSession {
         return
       }
 
-      this.settle({ type: 'manual_paste_success' })
+      this.settle({
+        type: 'manual_paste_success',
+        targetApp: toSessionTargetApp(probeResult)
+      })
     } catch {
       // Ignore replay failures and keep session running.
     } finally {

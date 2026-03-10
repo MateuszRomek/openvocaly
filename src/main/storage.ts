@@ -9,14 +9,20 @@ import type {
   ListSessionsInput,
   ListSessionsResult,
   ListTranscriptsInput,
-  ListTranscriptsResult
+  ListTranscriptsResult,
+  ResolveAppIconInput,
+  ResolveAppIconResult
 } from '../shared/storage'
+import { AppIconResolver } from './storage/app-icon-resolver'
 
 export type StorageIpcModule = {
   registerIpcHandlers: () => void
 }
 
-export const createStorageIpcModule = (storageRepository: StorageRepository): StorageIpcModule => {
+export const createStorageIpcModule = (
+  storageRepository: StorageRepository,
+  appIconResolver: AppIconResolver = new AppIconResolver()
+): StorageIpcModule => {
   const registerIpcHandlers = createIpcRegistrar(() => {
     ipcMain.handle(
       'storage:createSession',
@@ -40,6 +46,12 @@ export const createStorageIpcModule = (storageRepository: StorageRepository): St
       'storage:listSessions',
       (_event, params: ListSessionsInput = {}): ListSessionsResult =>
         storageRepository.listSessions(params)
+    )
+
+    ipcMain.handle(
+      'storage:resolveAppIcon',
+      async (_event, params: ResolveAppIconInput = {}): Promise<ResolveAppIconResult> =>
+        await appIconResolver.resolve(params)
     )
   })
 

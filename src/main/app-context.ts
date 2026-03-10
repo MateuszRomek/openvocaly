@@ -99,7 +99,8 @@ export const createMainAppContext = (): MainAppContext => {
     session,
     idleReset,
     transcriptionWorkflow,
-    pasteService
+    pasteService,
+    storageRepository
   })
   const shortcutService = new ShortcutService({
     permissionsService,

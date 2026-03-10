@@ -21,6 +21,8 @@ type NativeBinaryCandidatesInput = {
 export type ParsedEditableProbeOutput = {
   isEditable: boolean
   frontProcessName?: string
+  frontProcessIdentifier?: string
+  frontProcessPath?: string
   frontProcessPid?: number
   focusedRole?: string
   focusedSubrole?: string
@@ -68,15 +70,22 @@ export const isSelfFrontProcess = (
 }
 
 export const parseEditableProbeOutput = (output: string): ParsedEditableProbeOutput => {
-  const [editableRaw, processName = '', processPidRaw = '', role = '', subrole = ''] = output.split(
-    '\t',
-    5
-  )
+  const [
+    editableRaw,
+    processName = '',
+    processPidRaw = '',
+    role = '',
+    subrole = '',
+    processIdentifier = '',
+    processPath = ''
+  ] = output.split('\t', 7)
   const parsedProcessPid = Number.parseInt(processPidRaw, 10)
 
   return {
     isEditable: editableRaw === '1',
     frontProcessName: normalizeAppleScriptText(processName),
+    frontProcessIdentifier: normalizeAppleScriptText(processIdentifier),
+    frontProcessPath: normalizeAppleScriptText(processPath),
     frontProcessPid: Number.isFinite(parsedProcessPid) ? parsedProcessPid : undefined,
     focusedRole: normalizeAppleScriptText(role),
     focusedSubrole: normalizeAppleScriptText(subrole)
