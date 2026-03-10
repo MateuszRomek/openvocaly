@@ -224,7 +224,7 @@ export class DictationPipelineOrchestrator {
         await this.transitionToAwaitingManualPaste(artifact.sessionId, artifact.mode, manualState)
       },
       onPostPasteTargetApp: async (targetApp) => {
-        this.persistTargetAppForSuccessfulPaste(artifact.sessionId, targetApp)
+        await this.persistTargetAppForSuccessfulPaste(artifact.sessionId, targetApp)
       }
     })
 
@@ -233,13 +233,13 @@ export class DictationPipelineOrchestrator {
     }
 
     if (pasteOutcome.type === 'auto_paste_success') {
-      this.persistTargetAppForSuccessfulPaste(artifact.sessionId, pasteOutcome.targetApp)
+      await this.persistTargetAppForSuccessfulPaste(artifact.sessionId, pasteOutcome.targetApp)
       await this.resetToIdleAndHideOverlay()
       return
     }
 
     if (pasteOutcome.type === 'manual_paste_success') {
-      this.persistTargetAppForSuccessfulPaste(artifact.sessionId, pasteOutcome.targetApp)
+      await this.persistTargetAppForSuccessfulPaste(artifact.sessionId, pasteOutcome.targetApp)
       await this.resetToIdleAndHideOverlay()
       return
     }
@@ -280,10 +280,10 @@ export class DictationPipelineOrchestrator {
     )
   }
 
-  private persistTargetAppForSuccessfulPaste(
+  private async persistTargetAppForSuccessfulPaste(
     recordingSessionId: string,
     targetApp: SessionTargetApp | null
-  ): void {
+  ): Promise<void> {
     if (!targetApp) {
       return
     }
@@ -294,7 +294,7 @@ export class DictationPipelineOrchestrator {
     }
 
     try {
-      this.dependencies.storageRepository.updateSessionTargetAppByRecordingSession({
+      await this.dependencies.storageRepository.updateSessionTargetAppByRecordingSession({
         recordingSessionId,
         targetApp
       })

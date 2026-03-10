@@ -8,3 +8,4 @@ resources/db/dev.sqlite
 resources/bin/macos-fast-paste
 plans/
 native/ptt-hook-macos/build/
+native/ptt-hook-macos/bin/

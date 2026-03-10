@@ -26,26 +26,26 @@ export const createStorageIpcModule = (
   const registerIpcHandlers = createIpcRegistrar(() => {
     ipcMain.handle(
       'storage:createSession',
-      (_event, params: CreateSessionInput): CreateSessionResult =>
-        storageRepository.createSession(params)
+      async (_event, params: CreateSessionInput): Promise<CreateSessionResult> =>
+        await storageRepository.createSession(params)
     )
 
     ipcMain.handle(
       'storage:addTranscript',
-      (_event, params: AddTranscriptInput): AddTranscriptResult =>
-        storageRepository.addTranscript(params)
+      async (_event, params: AddTranscriptInput): Promise<AddTranscriptResult> =>
+        await storageRepository.addTranscript(params)
     )
 
     ipcMain.handle(
       'storage:listTranscripts',
-      (_event, params: ListTranscriptsInput = {}): ListTranscriptsResult =>
-        storageRepository.listTranscripts(params)
+      async (_event, params: ListTranscriptsInput = {}): Promise<ListTranscriptsResult> =>
+        await storageRepository.listTranscripts(params)
     )
 
     ipcMain.handle(
       'storage:listSessions',
-      (_event, params: ListSessionsInput = {}): ListSessionsResult =>
-        storageRepository.listSessions(params)
+      async (_event, params: ListSessionsInput = {}): Promise<ListSessionsResult> =>
+        await storageRepository.listSessions(params)
     )
 
     ipcMain.handle(

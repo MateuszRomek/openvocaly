@@ -29,11 +29,11 @@ const normalizeLimit = (value?: number): number => {
  * Repository for session/transcript persistence and listings.
  */
 export class StorageRepository {
-  createSession(params: CreateSessionInput): CreateSessionResult {
+  async createSession(params: CreateSessionInput): Promise<CreateSessionResult> {
     const db = getDb()
     const startedAt = params.startedAt ?? Date.now()
 
-    const result = db
+    const result = await db
       .insert(sessions)
       .values({
         startedAt,
@@ -49,11 +49,11 @@ export class StorageRepository {
     return { id: Number(result.lastInsertRowid) }
   }
 
-  addTranscript(params: AddTranscriptInput): AddTranscriptResult {
+  async addTranscript(params: AddTranscriptInput): Promise<AddTranscriptResult> {
     const db = getDb()
     const createdAt = params.createdAt ?? Date.now()
 
-    const result = db
+    const result = await db
       .insert(transcripts)
       .values({
         sessionId: params.sessionId,
@@ -68,7 +68,7 @@ export class StorageRepository {
     return { id: Number(result.lastInsertRowid) }
   }
 
-  listTranscripts(params: ListTranscriptsInput = {}): ListTranscriptsResult {
+  async listTranscripts(params: ListTranscriptsInput = {}): Promise<ListTranscriptsResult> {
     const db = getDb()
     const limit = normalizeLimit(params.limit)
     const offset = Math.max(params.offset ?? 0, 0)
@@ -77,17 +77,21 @@ export class StorageRepository {
       ? db.select().from(transcripts).where(eq(transcripts.sessionId, params.sessionId))
       : db.select().from(transcripts)
 
-    const items = baseQuery.orderBy(desc(transcripts.createdAt)).limit(limit).offset(offset).all()
+    const items = await baseQuery
+      .orderBy(desc(transcripts.createdAt))
+      .limit(limit)
+      .offset(offset)
+      .all()
 
     return { items }
   }
 
-  listSessions(params: ListSessionsInput = {}): ListSessionsResult {
+  async listSessions(params: ListSessionsInput = {}): Promise<ListSessionsResult> {
     const db = getDb()
     const limit = normalizeLimit(params.limit)
     const offset = Math.max(params.offset ?? 0, 0)
 
-    const items = db
+    const items = await db
       .select()
       .from(sessions)
       .orderBy(desc(sessions.startedAt))
@@ -98,13 +102,13 @@ export class StorageRepository {
     return { items }
   }
 
-  updateSessionTargetAppByRecordingSession(
+  async updateSessionTargetAppByRecordingSession(
     params: UpdateSessionTargetAppByRecordingSessionInput
-  ): UpdateSessionTargetAppByRecordingSessionResult {
+  ): Promise<UpdateSessionTargetAppByRecordingSessionResult> {
     const db = getDb()
     const source = `recording:${params.recordingSessionId}`
 
-    const result = db
+    const result = await db
       .update(sessions)
       .set({
         targetAppName: params.targetApp.name ?? null,
@@ -115,7 +119,7 @@ export class StorageRepository {
       .run()
 
     return {
-      updated: result.changes > 0
+      updated: result.rowsAffected > 0
     }
   }
 }

@@ -159,14 +159,14 @@ export class TranscriptionService {
     }
 
     try {
-      const sessionResult = this.storageRepository.createSession({
+      const sessionResult = await this.storageRepository.createSession({
         startedAt: artifact.startedAt,
         durationMs: artifact.durationMs ?? null,
         title: null,
         source: `recording:${artifact.sessionId}`
       })
 
-      this.storageRepository.addTranscript({
+      await this.storageRepository.addTranscript({
         sessionId: sessionResult.id,
         createdAt: Date.now(),
         text: result.transcript.text,

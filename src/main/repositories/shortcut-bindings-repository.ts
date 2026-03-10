@@ -41,7 +41,7 @@ const fromDbModifiers = (row: {
 })
 
 export class ShortcutBindingsRepository {
-  ensureDefaultBindings(): void {
+  async ensureDefaultBindings(): Promise<void> {
     const db = getDb()
     const updatedAt = now()
 
@@ -53,7 +53,8 @@ export class ShortcutBindingsRepository {
 
       const binding = toPersistedShortcutBinding(parsedDefault)
 
-      db.insert(shortcutBindings)
+      await db
+        .insert(shortcutBindings)
         .values({
           action,
           accelerator: binding.accelerator,
@@ -66,9 +67,9 @@ export class ShortcutBindingsRepository {
     }
   }
 
-  listBindings(): Record<ShortcutAction, PersistedShortcutBinding> {
+  async listBindings(): Promise<Record<ShortcutAction, PersistedShortcutBinding>> {
     const db = getDb()
-    const rows = db.select().from(shortcutBindings).all()
+    const rows = await db.select().from(shortcutBindings).all()
     const bindings: Record<ShortcutAction, PersistedShortcutBinding> = SHORTCUT_ACTIONS.reduce(
       (acc, action) => {
         const parsedDefault = parseAccelerator(DEFAULT_SHORTCUT_BINDINGS[action])
@@ -95,10 +96,11 @@ export class ShortcutBindingsRepository {
     return bindings
   }
 
-  setBinding(action: ShortcutAction, binding: PersistedShortcutBinding): void {
+  async setBinding(action: ShortcutAction, binding: PersistedShortcutBinding): Promise<void> {
     const db = getDb()
 
-    db.insert(shortcutBindings)
+    await db
+      .insert(shortcutBindings)
       .values({
         action,
         accelerator: binding.accelerator,

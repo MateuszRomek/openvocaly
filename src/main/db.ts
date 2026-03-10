@@ -1,14 +1,14 @@
-import Database from 'better-sqlite3'
+import { createClient, type Client } from '@libsql/client'
 import { app } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
+import { migrate } from 'drizzle-orm/libsql/migrator'
 
-let db: BetterSQLite3Database | null = null
-let sqlite: Database.Database | null = null
+let db: LibSQLDatabase | null = null
+let client: Client | null = null
 
-export const initDb = (): BetterSQLite3Database => {
+export const initDb = async (): Promise<LibSQLDatabase> => {
   if (db) {
     return db
   }
@@ -16,12 +16,12 @@ export const initDb = (): BetterSQLite3Database => {
   const userDataPath = app.getPath('userData')
   const dbPath = join(userDataPath, 'openvocaly.db')
 
-  sqlite = new Database(dbPath)
-  sqlite.pragma('journal_mode = WAL')
-  sqlite.pragma('foreign_keys = ON')
+  client = createClient({ url: `file:${dbPath}` })
+  await client.execute('PRAGMA journal_mode = WAL')
+  await client.execute('PRAGMA foreign_keys = ON')
 
-  db = drizzle(sqlite)
-  migrate(db, { migrationsFolder: resolveMigrationsPath() })
+  db = drizzle({ client })
+  await migrate(db, { migrationsFolder: resolveMigrationsPath() })
 
   return db
 }
@@ -48,7 +48,7 @@ const resolveMigrationsPath = (): string => {
   return devPath
 }
 
-export const getDb = (): BetterSQLite3Database => {
+export const getDb = (): LibSQLDatabase => {
   if (!db) {
     throw new Error('Database not initialized')
   }
@@ -57,7 +57,7 @@ export const getDb = (): BetterSQLite3Database => {
 }
 
 export const closeDb = (): void => {
-  sqlite?.close()
-  sqlite = null
+  client?.close()
+  client = null
   db = null
 }

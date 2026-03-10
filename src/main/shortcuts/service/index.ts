@@ -63,18 +63,20 @@ export class ShortcutService {
     this.pttRuntime = new PttRuntimeManager(() => this.shortcutState, {
       permissionsService: dependencies.permissionsService,
       emitRecordingShortcutEvent: this.emitRecordingShortcutEvent,
-      persistBinding: (action, binding) => this.persistBinding(action, binding)
+      persistBinding: async (action, binding) => await this.persistBinding(action, binding)
     })
   }
 
-  initialize(): void {
+  async initialize(): Promise<void> {
     if (this.initialized) {
       return
     }
 
-    this.shortcutBindingsRepository.ensureDefaultBindings()
+    await this.shortcutBindingsRepository.ensureDefaultBindings()
 
-    this.shortcutState = createInitialShortcutState(this.shortcutBindingsRepository.listBindings())
+    this.shortcutState = createInitialShortcutState(
+      await this.shortcutBindingsRepository.listBindings()
+    )
     this.startupFailure = false
     this.pttRuntime.resetForStartup()
 
@@ -100,8 +102,8 @@ export class ShortcutService {
     this.initialized = false
   }
 
-  getConfig(): ShortcutConfigResponse {
-    this.ensureInitialized()
+  async getConfig(): Promise<ShortcutConfigResponse> {
+    await this.ensureInitialized()
     this.pttRuntime.refreshRuntimeStatus()
     return selectShortcutConfigResponse(
       this.shortcutState,
@@ -110,8 +112,8 @@ export class ShortcutService {
     )
   }
 
-  getRuntimeStatus(): ShortcutRuntimeStatusResponse {
-    this.ensureInitialized()
+  async getRuntimeStatus(): Promise<ShortcutRuntimeStatusResponse> {
+    await this.ensureInitialized()
     this.pttRuntime.refreshRuntimeStatus()
 
     return {
@@ -119,8 +121,8 @@ export class ShortcutService {
     }
   }
 
-  update(params: ShortcutUpdateInput): ShortcutMutationResponse {
-    this.ensureInitialized()
+  async update(params: ShortcutUpdateInput): Promise<ShortcutMutationResponse> {
+    await this.ensureInitialized()
     this.pttRuntime.refreshRuntimeStatus()
 
     const parsedShortcut = parseAccelerator(params.accelerator)
@@ -140,20 +142,20 @@ export class ShortcutService {
     }
 
     if (decision.type === 'apply_ptt') {
-      return this.pttRuntime.applyBinding(decision.binding)
+      return await this.pttRuntime.applyBinding(decision.binding)
     }
 
-    return applySupportedGlobalBinding({
+    return await applySupportedGlobalBinding({
       shortcutState: this.shortcutState,
       action: decision.action,
       nextBinding: decision.binding,
       registerAction: this.registerSupportedGlobalAction,
-      persistBinding: (action, binding) => this.persistBinding(action, binding)
+      persistBinding: async (action, binding) => await this.persistBinding(action, binding)
     })
   }
 
-  reset(params?: ShortcutResetInput): ShortcutMutationResponse {
-    this.ensureInitialized()
+  async reset(params?: ShortcutResetInput): Promise<ShortcutMutationResponse> {
+    await this.ensureInitialized()
     this.pttRuntime.refreshRuntimeStatus()
 
     const decision = decideShortcutReset({
@@ -167,7 +169,7 @@ export class ShortcutService {
     }
 
     for (const operation of decision.operations) {
-      const result = this.executeResetOperation(operation)
+      const result = await this.executeResetOperation(operation)
 
       if (!result.ok) {
         return result
@@ -177,35 +179,37 @@ export class ShortcutService {
     return { ok: true }
   }
 
-  private ensureInitialized(): void {
+  private async ensureInitialized(): Promise<void> {
     if (!this.initialized) {
-      this.initialize()
+      await this.initialize()
     }
   }
 
-  private applySupportedBinding(
+  private async applySupportedBinding(
     action: SupportedGlobalShortcutAction,
     nextBinding: PersistedShortcutBinding
-  ): ShortcutMutationResponse {
-    return applySupportedGlobalBinding({
+  ): Promise<ShortcutMutationResponse> {
+    return await applySupportedGlobalBinding({
       shortcutState: this.shortcutState,
       action,
       nextBinding,
       registerAction: this.registerSupportedGlobalAction,
-      persistBinding: (nextAction, binding) => this.persistBinding(nextAction, binding)
+      persistBinding: async (nextAction, binding) => await this.persistBinding(nextAction, binding)
     })
   }
 
-  private executeResetOperation(operation: ShortcutResetOperation): ShortcutMutationResponse {
+  private async executeResetOperation(
+    operation: ShortcutResetOperation
+  ): Promise<ShortcutMutationResponse> {
     if (operation.type === 'apply_supported') {
-      return this.applySupportedBinding(operation.action, operation.binding)
+      return await this.applySupportedBinding(operation.action, operation.binding)
     }
 
     if (operation.type === 'apply_ptt') {
-      return this.pttRuntime.applyBinding(operation.binding)
+      return await this.pttRuntime.applyBinding(operation.binding)
     }
 
-    return this.persistStoredOnlyBinding('recording.push_to_talk', operation.binding)
+    return await this.persistStoredOnlyBinding('recording.push_to_talk', operation.binding)
   }
 
   private registerSupportedGlobalAction = (
@@ -214,13 +218,13 @@ export class ShortcutService {
   ): 'ok' | 'invalid' | 'failed' =>
     tryRegisterAction(action, accelerator, this.handleGlobalShortcutAction)
 
-  private persistStoredOnlyBinding(
+  private async persistStoredOnlyBinding(
     action: ShortcutAction,
     binding: PersistedShortcutBinding
-  ): ShortcutMutationResponse {
+  ): Promise<ShortcutMutationResponse> {
     // Persists action binding without touching OS/global registration.
     // Used for actions that are currently unavailable at runtime (e.g. PTT not ready).
-    const persistResult = this.persistBinding(action, binding)
+    const persistResult = await this.persistBinding(action, binding)
 
     if (!persistResult.ok) {
       return persistResult
@@ -239,12 +243,12 @@ export class ShortcutService {
     return { ok: true }
   }
 
-  private persistBinding(
+  private async persistBinding(
     action: ShortcutAction,
     binding: PersistedShortcutBinding
-  ): ShortcutMutationResponse {
+  ): Promise<ShortcutMutationResponse> {
     try {
-      this.shortcutBindingsRepository.setBinding(action, binding)
+      await this.shortcutBindingsRepository.setBinding(action, binding)
       return { ok: true }
     } catch (error) {
       if (this.shortcutBindingsRepository.isUniqueConstraintError(error)) {

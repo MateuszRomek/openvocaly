@@ -32,7 +32,7 @@ export class TranscriptionProviderCredentialsManager {
       return
     }
 
-    this.loadFromDb()
+    await this.loadFromDb()
     this.initialized = true
   }
 
@@ -106,7 +106,7 @@ export class TranscriptionProviderCredentialsManager {
         encryptedApiKey,
         updatedAt: Date.now()
       }
-      this.persistToDb()
+      await this.persistToDb()
 
       return { ok: true }
     } catch (error) {
@@ -123,12 +123,12 @@ export class TranscriptionProviderCredentialsManager {
   ): Promise<TranscriptionProviderApiKeyMutationResponse> {
     await this.initialize()
     delete this.credentials[providerId]
-    this.persistToDb()
+    await this.persistToDb()
     return { ok: true }
   }
 
-  private loadFromDb(): void {
-    const valueJson = this.settingsRepository.getValueJson(PROVIDER_CREDENTIALS_SETTING_KEY)
+  private async loadFromDb(): Promise<void> {
+    const valueJson = await this.settingsRepository.getValueJson(PROVIDER_CREDENTIALS_SETTING_KEY)
 
     if (!valueJson) {
       this.credentials = {}
@@ -141,12 +141,12 @@ export class TranscriptionProviderCredentialsManager {
     } catch (error) {
       console.error('[transcription] failed to parse provider credentials, resetting', error)
       this.credentials = {}
-      this.persistToDb()
+      await this.persistToDb()
     }
   }
 
-  private persistToDb(): void {
+  private async persistToDb(): Promise<void> {
     const valueJson = JSON.stringify(this.credentials)
-    this.settingsRepository.upsertValueJson(PROVIDER_CREDENTIALS_SETTING_KEY, valueJson)
+    await this.settingsRepository.upsertValueJson(PROVIDER_CREDENTIALS_SETTING_KEY, valueJson)
   }
 }
