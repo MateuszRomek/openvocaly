@@ -12,8 +12,6 @@ import type {
  * - try auto-paste now, or
  * - ignore a manual Cmd+V trigger because target still looks non-editable.
  */
-const BROWSER_PROCESS_MARKERS = ['brave', 'chrome', 'firefox', 'safari', 'edge', 'arc'] as const
-
 const NON_EDITABLE_CONTAINER_ROLES = new Set([
   'axapplication',
   'axwindow',
@@ -24,19 +22,16 @@ const NON_EDITABLE_CONTAINER_ROLES = new Set([
   'axbutton',
   'axstatictext',
   'axlist',
+  'axlistitem',
   'axrow',
+  'axcell',
+  'axbrowser',
+  'axtree',
   'axtabgroup',
   'axoutline'
 ])
 
-const isBrowserProcess = (processName?: string): boolean => {
-  const normalized = processName?.toLowerCase()
-  if (!normalized) {
-    return false
-  }
-
-  return BROWSER_PROCESS_MARKERS.some((marker) => normalized.includes(marker))
-}
+const NON_EDITABLE_CONTAINER_SUBROLES = new Set(['axoutlinerow', 'axsourcelist', 'axsidebar'])
 
 const isLikelyDesktopTarget = (probeResult: PasteProbeResult): boolean => {
   const processName = probeResult.frontProcessName?.toLowerCase()
@@ -48,50 +43,28 @@ const isLikelyDesktopTarget = (probeResult: PasteProbeResult): boolean => {
   return !role || role === 'axapplication' || role === 'axwindow'
 }
 
-const isLikelyBrowserNonEditableSurface = (probeResult: PasteProbeResult): boolean => {
-  const processName = probeResult.frontProcessName?.toLowerCase()
-  if (!processName || !isBrowserProcess(processName)) {
-    return false
-  }
-
-  const role = probeResult.focusedRole?.toLowerCase() ?? ''
-  const subrole = probeResult.focusedSubrole?.toLowerCase() ?? ''
-
-  return role === 'axwebarea' || subrole === 'axapplicationalert' || subrole === 'axunknown'
-}
-
 const isLikelyExplicitNonEditableContainer = (probeResult: PasteProbeResult): boolean => {
-  if (probeResult.isEditable) {
-    return false
-  }
-
   const role = probeResult.focusedRole?.toLowerCase()
-  if (!role) {
+  if (role === 'axstatictext' && isLikelyUnconfirmedWebTextSurface(probeResult)) {
     return false
   }
 
-  return NON_EDITABLE_CONTAINER_ROLES.has(role)
-}
-
-const isBrowserEditableTarget = (probeResult: PasteProbeResult): boolean => {
-  if (!probeResult.isEditable) {
-    return false
-  }
-
-  const role = probeResult.focusedRole?.toLowerCase()
-  const subrole = probeResult.focusedSubrole?.toLowerCase()
-
-  if (
-    role === 'axtextfield' ||
-    role === 'axtextarea' ||
-    role === 'axsearchfield' ||
-    role === 'axcombobox'
-  ) {
+  if (role && NON_EDITABLE_CONTAINER_ROLES.has(role)) {
     return true
   }
 
-  return subrole === 'axsearchfield' || subrole === 'axtextfield'
+  const subrole = probeResult.focusedSubrole?.toLowerCase()
+  if (!subrole) {
+    return false
+  }
+
+  return NON_EDITABLE_CONTAINER_SUBROLES.has(subrole)
 }
+
+const isLikelyUnconfirmedWebTextSurface = (probeResult: PasteProbeResult): boolean =>
+  !probeResult.isEditable &&
+  probeResult.focusedRole?.toLowerCase() === 'axstatictext' &&
+  probeResult.focusedSubrole?.toLowerCase() === 'axwebapplication'
 
 /**
  * Decides if auto-paste is safe to attempt for the current macOS focus target.
@@ -101,24 +74,26 @@ export const evaluateMacOSAutoPasteDecision = (
   probeResult: PasteProbeResult
 ): AutoPasteProbeDecision => {
   if (!probeResult.ok) {
-    return { shouldAttemptAutoPaste: true }
-  }
-
-  let reason: string | undefined
-  if (!probeResult.isEditable) {
-    if (probeResult.isSelfApp) {
-      reason = 'self_app_target'
-    } else if (isLikelyDesktopTarget(probeResult)) {
-      reason = 'desktop_like_target'
-    } else if (isLikelyBrowserNonEditableSurface(probeResult)) {
-      reason = 'browser_non_editable_surface'
-    } else if (isLikelyExplicitNonEditableContainer(probeResult)) {
-      reason = 'non_editable_container_target'
+    return {
+      shouldAttemptAutoPaste: false,
+      reason: 'probe_failed'
     }
   }
 
-  if (isBrowserProcess(probeResult.frontProcessName) && !isBrowserEditableTarget(probeResult)) {
-    reason = reason ?? 'browser_unconfirmed_editable_target'
+  let reason: string | undefined
+  if (probeResult.isSelfApp) {
+    reason = 'self_app_target'
+  } else if (isLikelyDesktopTarget(probeResult)) {
+    reason = 'desktop_like_target'
+  } else if (isLikelyUnconfirmedWebTextSurface(probeResult)) {
+    // Some web-backed editors report static text even though Cmd+V can still land.
+    reason = undefined
+  } else if (!probeResult.isEditable) {
+    if (isLikelyExplicitNonEditableContainer(probeResult)) {
+      reason = 'non_editable_container_target'
+    } else {
+      reason = 'non_editable_target'
+    }
   }
 
   return {
@@ -134,7 +109,15 @@ export const evaluateMacOSAutoPasteDecision = (
 export const evaluateMacOSManualPasteDecision = (
   probeResult: PasteProbeResult
 ): ManualPasteProbeDecision => {
-  if (!probeResult.ok || probeResult.isEditable) {
+  if (!probeResult.ok) {
+    return { shouldIgnoreManualPaste: false }
+  }
+
+  if (probeResult.isSelfApp) {
+    return { shouldIgnoreManualPaste: true, reason: 'self_app_target' }
+  }
+
+  if (probeResult.isEditable) {
     return { shouldIgnoreManualPaste: false }
   }
 
@@ -142,13 +125,15 @@ export const evaluateMacOSManualPasteDecision = (
     return { shouldIgnoreManualPaste: true, reason: 'desktop_target' }
   }
 
-  if (isLikelyBrowserNonEditableSurface(probeResult)) {
-    return { shouldIgnoreManualPaste: true, reason: 'browser_non_editable_surface' }
+  if (isLikelyUnconfirmedWebTextSurface(probeResult)) {
+    return { shouldIgnoreManualPaste: false }
   }
 
   if (isLikelyExplicitNonEditableContainer(probeResult)) {
     return { shouldIgnoreManualPaste: true, reason: 'non_editable_container_target' }
   }
 
+  // AX probe can under-report editability (notably in complex/fullscreen UI trees).
+  // Be optimistic here so user Cmd+V is replayed instead of being swallowed.
   return { shouldIgnoreManualPaste: false }
 }

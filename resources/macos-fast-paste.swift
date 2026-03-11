@@ -153,36 +153,47 @@ func inspectEditableTarget(start element: AXUIElement) -> (isEditable: Bool, rol
   var currentElement: AXUIElement? = element
   var currentRole: String? = nil
   var currentSubrole: String? = nil
+  var focusedRole: String? = nil
+  var focusedSubrole: String? = nil
 
-  for _ in 0..<8 {
+  for depth in 0..<8 {
     guard let element = currentElement else {
       break
     }
 
     if let role = copyAttribute(element, kAXRoleAttribute as CFString) as? String {
       currentRole = role
+      if depth == 0 {
+        focusedRole = role
+      }
     }
 
     if let subrole = copyAttribute(element, kAXSubroleAttribute as CFString) as? String {
       currentSubrole = subrole
+      if depth == 0 {
+        focusedSubrole = subrole
+      }
     }
 
     if let editable = copyAttribute(element, "AXEditable" as CFString) as? Bool, editable {
-      return (true, currentRole, currentSubrole)
+      return (true, focusedRole ?? currentRole, focusedSubrole ?? currentSubrole)
     }
 
-    if let role = currentRole, editableRoles.contains(role) {
-      return (true, currentRole, currentSubrole)
-    }
+    // Only trust role/subrole editable hints for the directly focused element.
+    if depth == 0 {
+      if let role = currentRole, editableRoles.contains(role) {
+        return (true, focusedRole ?? currentRole, focusedSubrole ?? currentSubrole)
+      }
 
-    if let subrole = currentSubrole, editableSubroles.contains(subrole) {
-      return (true, currentRole, currentSubrole)
+      if let subrole = currentSubrole, editableSubroles.contains(subrole) {
+        return (true, focusedRole ?? currentRole, focusedSubrole ?? currentSubrole)
+      }
     }
 
     currentElement = copyAXElementAttribute(element, kAXParentAttribute as CFString)
   }
 
-  return (false, currentRole, currentSubrole)
+  return (false, focusedRole ?? currentRole, focusedSubrole ?? currentSubrole)
 }
 
 func copyAttribute(_ element: AXUIElement, _ attribute: CFString) -> CFTypeRef? {
