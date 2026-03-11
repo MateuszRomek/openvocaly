@@ -1,7 +1,7 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { BlocksIcon, HomeIcon, PanelLeftIcon, SettingsIcon, type LucideIcon } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
-import OpenVocalyLogo, { type OpenVocalyLogoTuning } from './openvocaly-logo'
+import { OpenVocalyStaticLogo } from './openvocaly-static-logo'
 import {
   Sidebar,
   SidebarContent,
@@ -27,26 +27,7 @@ const navigation: NavigationItem[] = [
 ]
 
 const settingsItem: NavigationItem = { icon: SettingsIcon, label: 'Settings', to: '/settings' }
-const EXPANDED_LOGO_SIZE = 34
-const COLLAPSED_LOGO_SIZE = 28
-
-const EXPANDED_LOGO_TUNING: OpenVocalyLogoTuning = {
-  sharpness: 'pixel-snapped',
-  barPattern: 'five',
-  circleGap: 34,
-  circleStroke: 8.5,
-  barWidth: 7.5,
-  barRadius: 3.25
-}
-
-const COLLAPSED_LOGO_TUNING: OpenVocalyLogoTuning = {
-  sharpness: 'exact',
-  barPattern: 'three',
-  circleGap: 28,
-  circleStroke: 9.5,
-  barWidth: 9,
-  barRadius: 3.5
-}
+const SIDEBAR_LOGO_SIZE = 24
 
 const isRouteActive = (pathname: string, route: NavigationItem['to']): boolean => {
   if (route === '/') {
@@ -59,10 +40,7 @@ const isRouteActive = (pathname: string, route: NavigationItem['to']): boolean =
 function AppSidebar(): React.JSX.Element {
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const { toggleSidebar, state } = useSidebar()
-  const isCollapsed = state === 'collapsed'
-  const logoSize = isCollapsed ? COLLAPSED_LOGO_SIZE : EXPANDED_LOGO_SIZE
-  const logoTuning = isCollapsed ? COLLAPSED_LOGO_TUNING : EXPANDED_LOGO_TUNING
+  const { toggleSidebar } = useSidebar()
 
   return (
     <Sidebar collapsible="icon" className="group/sidebar">
@@ -75,13 +53,7 @@ function AppSidebar(): React.JSX.Element {
               'group-data-[collapsible=icon]:group-hover/brand:opacity-0'
             )}
           >
-            <OpenVocalyLogo
-              size={logoSize}
-              animateOnce
-              animationKey="sidebar-brand-logo"
-              tuning={logoTuning}
-              className="text-sidebar-foreground"
-            />
+            <OpenVocalyStaticLogo size={SIDEBAR_LOGO_SIZE} />
             <span className="text-sidebar-foreground truncate text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
               OpenVocaly
             </span>
