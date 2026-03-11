@@ -1,15 +1,19 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, nativeImage, nativeTheme } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import appIconIco from '../../build/icon.ico?asset'
+import appIconBackgroundDarkPng from '../../resources/app-icons/openvocaly-app-icon-background-dark-512.png?asset'
+import appIconBackgroundLightPng from '../../resources/app-icons/openvocaly-app-icon-background-light-512.png?asset'
 import { createMainAppContext } from './app-context'
 import { closeDb } from './db'
 import { withShutdownTimeout } from './helpers/lifecycle'
 import { createLogger } from './helpers/logger'
-import { isLinux, isMacOS, isWindows } from './helpers/platform'
+import { isMacOS, isWindows } from './helpers/platform'
 
 const GRACEFUL_QUIT_TIMEOUT_MS = 2500
 const logger = createLogger('main.index')
+const appWindowIcon = isWindows() ? appIconIco : appIconBackgroundDarkPng
+const MAC_DOCK_ICON_INSET_RATIO = 0.1
 
 const mainContext = createMainAppContext()
 
@@ -29,6 +33,60 @@ const runStep = async (label: string, operation: () => Promise<void> | void): Pr
   } catch (error) {
     console.error(`[main] ${label}`, error)
   }
+}
+
+const createInsetMacDockIcon = (iconPath: string): Electron.NativeImage => {
+  const baseIcon = nativeImage.createFromPath(iconPath)
+  if (baseIcon.isEmpty()) {
+    return baseIcon
+  }
+
+  const { width, height } = baseIcon.getSize()
+  if (width <= 0 || height <= 0) {
+    return baseIcon
+  }
+
+  const insetX = Math.round(width * MAC_DOCK_ICON_INSET_RATIO)
+  const insetY = Math.round(height * MAC_DOCK_ICON_INSET_RATIO)
+  const targetWidth = Math.max(1, width - insetX * 2)
+  const targetHeight = Math.max(1, height - insetY * 2)
+  const scaledIcon = baseIcon.resize({ width: targetWidth, height: targetHeight, quality: 'best' })
+  const scaledSize = scaledIcon.getSize()
+  const scaledBitmap = scaledIcon.toBitmap()
+
+  const bytesPerPixel = 4
+  const sourceStride = scaledSize.width * bytesPerPixel
+  const destinationStride = width * bytesPerPixel
+  const destinationBuffer = Buffer.alloc(width * height * bytesPerPixel, 0)
+  const offsetX = Math.floor((width - scaledSize.width) / 2)
+  const offsetY = Math.floor((height - scaledSize.height) / 2)
+
+  for (let row = 0; row < scaledSize.height; row += 1) {
+    const sourceStart = row * sourceStride
+    const destinationStart = (offsetY + row) * destinationStride + offsetX * bytesPerPixel
+    scaledBitmap.copy(destinationBuffer, destinationStart, sourceStart, sourceStart + sourceStride)
+  }
+
+  return nativeImage.createFromBitmap(destinationBuffer, {
+    width,
+    height,
+    scaleFactor: 1
+  })
+}
+
+const getMacDockIcon = (): Electron.NativeImage => {
+  const iconPath = nativeTheme.shouldUseDarkColors
+    ? appIconBackgroundLightPng
+    : appIconBackgroundDarkPng
+  return createInsetMacDockIcon(iconPath)
+}
+
+const applyMacDockIcon = (): void => {
+  if (!isMacOS()) {
+    return
+  }
+
+  app.dock?.setIcon(getMacDockIcon())
 }
 
 const performShutdownSequence = (): Promise<void> => {
@@ -75,7 +133,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: 'OpenVocaly',
-    ...(isLinux() ? { icon } : {}),
+    icon: appWindowIcon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -126,6 +184,8 @@ app.whenReady().then(async () => {
   }
 
   app.setName('OpenVocaly')
+  applyMacDockIcon()
+  nativeTheme.on('updated', applyMacDockIcon)
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.openvocally.app')
@@ -212,6 +272,11 @@ app.on('before-quit', (event) => {
   if (hasShutdownCompleted) {
     isQuitting = true
     return
+  }
+
+  if (isMacOS()) {
+    nativeTheme.removeListener('updated', applyMacDockIcon)
+    app.dock?.hide()
   }
 
   event.preventDefault()
