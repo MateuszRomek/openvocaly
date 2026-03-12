@@ -7,6 +7,7 @@ import { HomeRecentSessionsCardSkeleton } from './components/home-recent-session
 import { HomeReportingFallback } from './components/home-reporting-fallback'
 import { HomeDailyOutputCard } from './components/home-daily-output-card'
 import { HomeDailyOutputCardSkeleton } from './components/home-daily-output-card-skeleton'
+import { HomeFirstRunEmptyState } from './components/home-first-run-empty-state'
 import { HomeMonthlyOutputCard } from './components/home-monthly-output-card'
 import { HomeMonthlyOutputCardSkeleton } from './components/home-monthly-output-card-skeleton'
 import { HomeReportingRangeTabs } from './components/home-reporting-range-tabs'
@@ -17,6 +18,7 @@ import { HomeTopAppsCardSkeleton } from './components/home-top-apps-card-skeleto
 import { HomeWpmTrendCard } from './components/home-wpm-trend-card'
 import { HomeWpmTrendCardSkeleton } from './components/home-wpm-trend-card-skeleton'
 import { type HomeReportingRange } from './constants/reporting-range'
+import { useHomeSummarySuspenseQuery } from './queries/reporting/use-home-summary-suspense-query'
 
 export function HomeView(): React.JSX.Element {
   const search = useSearch({ from: '/' })
@@ -67,36 +69,74 @@ export function HomeView(): React.JSX.Element {
               </div>
             </header>
 
-            <Suspense fallback={<HomeReportingSummaryRowSkeleton />}>
-              <HomeReportingSummaryRow range={selectedRange} />
+            <Suspense fallback={<HomeDashboardSkeleton />}>
+              <HomeDashboardContent range={selectedRange} />
             </Suspense>
-
-            <Suspense fallback={<HomeDailyOutputCardSkeleton />}>
-              <HomeDailyOutputCard range={selectedRange} />
-            </Suspense>
-
-            <div className="grid gap-4 xl:grid-cols-2">
-              <Suspense fallback={<HomeWpmTrendCardSkeleton />}>
-                <HomeWpmTrendCard range={selectedRange} />
-              </Suspense>
-
-              <Suspense fallback={<HomeMonthlyOutputCardSkeleton />}>
-                <HomeMonthlyOutputCard />
-              </Suspense>
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-2">
-              <Suspense fallback={<HomeTopAppsCardSkeleton />}>
-                <HomeTopAppsCard range={selectedRange} />
-              </Suspense>
-
-              <Suspense fallback={<HomeRecentSessionsCardSkeleton />}>
-                <HomeRecentSessionsCard range={selectedRange} />
-              </Suspense>
-            </div>
           </ErrorBoundary>
         )}
       </QueryErrorResetBoundary>
     </section>
+  )
+}
+
+type HomeDashboardContentProps = {
+  range: HomeReportingRange
+}
+
+function HomeDashboardContent({ range }: HomeDashboardContentProps): React.JSX.Element {
+  const summaryQuery = useHomeSummarySuspenseQuery({ range })
+  const isFirstRun = summaryQuery.data.lifetime.sessions <= 0
+
+  if (isFirstRun) {
+    return <HomeFirstRunEmptyState />
+  }
+
+  return (
+    <>
+      <HomeReportingSummaryRow range={range} />
+
+      <Suspense fallback={<HomeDailyOutputCardSkeleton />}>
+        <HomeDailyOutputCard range={range} />
+      </Suspense>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Suspense fallback={<HomeWpmTrendCardSkeleton />}>
+          <HomeWpmTrendCard range={range} />
+        </Suspense>
+
+        <Suspense fallback={<HomeMonthlyOutputCardSkeleton />}>
+          <HomeMonthlyOutputCard />
+        </Suspense>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Suspense fallback={<HomeTopAppsCardSkeleton />}>
+          <HomeTopAppsCard range={range} />
+        </Suspense>
+
+        <Suspense fallback={<HomeRecentSessionsCardSkeleton />}>
+          <HomeRecentSessionsCard range={range} />
+        </Suspense>
+      </div>
+    </>
+  )
+}
+
+function HomeDashboardSkeleton(): React.JSX.Element {
+  return (
+    <>
+      <HomeReportingSummaryRowSkeleton />
+      <HomeDailyOutputCardSkeleton />
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <HomeWpmTrendCardSkeleton />
+        <HomeMonthlyOutputCardSkeleton />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <HomeTopAppsCardSkeleton />
+        <HomeRecentSessionsCardSkeleton />
+      </div>
+    </>
   )
 }

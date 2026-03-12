@@ -1,14 +1,12 @@
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@renderer/ui/empty'
+import { CalendarDaysIcon } from 'lucide-react'
+import { HomeCardEmptyState } from './home-card-empty-state'
 
 export function HomeMonthlyOutputEmptyState(): React.JSX.Element {
   return (
-    <Empty className="border-border/60 bg-background/60 min-h-[14rem] rounded-lg border">
-      <EmptyHeader>
-        <EmptyTitle>No monthly output yet</EmptyTitle>
-        <EmptyDescription>
-          Keep dictating to build monthly output history for this chart.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <HomeCardEmptyState
+      icon={CalendarDaysIcon}
+      title="No monthly output yet"
+      description="Keep dictating to build monthly output history for this chart."
+    />
   )
 }

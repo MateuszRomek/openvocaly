@@ -1,14 +1,12 @@
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@renderer/ui/empty'
+import { LayoutGridIcon } from 'lucide-react'
+import { HomeCardEmptyState } from './home-card-empty-state'
 
 export function HomeTopAppsEmptyState(): React.JSX.Element {
   return (
-    <Empty className="border-border/60 bg-background/60 min-h-[14rem] rounded-lg border">
-      <EmptyHeader>
-        <EmptyTitle>No app activity yet</EmptyTitle>
-        <EmptyDescription>
-          Start dictating in your apps to populate this breakdown for the selected time range.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <HomeCardEmptyState
+      icon={LayoutGridIcon}
+      title="No app activity yet"
+      description="Start dictating in your apps to populate this breakdown for the selected time range."
+    />
   )
 }

@@ -1,12 +1,12 @@
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@renderer/ui/empty'
+import { Clock3Icon } from 'lucide-react'
+import { HomeCardEmptyState } from './home-card-empty-state'
 
 export function HomeRecentSessionsEmptyState(): React.JSX.Element {
   return (
-    <Empty className="border-border/60 bg-background/60 rounded-lg border px-3 py-4">
-      <EmptyHeader>
-        <EmptyTitle>No sessions yet</EmptyTitle>
-        <EmptyDescription>Start a dictation to see your stats.</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <HomeCardEmptyState
+      icon={Clock3Icon}
+      title="No sessions yet"
+      description="Start a dictation to see your stats."
+    />
   )
 }
