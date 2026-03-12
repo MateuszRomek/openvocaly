@@ -1,20 +1,57 @@
-import { useSearch } from '@tanstack/react-router'
-import { TRANSCRIPTS_PAGE_SIZE } from '../../../../shared/storage'
+import { TranscriptsEmptyState } from './components/transcripts-empty-state'
+import { TranscriptsErrorState } from './components/transcripts-error-state'
+import { TranscriptsHeader } from './components/transcripts-header'
+import { TranscriptsList } from './components/transcripts-list'
+import { TranscriptsListSkeleton } from './components/transcripts-list-skeleton'
+import { TranscriptsPagination } from './components/transcripts-pagination'
+import { usePaginatedTranscripts } from './hooks/use-paginated-transcripts'
 
 export function TranscriptsView(): React.JSX.Element {
-  const { page } = useSearch({ from: '/transcripts' })
+  const {
+    totalItems,
+    totalPages,
+    pageLabel,
+    items,
+    isInitialLoading,
+    isPageTransitioning,
+    isEmpty,
+    isOutOfRangeEmpty,
+    isError,
+    canGoPrev,
+    canGoNext,
+    goToPreviousPage,
+    goToNextPage,
+    goToLastPage,
+    retry
+  } = usePaginatedTranscripts()
+
+  const hasPagination = totalPages > 1 && !isError
+  const showError = isError
+  const showSkeleton = !showError && isInitialLoading
+  const showEmpty = !showError && !showSkeleton && (isEmpty || isOutOfRangeEmpty)
+  const showList = !showError && !showSkeleton && !showEmpty
 
   return (
     <section className="w-full max-w-4xl space-y-5 py-1 sm:py-2">
-      <header className="space-y-1.5">
-        <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Transcripts</h2>
-        <p className="text-muted-foreground text-sm">
-          Transcript list UI is coming next. Backend pagination is ready with page size{' '}
-          {TRANSCRIPTS_PAGE_SIZE}.
-        </p>
-      </header>
+      <TranscriptsHeader totalItems={totalItems} />
 
-      <p className="text-muted-foreground text-sm">Current page: {page}</p>
+      {showError && <TranscriptsErrorState onRetry={retry} />}
+      {showSkeleton && <TranscriptsListSkeleton />}
+      {showEmpty && (
+        <TranscriptsEmptyState isOutOfRange={isOutOfRangeEmpty} onGoToLastPage={goToLastPage} />
+      )}
+      {showList && <TranscriptsList items={items} />}
+
+      {hasPagination && (
+        <TranscriptsPagination
+          pageLabel={pageLabel}
+          canGoPrev={canGoPrev}
+          canGoNext={canGoNext}
+          isPageTransitioning={isPageTransitioning}
+          onPrevious={goToPreviousPage}
+          onNext={goToNextPage}
+        />
+      )}
     </section>
   )
 }
