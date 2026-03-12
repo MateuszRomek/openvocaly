@@ -5,8 +5,9 @@ export function formatReportingNumber(value: number): string {
 }
 
 export function formatReportingMinutes(totalMinutes: number): string {
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = Math.round(totalMinutes % 60)
+  const roundedTotalMinutes = Math.max(0, Math.round(totalMinutes))
+  const hours = Math.floor(roundedTotalMinutes / 60)
+  const minutes = roundedTotalMinutes % 60
 
   if (hours <= 0) {
     return `${minutes}m`
