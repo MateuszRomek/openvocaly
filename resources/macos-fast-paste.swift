@@ -30,6 +30,9 @@ private let editableSubroles: Set<String> = [
   "AXTextField",
 ]
 
+private let focusedElementResolveAttempts = 3
+private let focusedElementResolveDelayUs: useconds_t = 18_000
+
 func main() {
   let command = resolveCommand()
   switch command {
@@ -104,8 +107,10 @@ func runProbe() {
 
   let pid = frontApp.processIdentifier
   let appElement = AXUIElementCreateApplication(pid)
+  _ = enableEnhancedUserInterface(appElement)
+  usleep(8_000)
 
-  if let focused = copyAXElementAttribute(appElement, kAXFocusedUIElementAttribute as CFString) {
+  if let focused = resolveFocusedElement(appElement) {
     let inspected = inspectEditableTarget(start: focused)
     emitProbe(
       ProbePayload(
@@ -204,6 +209,36 @@ func copyAttribute(_ element: AXUIElement, _ attribute: CFString) -> CFTypeRef? 
   }
 
   return value
+}
+
+@discardableResult
+func enableEnhancedUserInterface(_ appElement: AXUIElement) -> Bool {
+  let error = AXUIElementSetAttributeValue(
+    appElement,
+    "AXEnhancedUserInterface" as CFString,
+    kCFBooleanTrue
+  )
+  return error == .success
+}
+
+func resolveFocusedElement(_ appElement: AXUIElement) -> AXUIElement? {
+  for attempt in 0..<focusedElementResolveAttempts {
+    if let focusedElement = copyAXElementAttribute(appElement, kAXFocusedUIElementAttribute as CFString) {
+      return focusedElement
+    }
+
+    if let focusedWindow = copyAXElementAttribute(appElement, kAXFocusedWindowAttribute as CFString),
+      let focusedInWindow = copyAXElementAttribute(focusedWindow, kAXFocusedUIElementAttribute as CFString)
+    {
+      return focusedInWindow
+    }
+
+    if attempt < focusedElementResolveAttempts - 1 {
+      usleep(focusedElementResolveDelayUs)
+    }
+  }
+
+  return nil
 }
 
 func copyAXElementAttribute(_ element: AXUIElement, _ attribute: CFString) -> AXUIElement? {

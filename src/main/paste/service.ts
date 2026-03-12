@@ -5,14 +5,18 @@ import { getPastePlatformAdapter } from './adapters'
 import { ClipboardTransaction } from './clipboard-transaction'
 import type {
   AutoPasteProbeDecision,
+  PasteActionResult,
   PastePlatformAdapter,
   PasteProbeResult
 } from './platform-adapter'
 import type { PermissionsService } from '../permissions/service'
 import type { SessionTargetApp } from '../../shared/storage'
 import {
+  AUTO_PASTE_MAX_ATTEMPTS,
+  AUTO_PASTE_RETRY_DELAY_MS,
   CLIPBOARD_RESTORE_DELAY_AFTER_MANUAL_PASTE_MS,
   CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS,
+  CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_LAST_MS,
   MANUAL_FALLBACK_TIMEOUT_MS,
   MANUAL_SHORTCUT_REPLAY_DELAY_MS,
   POST_PASTE_TARGET_PROBE_TIMEOUT_MS
@@ -22,8 +26,10 @@ import { ManualFallbackSession } from './service/manual-fallback-session'
 import { toSessionTargetApp } from './service/target-app'
 import type {
   DictationPasteOutcome,
+  PasteLatestTranscriptInput,
   ManualFallbackOutcome,
   ManualPasteState,
+  PastePreflightResult,
   ProcessTranscriptInput
 } from './service/types'
 
@@ -52,46 +58,11 @@ export class DictationPasteService {
   }
 
   async processTranscript(params: ProcessTranscriptInput): Promise<DictationPasteOutcome> {
-    const capabilities = this.adapter.capabilities()
-    this.logger.debug({
-      sessionId: params.sessionId,
-      platform: capabilities.platform,
-      capabilities
-    })
-
-    if (
-      capabilities.requiresAccessibilityPermission &&
-      !this.permissionsService.isAccessibilityGranted()
-    ) {
-      console.warn('[paste] permission denied for paste flow', {
-        sessionId: params.sessionId
-      })
-      return {
-        type: 'permission_denied',
-        message:
-          'Accessibility permission is required for auto-paste. Enable it in Settings > Permissions.'
-      }
+    const preflight = this.runPastePreflight(params)
+    if (!preflight.ok) {
+      return preflight.outcome
     }
-
-    const transcriptText = params.transcriptText.trim()
-    if (!transcriptText) {
-      return {
-        type: 'error',
-        message: 'No transcription text available to paste.'
-      }
-    }
-
-    if (capabilities.implementationState !== 'ready') {
-      console.warn('[paste] platform adapter not implemented', {
-        sessionId: params.sessionId,
-        platform: capabilities.platform
-      })
-
-      return {
-        type: 'not_supported',
-        message: getUnsupportedPlatformMessage(capabilities.platform)
-      }
-    }
+    const { capabilities, transcriptText } = preflight
 
     const clipboardTransaction = this.createClipboardTransaction()
     clipboardTransaction.capture()
@@ -106,46 +77,32 @@ export class DictationPasteService {
       })
 
       if (capabilities.supportsAutoPaste) {
-        const probeResult = capabilities.supportsEditableProbe
-          ? await this.adapter.probeEditableTarget()
-          : null
+        const pasteResult = await this.simulateAutoPasteWithRetry({
+          sessionId: params.sessionId,
+          transcriptText,
+          clipboardTransaction
+        })
+        this.logger.debug({
+          sessionId: params.sessionId,
+          pasteResult
+        })
 
-        if (probeResult) {
-          this.logger.debug({
-            sessionId: params.sessionId,
-            probeResult
-          })
-        }
-
-        const probeDecision = this.resolveAutoPasteProbeDecision(probeResult)
-
-        if (!probeDecision.shouldAttemptAutoPaste) {
-          this.logger.debug({
-            sessionId: params.sessionId,
-            reason: probeDecision.reason ?? null,
-            probeResult
-          })
-        }
-
-        if (probeDecision.shouldAttemptAutoPaste) {
-          const pasteResult = await this.adapter.simulatePasteShortcut()
-          this.logger.debug({
-            sessionId: params.sessionId,
-            pasteResult
-          })
-
-          if (pasteResult.ok) {
-            await createUnrefDelay(CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS)
-            clipboardTransaction.restore()
-            clipboardRestored = true
-            const targetApp = toSessionTargetApp(probeResult)
-            this.schedulePostPasteTargetAppProbe(params)
-            return {
-              type: 'auto_paste_success',
-              targetApp
-            }
+        if (pasteResult.ok) {
+          await createUnrefDelay(CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS)
+          clipboardTransaction.restore()
+          clipboardRestored = true
+          this.schedulePostPasteTargetAppProbe(params)
+          return {
+            type: 'auto_paste_success',
+            targetApp: null
           }
         }
+
+        this.logger.debug({
+          sessionId: params.sessionId,
+          message: pasteResult.message ?? null,
+          event: 'auto_paste_failed_switching_to_manual_fallback'
+        })
       }
 
       const manualOutcome = await this.awaitManualFallback({
@@ -180,6 +137,119 @@ export class DictationPasteService {
     }
   }
 
+  async pasteLatestTranscript(params: PasteLatestTranscriptInput): Promise<DictationPasteOutcome> {
+    const preflight = this.runPastePreflight(params)
+    if (!preflight.ok) {
+      return preflight.outcome
+    }
+    const { capabilities, transcriptText } = preflight
+
+    const clipboardTransaction = this.createClipboardTransaction()
+    clipboardTransaction.capture()
+
+    let clipboardRestored = false
+
+    try {
+      clipboardTransaction.writeText(transcriptText)
+      this.logger.debug({
+        sessionId: params.sessionId,
+        length: transcriptText.length
+      })
+
+      let autoPasteFailureMessage: string | undefined
+      let probeResult: PasteProbeResult | null = null
+
+      if (capabilities.supportsAutoPaste) {
+        if (capabilities.supportsEditableProbe) {
+          probeResult = await this.adapter.probeEditableTarget()
+          this.logger.debug({
+            sessionId: params.sessionId,
+            probeResult
+          })
+
+          if (probeResult.ok && !probeResult.isEditable) {
+            this.logger.debug({
+              sessionId: params.sessionId,
+              reason: 'non_editable_target',
+              probeResult
+            })
+            return {
+              type: 'error',
+              message: 'Focus a text input and try again.'
+            }
+          }
+
+          const probeDecision = this.resolveAutoPasteProbeDecision(probeResult)
+          if (!probeDecision.shouldAttemptAutoPaste) {
+            this.logger.debug({
+              sessionId: params.sessionId,
+              reason: probeDecision.reason ?? null,
+              probeResult
+            })
+            autoPasteFailureMessage = probeDecision.reason
+            return {
+              type: 'error',
+              message:
+                autoPasteFailureMessage ??
+                `Auto-paste failed after ${AUTO_PASTE_MAX_ATTEMPTS} attempts.`
+            }
+          }
+        }
+
+        const pasteResult = await this.simulateAutoPasteWithRetry({
+          sessionId: params.sessionId,
+          transcriptText,
+          clipboardTransaction
+        })
+        this.logger.debug({
+          sessionId: params.sessionId,
+          pasteResult
+        })
+
+        if (pasteResult.ok) {
+          clipboardRestored = true
+          this.scheduleClipboardRestore(
+            clipboardTransaction,
+            CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_LAST_MS
+          )
+          return {
+            type: 'auto_paste_success',
+            targetApp: toSessionTargetApp(probeResult)
+          }
+        }
+
+        this.logger.debug({
+          sessionId: params.sessionId,
+          message: pasteResult.message ?? null,
+          event: 'auto_paste_failed_without_manual_fallback'
+        })
+        autoPasteFailureMessage = pasteResult.message
+      } else {
+        autoPasteFailureMessage = 'Auto-paste is unavailable on this platform adapter.'
+      }
+
+      return {
+        type: 'error',
+        message:
+          autoPasteFailureMessage ?? `Auto-paste failed after ${AUTO_PASTE_MAX_ATTEMPTS} attempts.`
+      }
+    } catch (error) {
+      return {
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Auto-paste flow failed unexpectedly.'
+      }
+    } finally {
+      if (this.activeFallbackSession?.sessionId === params.sessionId) {
+        this.activeFallbackSession.cancel()
+        this.clearActiveFallback()
+      }
+
+      if (!clipboardRestored) {
+        clipboardTransaction.restore()
+      }
+    }
+  }
+
   cancelActiveFallback(sessionId?: string): boolean {
     if (!this.activeFallbackSession) {
       return false
@@ -196,6 +266,29 @@ export class DictationPasteService {
     this.cancelActiveFallback()
     this.adapter.stopManualPasteWatcher()
     this.clearActiveFallback()
+  }
+
+  async prewarm(): Promise<void> {
+    const capabilities = this.adapter.capabilities()
+    if (capabilities.implementationState !== 'ready') {
+      return
+    }
+
+    if (!capabilities.supportsAutoPaste || !capabilities.supportsEditableProbe) {
+      return
+    }
+
+    try {
+      await this.adapter.probeEditableTarget()
+      this.logger.debug({
+        event: 'prewarm_probe_complete'
+      })
+    } catch (error) {
+      this.logger.debug({
+        message: error instanceof Error ? error.message : 'Paste prewarm probe failed.',
+        event: 'prewarm_probe_failed'
+      })
+    }
   }
 
   private async awaitManualFallback(params: {
@@ -236,6 +329,116 @@ export class DictationPasteService {
     }
 
     return this.adapter.evaluateAutoPasteProbe?.(probeResult) ?? DEFAULT_AUTO_PASTE_PROBE_DECISION
+  }
+
+  private runPastePreflight(params: {
+    sessionId: string
+    transcriptText: string
+  }): PastePreflightResult {
+    const capabilities = this.adapter.capabilities()
+    this.logger.debug({
+      sessionId: params.sessionId,
+      platform: capabilities.platform,
+      capabilities
+    })
+
+    if (
+      capabilities.requiresAccessibilityPermission &&
+      !this.permissionsService.isAccessibilityGranted()
+    ) {
+      console.warn('[paste] permission denied for paste flow', {
+        sessionId: params.sessionId
+      })
+      return {
+        ok: false,
+        outcome: {
+          type: 'permission_denied',
+          message:
+            'Accessibility permission is required for auto-paste. Enable it in Settings > Permissions.'
+        }
+      }
+    }
+
+    const transcriptText = params.transcriptText.trim()
+    if (!transcriptText) {
+      return {
+        ok: false,
+        outcome: {
+          type: 'error',
+          message: 'No transcription text available to paste.'
+        }
+      }
+    }
+
+    if (capabilities.implementationState !== 'ready') {
+      console.warn('[paste] platform adapter not implemented', {
+        sessionId: params.sessionId,
+        platform: capabilities.platform
+      })
+
+      return {
+        ok: false,
+        outcome: {
+          type: 'not_supported',
+          message: getUnsupportedPlatformMessage(capabilities.platform)
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      capabilities,
+      transcriptText
+    }
+  }
+
+  private async simulateAutoPasteWithRetry(params: {
+    sessionId: string
+    transcriptText: string
+    clipboardTransaction: ClipboardTransaction
+  }): Promise<PasteActionResult> {
+    let lastFailureMessage: string | undefined
+    for (let attempt = 1; attempt <= AUTO_PASTE_MAX_ATTEMPTS; attempt += 1) {
+      if (attempt > 1) {
+        await createUnrefDelay(AUTO_PASTE_RETRY_DELAY_MS)
+        params.clipboardTransaction.writeText(params.transcriptText)
+      }
+
+      try {
+        const pasteResult = await this.adapter.simulatePasteShortcut()
+        this.logger.debug({
+          sessionId: params.sessionId,
+          attempt,
+          maxAttempts: AUTO_PASTE_MAX_ATTEMPTS,
+          pasteResult,
+          event: 'auto_paste_attempt_result'
+        })
+        if (pasteResult.ok) {
+          return pasteResult
+        }
+
+        lastFailureMessage =
+          pasteResult.message ??
+          `Auto-paste attempt ${attempt}/${AUTO_PASTE_MAX_ATTEMPTS} returned non-ok result.`
+      } catch (error) {
+        lastFailureMessage =
+          error instanceof Error
+            ? error.message
+            : `Auto-paste attempt ${attempt}/${AUTO_PASTE_MAX_ATTEMPTS} failed unexpectedly.`
+        this.logger.warn({
+          sessionId: params.sessionId,
+          attempt,
+          maxAttempts: AUTO_PASTE_MAX_ATTEMPTS,
+          message: lastFailureMessage,
+          event: 'auto_paste_attempt_error'
+        })
+      }
+    }
+
+    return {
+      ok: false,
+      message: lastFailureMessage ?? `Auto-paste failed after ${AUTO_PASTE_MAX_ATTEMPTS} attempts.`
+    }
   }
 
   private schedulePostPasteTargetAppProbe(params: ProcessTranscriptInput): void {
@@ -305,5 +508,25 @@ export class DictationPasteService {
           resolve(null)
         })
     })
+  }
+
+  private scheduleClipboardRestore(
+    clipboardTransaction: ClipboardTransaction,
+    delayMs: number
+  ): void {
+    const restoreTimer = setTimeout(() => {
+      try {
+        clipboardTransaction.restore()
+      } catch (error) {
+        this.logger.debug({
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Clipboard restore failed after scheduled delay.',
+          event: 'clipboard_restore_scheduled_failed'
+        })
+      }
+    }, delayMs)
+    restoreTimer.unref()
   }
 }

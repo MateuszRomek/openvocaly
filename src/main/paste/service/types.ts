@@ -1,4 +1,5 @@
 import type { SessionTargetApp } from '../../../shared/storage'
+import type { PastePlatformCapabilities } from '../platform-adapter'
 
 export type ManualPasteState = {
   remainingMs: number
@@ -18,9 +19,25 @@ export type DictationPasteOutcome =
   | { type: 'not_supported'; message: string }
   | { type: 'error'; message: string }
 
+export type PastePreflightResult =
+  | {
+      ok: true
+      capabilities: PastePlatformCapabilities
+      transcriptText: string
+    }
+  | {
+      ok: false
+      outcome: DictationPasteOutcome
+    }
+
 export type ProcessTranscriptInput = {
   sessionId: string
   transcriptText: string
   onManualPasteState: (state: ManualPasteState) => Promise<void> | void
   onPostPasteTargetApp?: (targetApp: SessionTargetApp) => Promise<void> | void
+}
+
+export type PasteLatestTranscriptInput = {
+  sessionId: string
+  transcriptText: string
 }

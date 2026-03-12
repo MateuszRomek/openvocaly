@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import type {
   AddTranscriptInput,
   AddTranscriptResult,
@@ -66,6 +66,20 @@ export class StorageRepository {
       .run()
 
     return { id: Number(result.lastInsertRowid) }
+  }
+
+  async getLatestNonEmptyTranscriptText(): Promise<string | null> {
+    const db = getDb()
+    const rows = await db
+      .select({ text: transcripts.text })
+      .from(transcripts)
+      .where(sql`length(trim(${transcripts.text})) > 0`)
+      .orderBy(desc(transcripts.createdAt))
+      .limit(1)
+      .all()
+
+    const latest = rows[0]?.text
+    return typeof latest === 'string' ? latest : null
   }
 
   async listTranscripts(params: ListTranscriptsInput = {}): Promise<ListTranscriptsResult> {

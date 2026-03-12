@@ -12,7 +12,6 @@ export type PastePlatformCapabilities = {
 export type PasteProbeResult = {
   ok: boolean
   isEditable: boolean
-  isSelfApp?: boolean
   frontProcessName?: string
   frontProcessIdentifier?: string
   frontProcessPath?: string

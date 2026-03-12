@@ -22,16 +22,13 @@ import {
 } from './constants'
 import {
   buildNativePasteBinaryCandidates,
-  isSelfFrontProcess,
   parseEditableProbeOutput,
   parseNativeProbeOutput,
   resolveFirstExecutableCandidate,
-  resolveSelfProcessNames,
   runAppleScript,
   toNativePasteExitMessage,
   toNativeProbeExitMessage
 } from './helpers'
-import { evaluateMacOSAutoPasteDecision, evaluateMacOSManualPasteDecision } from './probe-decisions'
 
 export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
   private readonly logger = createLogger('paste.adapter.macos')
@@ -39,7 +36,6 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
   private nativePasteBinaryPath: string | null | undefined
   private hasCompletedNativeProbe = false
   private readonly nativeFastPasteClient = new MacOSFastPasteClient()
-  private readonly selfProcessNames = resolveSelfProcessNames(app.getName())
 
   capabilities(): PastePlatformCapabilities {
     return {
@@ -57,7 +53,7 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
     if (nativePasteBinaryPath) {
       const nativeProbeResult = await this.runNativeProbeBinary(nativePasteBinaryPath)
       if (nativeProbeResult.ok && nativeProbeResult.probeResult.ok) {
-        return this.attachSelfProcessFlag(nativeProbeResult.probeResult)
+        return nativeProbeResult.probeResult
       }
 
       if (!nativeProbeResult.ok) {
@@ -77,10 +73,10 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
     try {
       const output = await runAppleScript(APPLE_SCRIPT_PROBE_EDITABLE_LINES)
       const parsedProbe = parseEditableProbeOutput(output)
-      return this.attachSelfProcessFlag({
+      return {
         ok: true,
         ...parsedProbe
-      })
+      }
     } catch (error) {
       return {
         ok: false,
@@ -92,11 +88,17 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
   }
 
   evaluateAutoPasteProbe(probeResult: PasteProbeResult): AutoPasteProbeDecision {
-    return evaluateMacOSAutoPasteDecision(probeResult)
+    void probeResult
+    return {
+      shouldAttemptAutoPaste: true
+    }
   }
 
   evaluateManualPasteProbe(probeResult: PasteProbeResult): ManualPasteProbeDecision {
-    return evaluateMacOSManualPasteDecision(probeResult)
+    void probeResult
+    return {
+      shouldIgnoreManualPaste: false
+    }
   }
 
   async simulatePasteShortcut(): Promise<PasteActionResult> {
@@ -301,13 +303,6 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
         ok: false,
         message: error instanceof Error ? error.message : 'Native probe output parse failed.'
       }
-    }
-  }
-
-  private attachSelfProcessFlag(probeResult: PasteProbeResult): PasteProbeResult {
-    return {
-      ...probeResult,
-      isSelfApp: isSelfFrontProcess(probeResult, this.selfProcessNames)
     }
   }
 }

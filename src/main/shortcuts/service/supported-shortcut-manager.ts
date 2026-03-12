@@ -1,6 +1,7 @@
 import { globalShortcut } from 'electron'
-import { SHORTCUT_ACTIONS, type ShortcutMutationResponse } from '../../../shared/shortcuts'
+import type { ShortcutMutationResponse } from '../../../shared/shortcuts'
 import { areCanonicalShortcutsEqual, type PersistedShortcutBinding } from '../accelerator'
+import { SUPPORTED_GLOBAL_ACTIONS } from '../constants'
 import type { ShortcutActionStateMap } from '../types'
 import type { SupportedGlobalShortcutAction } from './global-shortcut'
 
@@ -33,8 +34,8 @@ export const registerSupportedShortcutsOnStartup = ({
 }): { startupFailure: boolean } => {
   let startupFailure = false
 
-  for (const action of SHORTCUT_ACTIONS) {
-    if (action === 'recording.push_to_talk') {
+  for (const action of SUPPORTED_GLOBAL_ACTIONS) {
+    if (!isSupportedGlobalShortcutAction(action)) {
       continue
     }
 
@@ -73,6 +74,11 @@ export const registerSupportedShortcutsOnStartup = ({
 
   return { startupFailure }
 }
+
+const isSupportedGlobalShortcutAction = (action: string): action is SupportedGlobalShortcutAction =>
+  action === 'recording.toggle' ||
+  action === 'recording.cancel' ||
+  action === 'transcription.paste_last'
 
 /**
  * Applies an updated binding for supported global shortcuts as a single transaction:

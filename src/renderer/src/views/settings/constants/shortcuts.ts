@@ -17,6 +17,10 @@ export const SHORTCUT_ACTION_META: Record<ShortcutAction, { label: string; descr
     'recording.push_to_talk': {
       label: 'Push-to-talk',
       description: 'Hold to record. Release to stop.'
+    },
+    'transcription.paste_last': {
+      label: 'Paste last transcription',
+      description: 'Paste your latest saved transcription into the focused app.'
     }
   }
 

@@ -5,9 +5,6 @@ export const NATIVE_PROBE_TIMEOUT_MS = 120
 export const NATIVE_FIRST_PROBE_TIMEOUT_MS = 600
 export const NATIVE_FIRST_PROBE_RETRY_TIMEOUT_MS = 1_500
 
-// Known aliases for this app process. Used to avoid auto-paste into our own focused window.
-export const SELF_PROCESS_NAME_ALIASES = ['OpenVocaly'] as const
-
 // AppleScript probe that inspects the frontmost accessibility element and reports:
 // editable flag + process identity + focused role/subrole + bundle id + path.
 

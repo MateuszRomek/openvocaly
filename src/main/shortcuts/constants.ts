@@ -1,10 +1,11 @@
-import type { ShortcutAction } from '../../shared/shortcuts'
+import { SHORTCUT_ACTIONS, type ShortcutAction } from '../../shared/shortcuts'
 import type { PersistedShortcutBinding } from './accelerator'
 import type { ShortcutActionStateMap } from './types'
 
 export const SUPPORTED_GLOBAL_ACTIONS = new Set<ShortcutAction>([
   'recording.toggle',
-  'recording.cancel'
+  'recording.cancel',
+  'transcription.paste_last'
 ])
 
 export const VALID_MODIFIERS = new Set([
@@ -22,20 +23,12 @@ export const VALID_MODIFIERS = new Set([
 
 export const createInitialShortcutState = (
   bindings: Record<ShortcutAction, PersistedShortcutBinding>
-): ShortcutActionStateMap => ({
-  'recording.toggle': {
-    storedBinding: bindings['recording.toggle'],
-    effectiveAccelerator: null,
-    registrationError: null
-  },
-  'recording.cancel': {
-    storedBinding: bindings['recording.cancel'],
-    effectiveAccelerator: null,
-    registrationError: null
-  },
-  'recording.push_to_talk': {
-    storedBinding: bindings['recording.push_to_talk'],
-    effectiveAccelerator: null,
-    registrationError: null
-  }
-})
+): ShortcutActionStateMap =>
+  SHORTCUT_ACTIONS.reduce((accumulator, action) => {
+    accumulator[action] = {
+      storedBinding: bindings[action],
+      effectiveAccelerator: null,
+      registrationError: null
+    }
+    return accumulator
+  }, {} as ShortcutActionStateMap)
