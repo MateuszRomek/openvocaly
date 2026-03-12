@@ -6,7 +6,7 @@ export function HomeTopAppsEmptyState(): React.JSX.Element {
       <EmptyHeader>
         <EmptyTitle>No app activity yet</EmptyTitle>
         <EmptyDescription>
-          Start dictating in your apps to populate this breakdown for the selected range.
+          Start dictating in your apps to populate this breakdown for the selected time range.
         </EmptyDescription>
       </EmptyHeader>
     </Empty>

@@ -28,7 +28,7 @@ export function HomeTopAppsSheet({ appDetails }: HomeTopAppsSheetProps): React.J
       <SheetContent side="right">
         <SheetHeader>
           <SheetTitle>All apps</SheetTitle>
-          <SheetDescription>Full breakdown for selected range.</SheetDescription>
+          <SheetDescription>Full breakdown for the selected time range.</SheetDescription>
         </SheetHeader>
 
         <div className="app-scroll-area flex-1 overflow-y-auto px-4 pb-4">
@@ -41,7 +41,9 @@ export function HomeTopAppsSheet({ appDetails }: HomeTopAppsSheetProps): React.J
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium">{row.appLabel}</p>
-                    <p className="text-muted-foreground text-xs">{row.interactions} interactions</p>
+                    <p className="text-muted-foreground text-xs">
+                      {row.interactions} dictation {row.interactions === 1 ? 'session' : 'sessions'}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium">{wordsFormatter.format(row.words)}</p>

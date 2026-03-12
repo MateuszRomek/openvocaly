@@ -6,7 +6,7 @@ export function HomeDailyOutputEmptyState(): React.JSX.Element {
       <EmptyHeader>
         <EmptyTitle>No daily output yet</EmptyTitle>
         <EmptyDescription>
-          Start dictating to populate this chart for the selected range.
+          Start dictating to populate this chart for the selected time range.
         </EmptyDescription>
       </EmptyHeader>
     </Empty>

@@ -6,7 +6,7 @@ export function HomeWpmTrendEmptyState(): React.JSX.Element {
       <EmptyHeader>
         <EmptyTitle>No WPM data yet</EmptyTitle>
         <EmptyDescription>
-          Complete a few dictation sessions to see your speed trend in this range.
+          Complete a few dictation sessions to see your speed trend in this time range.
         </EmptyDescription>
       </EmptyHeader>
     </Empty>

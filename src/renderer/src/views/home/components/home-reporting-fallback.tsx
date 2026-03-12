@@ -23,10 +23,8 @@ export function HomeReportingFallback({
           <EmptyMedia variant="icon">
             <AlertTriangleIcon className="size-4" />
           </EmptyMedia>
-          <EmptyTitle>Could not load reporting</EmptyTitle>
-          <EmptyDescription>
-            Something went wrong while fetching your home metrics.
-          </EmptyDescription>
+          <EmptyTitle>Could not load your activity</EmptyTitle>
+          <EmptyDescription>We could not load your home stats. Try again.</EmptyDescription>
         </EmptyHeader>
 
         <EmptyContent>

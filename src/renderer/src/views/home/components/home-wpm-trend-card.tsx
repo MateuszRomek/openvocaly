@@ -71,7 +71,7 @@ export function HomeWpmTrendCard({ range }: HomeWpmTrendCardProps): React.JSX.El
               </LineChart>
             </ChartContainer>
             <p className="text-muted-foreground mt-2 text-xs">
-              Raw shows each session. Trend smooths short-term spikes.
+              Solid line shows each session. Dashed line shows the smoothed trend.
             </p>
           </>
         ) : (

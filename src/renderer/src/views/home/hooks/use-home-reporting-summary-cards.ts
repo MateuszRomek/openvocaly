@@ -42,12 +42,12 @@ export function useHomeReportingSummaryCards(
         id: 'averageWpm',
         title: 'Average WPM',
         value: formatReportingNumber(Math.round(summary.averageWpm)),
-        description: 'vs previous period',
+        description: 'vs previous time range',
         percentage: deltas.averageWpmPct
       },
       {
         id: 'wordsInRange',
-        title: 'Words in range',
+        title: 'Words dictated',
         value: formatReportingNumber(summary.words),
         description: formatRangeDescription(range),
         percentage: deltas.wordsPct
@@ -63,7 +63,7 @@ export function useHomeReportingSummaryCards(
         id: 'totalDictationTime',
         title: 'Total dictation time',
         value: formatReportingMinutes(summary.totalMinutes),
-        description: `Avg ${Math.round(summary.totalMinutes / Math.max(summary.sessions, 1))} min/session`,
+        description: `Average ${Math.round(summary.totalMinutes / Math.max(summary.sessions, 1))} min per session`,
         percentage: deltas.totalMinutesPct
       }
     ] as const

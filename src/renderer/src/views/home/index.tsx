@@ -57,7 +57,7 @@ export function HomeView(): React.JSX.Element {
                 <div className="space-y-1.5">
                   <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Home</h2>
                   <p className="text-muted-foreground text-sm">
-                    Track output, speed, and app usage.
+                    Track words dictated, speed, and app usage.
                   </p>
                 </div>
 

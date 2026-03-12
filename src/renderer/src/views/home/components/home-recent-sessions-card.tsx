@@ -16,7 +16,7 @@ export function HomeRecentSessionsCard({ range }: HomeRecentSessionsCardProps): 
     <Card className="bg-card/95 ring-foreground/8">
       <CardHeader className="border-border/50 border-b">
         <CardTitle>Recent sessions</CardTitle>
-        <CardDescription>Latest dictations in selected range.</CardDescription>
+        <CardDescription>Latest dictations in the selected time range.</CardDescription>
       </CardHeader>
       <CardContent className="pt-4">
         <div className="border-border/60 bg-background/60 grid grid-cols-[1.45fr_0.8fr_0.6fr_0.9fr_0.9fr] items-center gap-2 rounded-lg border px-3 py-2 text-[11px] font-medium tracking-wide uppercase">
