@@ -27,7 +27,8 @@ export function useHomeWpmTrendChart(range: HomeReportingRange): UseHomeWpmTrend
       trend: point.rollingWpm
     }))
 
-    const hasWpmData = points.some((point) => point.wpm !== null)
+    const validWpmPointCount = points.filter((point) => point.wpm !== null).length
+    const hasWpmData = validWpmPointCount >= 2
     const validTrendPointCount = points.filter((point) => point.trend !== null).length
 
     return {
