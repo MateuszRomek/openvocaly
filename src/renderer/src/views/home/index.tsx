@@ -2,18 +2,7 @@ import { Suspense, useMemo, useTransition } from 'react'
 import { QueryErrorResetBoundary } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ErrorBoundary } from 'react-error-boundary'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  XAxis,
-  YAxis
-} from 'recharts'
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts'
 import {
   CardAction,
   Card,
@@ -43,6 +32,8 @@ import { HomeDailyOutputCardSkeleton } from './components/home-daily-output-card
 import { HomeReportingRangeTabs } from './components/home-reporting-range-tabs'
 import { HomeReportingSummaryRow } from './components/home-reporting-summary-row'
 import { HomeReportingSummaryRowSkeleton } from './components/home-reporting-summary-row-skeleton'
+import { HomeWpmTrendCard } from './components/home-wpm-trend-card'
+import { HomeWpmTrendCardSkeleton } from './components/home-wpm-trend-card-skeleton'
 import { type HomeReportingRange } from './constants/reporting-range'
 
 type HomeRangeMockData = {
@@ -260,17 +251,6 @@ const MOCK_RANGE_DATA: Record<HomeReportingRange, HomeRangeMockData> = {
   }
 }
 
-const wpmChartConfig = {
-  wpm: {
-    label: 'Per-session WPM',
-    color: 'var(--color-chart-1)'
-  },
-  rolling: {
-    label: 'Trend line',
-    color: 'var(--color-chart-3)'
-  }
-} satisfies ChartConfig
-
 const monthlyChartConfig = {
   words: {
     label: 'Words',
@@ -476,49 +456,9 @@ export function HomeView(): React.JSX.Element {
             </Suspense>
 
             <div className="grid gap-4 xl:grid-cols-2">
-              <Card className="bg-card/95 ring-foreground/8">
-                <CardHeader className="border-border/50 border-b">
-                  <CardTitle>WPM trend</CardTitle>
-                  <CardDescription>Session speed with smoothed trend.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <ChartContainer config={wpmChartConfig} className="h-56 w-full aspect-auto">
-                    <LineChart
-                      data={activeData.wpmTimeline}
-                      margin={{ left: 12, right: 12, top: 8 }}
-                    >
-                      <CartesianGrid vertical={false} />
-                      <XAxis
-                        dataKey="label"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={10}
-                        minTickGap={18}
-                      />
-                      <YAxis tickLine={false} axisLine={false} width={32} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Line
-                        type="monotone"
-                        dataKey="rolling"
-                        stroke="var(--color-rolling)"
-                        strokeWidth={2}
-                        dot={false}
-                        strokeDasharray="4 4"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="wpm"
-                        stroke="var(--color-wpm)"
-                        strokeWidth={2.2}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ChartContainer>
-                  <p className="text-muted-foreground mt-2 text-xs">
-                    Raw shows each session. Trend smooths short-term spikes.
-                  </p>
-                </CardContent>
-              </Card>
+              <Suspense fallback={<HomeWpmTrendCardSkeleton />}>
+                <HomeWpmTrendCard range={selectedRange} />
+              </Suspense>
 
               <Card className="bg-card/95 ring-foreground/8">
                 <CardHeader className="border-border/50 border-b">

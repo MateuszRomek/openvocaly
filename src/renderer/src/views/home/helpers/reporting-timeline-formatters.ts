@@ -1,6 +1,6 @@
 import type { HomeReportingRange } from '../constants/reporting-range'
 
-export function formatDailyOutputLabel(key: string, range: HomeReportingRange): string {
+function formatTimelineLabel(key: string, range: HomeReportingRange): string {
   const segments = key.split('-')
 
   if (range === '12m' && segments.length === 2) {
@@ -14,4 +14,12 @@ export function formatDailyOutputLabel(key: string, range: HomeReportingRange): 
   }
 
   return key
+}
+
+export function formatDailyOutputLabel(key: string, range: HomeReportingRange): string {
+  return formatTimelineLabel(key, range)
+}
+
+export function formatWpmTrendLabel(key: string, range: HomeReportingRange): string {
+  return formatTimelineLabel(key, range)
 }
