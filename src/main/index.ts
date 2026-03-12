@@ -1,4 +1,12 @@
-import { app, shell, BrowserWindow, ipcMain, nativeImage, nativeTheme } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  nativeImage,
+  nativeTheme,
+  powerMonitor
+} from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import appIconIco from '../../build/icon.ico?asset'
@@ -11,6 +19,7 @@ import { createLogger } from './helpers/logger'
 import { isMacOS, isWindows } from './helpers/platform'
 
 const GRACEFUL_QUIT_TIMEOUT_MS = 2500
+const PASTE_WARMUP_DELAY_MS = 8_000
 const logger = createLogger('main.index')
 const appWindowIcon = isWindows() ? appIconIco : appIconBackgroundDarkPng
 const MAC_DOCK_ICON_INSET_RATIO = 0.1
@@ -21,6 +30,8 @@ let mainWindow: BrowserWindow | null = null
 let hasShutdownCompleted = false
 let shutdownPromise: Promise<void> | null = null
 let isQuitting = false
+let pasteWarmupCompleted = false
+let pasteWarmupOnAcListener: (() => void) | null = null
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 if (!hasSingleInstanceLock) {
@@ -87,6 +98,106 @@ const applyMacDockIcon = (): void => {
   }
 
   app.dock?.setIcon(getMacDockIcon())
+}
+
+const clearPasteWarmupOnAcListener = (): void => {
+  if (!pasteWarmupOnAcListener) {
+    return
+  }
+
+  powerMonitor.off('on-ac', pasteWarmupOnAcListener)
+  pasteWarmupOnAcListener = null
+}
+
+const isThermalStateSafeForWarmup = (): boolean => {
+  if (!isMacOS()) {
+    return true
+  }
+
+  try {
+    const thermalState = powerMonitor.getCurrentThermalState()
+    return thermalState !== 'serious' && thermalState !== 'critical'
+  } catch {
+    return true
+  }
+}
+
+const isOnBatteryPowerSafe = (): boolean => {
+  try {
+    return powerMonitor.isOnBatteryPower()
+  } catch {
+    return false
+  }
+}
+
+const ensurePasteWarmupOnAcListener = (): void => {
+  if (pasteWarmupOnAcListener) {
+    return
+  }
+
+  pasteWarmupOnAcListener = () => {
+    void tryRunPasteWarmup('on_ac')
+  }
+
+  powerMonitor.on('on-ac', pasteWarmupOnAcListener)
+}
+
+const tryRunPasteWarmup = async (source: 'startup_delay' | 'on_ac'): Promise<void> => {
+  if (pasteWarmupCompleted) {
+    return
+  }
+
+  if (!isMacOS()) {
+    return
+  }
+
+  if (!mainContext.services.permissionsService.isAccessibilityGranted()) {
+    logger.debug({
+      source,
+      reason: 'accessibility_not_granted',
+      event: 'paste_warmup_skipped'
+    })
+    clearPasteWarmupOnAcListener()
+    return
+  }
+
+  if (!isThermalStateSafeForWarmup()) {
+    logger.debug({
+      source,
+      reason: 'thermal_state_unhealthy',
+      event: 'paste_warmup_skipped'
+    })
+    return
+  }
+
+  if (isOnBatteryPowerSafe()) {
+    logger.debug({
+      source,
+      reason: 'on_battery_power',
+      event: 'paste_warmup_deferred'
+    })
+    ensurePasteWarmupOnAcListener()
+    return
+  }
+
+  const startedAt = Date.now()
+
+  try {
+    await mainContext.services.pasteService.prewarm()
+    pasteWarmupCompleted = true
+    clearPasteWarmupOnAcListener()
+    logger.debug({
+      source,
+      elapsedMs: Date.now() - startedAt,
+      event: 'paste_warmup_complete'
+    })
+  } catch (error) {
+    logger.debug({
+      source,
+      message: error instanceof Error ? error.message : 'Paste warmup failed unexpectedly.',
+      event: 'paste_warmup_failed'
+    })
+  }
 }
 
 const performShutdownSequence = (): Promise<void> => {
@@ -195,6 +306,13 @@ app.whenReady().then(async () => {
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+    window.on('focus', () => {
+      void runStep('shortcuts failed to repair on window focus', () =>
+        mainContext.services.shortcutService.repairSupportedGlobalRegistrations({
+          source: 'window_focus'
+        })
+      )
+    })
   })
 
   // IPC test
@@ -226,6 +344,15 @@ app.whenReady().then(async () => {
 
   createWindow()
 
+  void runStep('pipeline failed to prewarm overlay', () =>
+    mainContext.services.pipelineOrchestrator.prewarm()
+  )
+
+  const pasteWarmupTimer = setTimeout(() => {
+    void tryRunPasteWarmup('startup_delay')
+  }, PASTE_WARMUP_DELAY_MS)
+  pasteWarmupTimer.unref()
+
   app.on('second-instance', () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       createWindow()
@@ -244,6 +371,12 @@ app.whenReady().then(async () => {
   })
 
   app.on('activate', function () {
+    void runStep('shortcuts failed to repair on activate', () =>
+      mainContext.services.shortcutService.repairSupportedGlobalRegistrations({
+        source: 'activate'
+      })
+    )
+
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -256,6 +389,14 @@ app.whenReady().then(async () => {
     }
 
     mainWindow.focus()
+  })
+
+  powerMonitor.on('resume', () => {
+    void runStep('shortcuts failed to repair on resume', () =>
+      mainContext.services.shortcutService.repairSupportedGlobalRegistrations({
+        source: 'resume'
+      })
+    )
   })
 })
 
@@ -276,6 +417,7 @@ app.on('before-quit', (event) => {
 
   if (isMacOS()) {
     nativeTheme.removeListener('updated', applyMacDockIcon)
+    clearPasteWarmupOnAcListener()
     app.dock?.hide()
   }
 

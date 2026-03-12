@@ -11,6 +11,7 @@ import {
 } from '../../../shared/shortcuts'
 import { createInitialShortcutState } from '../constants'
 import type { PermissionsService } from '../../permissions/service'
+import { createLogger } from '../../helpers/logger'
 import { ShortcutBindingsRepository } from '../../repositories/shortcut-bindings-repository'
 import {
   areCanonicalShortcutsEqual,
@@ -43,21 +44,29 @@ import {
  * Owns shortcut lifecycle: registration, persistence integration, and PTT runtime bridging.
  */
 export class ShortcutService {
+  private readonly logger = createLogger('shortcuts.service')
+  private static readonly SUPPORTED_SHORTCUT_HEALTH_CHECK_INTERVAL_MS = 30_000
   private initialized = false
   private startupFailure = false
+  private supportedShortcutHealthCheckTimer: NodeJS.Timeout | null = null
+  private repairingSupportedShortcuts = false
   private shortcutState: ShortcutActionStateMap =
     createInitialShortcutState(createDefaultBindings())
 
   private readonly pttRuntime: PttRuntimeManager
   private readonly emitRecordingShortcutEvent: (event: RecordingShortcutEvent) => void
+  private readonly onPasteLastTranscriptionShortcut: () => void
   private readonly shortcutBindingsRepository: ShortcutBindingsRepository
 
   constructor(dependencies: {
     permissionsService: PermissionsService
     emitRecordingShortcutEvent?: (event: RecordingShortcutEvent) => void
+    onPasteLastTranscriptionShortcut?: () => void
     shortcutBindingsRepository?: ShortcutBindingsRepository
   }) {
     this.emitRecordingShortcutEvent = dependencies.emitRecordingShortcutEvent ?? (() => undefined)
+    this.onPasteLastTranscriptionShortcut =
+      dependencies.onPasteLastTranscriptionShortcut ?? (() => undefined)
     this.shortcutBindingsRepository =
       dependencies.shortcutBindingsRepository ?? new ShortcutBindingsRepository()
     this.pttRuntime = new PttRuntimeManager(() => this.shortcutState, {
@@ -94,9 +103,11 @@ export class ShortcutService {
         .startupFailure
 
     this.initialized = true
+    this.startSupportedShortcutHealthCheck()
   }
 
   shutdown(): void {
+    this.stopSupportedShortcutHealthCheck()
     this.pttRuntime.shutdown()
     globalShortcut.unregisterAll()
     this.initialized = false
@@ -118,6 +129,85 @@ export class ShortcutService {
 
     return {
       ptt: this.pttRuntime.getRuntimeStatus()
+    }
+  }
+
+  async repairSupportedGlobalRegistrations(options?: {
+    source?: 'manual' | 'activate' | 'resume' | 'window_focus' | 'periodic'
+  }): Promise<void> {
+    if (this.repairingSupportedShortcuts) {
+      return
+    }
+
+    this.repairingSupportedShortcuts = true
+    await this.ensureInitialized()
+    try {
+      this.pttRuntime.refreshRuntimeStatus()
+
+      const supportedActions: SupportedGlobalShortcutAction[] = [
+        'recording.toggle',
+        'recording.cancel',
+        'transcription.paste_last'
+      ]
+      const source = options?.source ?? 'manual'
+
+      let repairedCount = 0
+      const repairedActions: SupportedGlobalShortcutAction[] = []
+      const failedActions: Array<{
+        action: SupportedGlobalShortcutAction
+        error: 'invalid_accelerator' | 'registration_conflict'
+      }> = []
+
+      for (const action of supportedActions) {
+        const state = this.shortcutState[action]
+        const accelerator = state.effectiveAccelerator ?? state.storedBinding.accelerator
+
+        if (!accelerator) {
+          continue
+        }
+
+        if (globalShortcut.isRegistered(accelerator)) {
+          continue
+        }
+
+        const registrationResult = this.registerSupportedGlobalAction(action, accelerator)
+        if (registrationResult === 'ok') {
+          state.effectiveAccelerator = accelerator
+          state.registrationError = null
+          repairedCount += 1
+          repairedActions.push(action)
+          continue
+        }
+
+        const errorCode =
+          registrationResult === 'invalid' ? 'invalid_accelerator' : 'registration_conflict'
+        state.registrationError = errorCode
+        state.effectiveAccelerator = null
+        this.startupFailure = true
+        failedActions.push({
+          action,
+          error: errorCode
+        })
+      }
+
+      if (repairedCount > 0) {
+        this.logger.debug({
+          source,
+          repairedCount,
+          repairedActions,
+          event: 'global_shortcuts_repaired'
+        })
+      }
+
+      if (failedActions.length > 0) {
+        this.logger.warn({
+          source,
+          failures: failedActions,
+          event: 'global_shortcuts_repair_failed'
+        })
+      }
+    } finally {
+      this.repairingSupportedShortcuts = false
     }
   }
 
@@ -270,12 +360,52 @@ export class ShortcutService {
   }
 
   private handleGlobalShortcutAction = (action: SupportedGlobalShortcutAction): void => {
+    this.logger.debug({
+      action,
+      event: 'global_shortcut_triggered'
+    })
+
     if (action === 'recording.toggle') {
       this.emitRecordingShortcutEvent('toggle')
       return
     }
 
-    this.pttRuntime.releasePushToTalkHoldIfNeeded({ emitStop: false })
-    this.emitRecordingShortcutEvent('cancel')
+    if (action === 'recording.cancel') {
+      this.pttRuntime.releasePushToTalkHoldIfNeeded({ emitStop: false })
+      this.emitRecordingShortcutEvent('cancel')
+      return
+    }
+
+    this.onPasteLastTranscriptionShortcut()
+  }
+
+  private startSupportedShortcutHealthCheck(): void {
+    if (this.supportedShortcutHealthCheckTimer) {
+      return
+    }
+
+    const timer = setInterval(() => {
+      void this.repairSupportedGlobalRegistrations({ source: 'periodic' }).catch((error) => {
+        this.logger.warn({
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Periodic shortcut health check failed unexpectedly.',
+          event: 'global_shortcuts_health_check_failed'
+        })
+      })
+    }, ShortcutService.SUPPORTED_SHORTCUT_HEALTH_CHECK_INTERVAL_MS)
+
+    timer.unref()
+    this.supportedShortcutHealthCheckTimer = timer
+  }
+
+  private stopSupportedShortcutHealthCheck(): void {
+    if (!this.supportedShortcutHealthCheckTimer) {
+      return
+    }
+
+    clearInterval(this.supportedShortcutHealthCheckTimer)
+    this.supportedShortcutHealthCheckTimer = null
   }
 }

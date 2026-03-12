@@ -3,7 +3,7 @@ import type { ShortcutAction } from '../../../shared/shortcuts'
 
 export type SupportedGlobalShortcutAction = Extract<
   ShortcutAction,
-  'recording.toggle' | 'recording.cancel'
+  'recording.toggle' | 'recording.cancel' | 'transcription.paste_last'
 >
 
 export const tryRegisterAction = (
