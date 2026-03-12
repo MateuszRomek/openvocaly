@@ -2,11 +2,13 @@ import type {
   HomeAppsQueryParams,
   HomeMonthlyOutputQueryParams,
   HomeRangeTimelinesQueryParams,
+  HomeRecentSessionsQueryParams,
   HomeSummaryQueryParams
 } from './home-reporting.types'
 
 const resolveAsOfKey = (asOfMs?: number): number | 'latest' => asOfMs ?? 'latest'
 const resolveTopLimitKey = (topLimit?: number): number | 'default' => topLimit ?? 'default'
+const resolveLimitKey = (limit?: number): number | 'default' => limit ?? 'default'
 
 export const homeReportingKeys = {
   all: ['reporting', 'home'] as const,
@@ -26,5 +28,13 @@ export const homeReportingKeys = {
       range,
       resolveAsOfKey(asOfMs),
       resolveTopLimitKey(topLimit)
+    ] as const,
+  recentSessions: () => [...homeReportingKeys.all, 'recent-sessions'] as const,
+  recentSession: ({ range, asOfMs, limit }: HomeRecentSessionsQueryParams) =>
+    [
+      ...homeReportingKeys.recentSessions(),
+      range,
+      resolveAsOfKey(asOfMs),
+      resolveLimitKey(limit)
     ] as const
 }

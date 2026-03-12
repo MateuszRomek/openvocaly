@@ -1,19 +1,18 @@
+import { format, isValid, parseISO } from 'date-fns'
 import type { HomeReportingRange } from '../constants/reporting-range'
 
 function formatTimelineLabel(key: string, range: HomeReportingRange): string {
-  const segments = key.split('-')
+  const parsedDate = range === '12m' ? parseISO(`${key}-01`) : parseISO(key)
 
-  if (range === '12m' && segments.length === 2) {
-    const [year, month] = segments
-    return `${month}/${year.slice(-2)}`
+  if (!isValid(parsedDate)) {
+    return key
   }
 
-  if (segments.length === 3) {
-    const [, month, day] = segments
-    return `${month}/${day}`
+  if (range === '12m') {
+    return format(parsedDate, 'MM/yy')
   }
 
-  return key
+  return format(parsedDate, 'MM/dd')
 }
 
 export function formatDailyOutputLabel(key: string, range: HomeReportingRange): string {
@@ -24,30 +23,12 @@ export function formatWpmTrendLabel(key: string, range: HomeReportingRange): str
   return formatTimelineLabel(key, range)
 }
 
-const MONTH_LABELS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec'
-]
-
 export function formatMonthlyOutputLabel(key: string): string {
-  const segments = key.split('-')
+  const parsedDate = parseISO(`${key}-01`)
 
-  if (segments.length !== 2) {
+  if (!isValid(parsedDate)) {
     return key
   }
 
-  const monthIndex = Number(segments[1]) - 1
-  const monthLabel = MONTH_LABELS[monthIndex]
-
-  return monthLabel ?? key
+  return format(parsedDate, 'MMM')
 }
