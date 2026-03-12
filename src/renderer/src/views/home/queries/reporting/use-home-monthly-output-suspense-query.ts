@@ -1,5 +1,6 @@
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { UseSuspenseQueryOptions, UseSuspenseQueryResult } from '@tanstack/react-query'
+import { HOME_REPORTING_QUERY_STALE_TIME_MS } from '../../constants/reporting-query'
 import { homeReportingKeys } from './home-reporting.keys'
 import type {
   HomeMonthlyOutputQueryParams,
@@ -19,7 +20,8 @@ export function homeMonthlyOutputQueryOptions(
   return queryOptions({
     queryKey: homeReportingKeys.monthly(params),
     queryFn: async () => window.api.reporting.getHomeMonthlyOutput(params),
-    staleTime: 60_000
+    staleTime: HOME_REPORTING_QUERY_STALE_TIME_MS,
+    refetchOnMount: 'always'
   })
 }
 

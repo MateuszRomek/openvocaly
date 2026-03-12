@@ -16,6 +16,7 @@ export function transcriptsListQueryOptions(page: number): TranscriptsListQueryO
     queryKey: transcriptsKeys.list(page),
     queryFn: async () => await window.api.storage.listTranscripts({ page }),
     staleTime: TRANSCRIPTS_QUERY_STALE_TIME_MS,
+    refetchOnMount: 'always',
     placeholderData: keepPreviousData
   })
 }

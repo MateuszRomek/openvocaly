@@ -1,4 +1,5 @@
 import type { RecordingArtifact } from '../../../shared/recording'
+import type { TranscriptAddedEvent } from '../../../shared/storage'
 import type {
   ListLocalModelsResponse,
   LocalModelActionInput,
@@ -17,6 +18,7 @@ import type {
 import { SettingsRepository } from '../../repositories/settings-repository'
 import { StorageRepository } from '../../repositories/storage-repository'
 import { InitializableComponent } from '../../helpers/initializable-component'
+import { emitTranscriptAddedEvent } from '../../storage/transcript-events'
 import { parakeetRuntime } from '../local/parakeet/runtime'
 import { TranscriptionProviderFactory } from '../provider-factory'
 import { TranscriptionPreferencesManager } from './preferences-manager'
@@ -163,7 +165,7 @@ export class TranscriptionService extends InitializableComponent {
     }
 
     try {
-      await this.storageRepository.createSessionWithTranscriptAndMetrics(
+      const persisted = await this.storageRepository.createSessionWithTranscriptAndMetrics(
         {
           startedAt: artifact.startedAt,
           durationMs: artifact.durationMs ?? null,
@@ -178,6 +180,13 @@ export class TranscriptionService extends InitializableComponent {
           durationMs: result.transcript.durationMs ?? artifact.durationMs ?? null
         }
       )
+
+      const transcriptAddedEvent: TranscriptAddedEvent = {
+        transcriptId: persisted.transcriptId,
+        sessionId: persisted.sessionId,
+        createdAt: Date.now()
+      }
+      emitTranscriptAddedEvent(transcriptAddedEvent)
 
       return result
     } catch (error) {

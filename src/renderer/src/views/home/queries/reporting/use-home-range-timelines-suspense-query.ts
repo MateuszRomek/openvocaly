@@ -1,5 +1,6 @@
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { UseSuspenseQueryOptions, UseSuspenseQueryResult } from '@tanstack/react-query'
+import { HOME_REPORTING_QUERY_STALE_TIME_MS } from '../../constants/reporting-query'
 import { homeReportingKeys } from './home-reporting.keys'
 import type {
   HomeRangeTimelinesQueryParams,
@@ -19,7 +20,8 @@ export function homeRangeTimelinesQueryOptions(
   return queryOptions({
     queryKey: homeReportingKeys.timeline(params),
     queryFn: async () => window.api.reporting.getHomeRangeTimelines(params),
-    staleTime: 60_000
+    staleTime: HOME_REPORTING_QUERY_STALE_TIME_MS,
+    refetchOnMount: 'always'
   })
 }
 

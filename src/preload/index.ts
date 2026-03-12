@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { STORAGE_TRANSCRIPT_ADDED_CHANNEL } from '../shared/storage'
 import type {
   AddTranscriptInput,
   AddTranscriptResult,
@@ -9,6 +10,7 @@ import type {
   ListSessionsResult,
   ListTranscriptsInput,
   ListTranscriptsResult,
+  TranscriptAddedEvent,
   ResolveAppIconInput,
   ResolveAppIconResult
 } from '../shared/storage'
@@ -92,7 +94,9 @@ const api = {
     listSessions: (input?: ListSessionsInput): Promise<ListSessionsResult> =>
       ipcRenderer.invoke('storage:listSessions', input),
     resolveAppIcon: (input?: ResolveAppIconInput): Promise<ResolveAppIconResult> =>
-      ipcRenderer.invoke('storage:resolveAppIcon', input)
+      ipcRenderer.invoke('storage:resolveAppIcon', input),
+    onTranscriptAdded: (callback: (payload: TranscriptAddedEvent) => void): (() => void) =>
+      subscribeToIpcChannel<TranscriptAddedEvent>(STORAGE_TRANSCRIPT_ADDED_CHANNEL, callback)
   },
   reporting: {
     getHomeSummary: (params: GetHomeSummaryParams): Promise<GetHomeSummaryResponse> =>

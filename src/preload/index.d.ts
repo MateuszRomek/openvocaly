@@ -8,6 +8,7 @@ import type {
   ListSessionsResult,
   ListTranscriptsInput,
   ListTranscriptsResult,
+  TranscriptAddedEvent,
   ResolveAppIconInput,
   ResolveAppIconResult
 } from '../shared/storage'
@@ -69,6 +70,7 @@ declare global {
         listTranscripts: (input?: ListTranscriptsInput) => Promise<ListTranscriptsResult>
         listSessions: (input?: ListSessionsInput) => Promise<ListSessionsResult>
         resolveAppIcon: (input?: ResolveAppIconInput) => Promise<ResolveAppIconResult>
+        onTranscriptAdded: (callback: (payload: TranscriptAddedEvent) => void) => () => void
       }
       reporting: {
         getHomeSummary: (params: GetHomeSummaryParams) => Promise<GetHomeSummaryResponse>
