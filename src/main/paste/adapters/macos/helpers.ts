@@ -2,14 +2,8 @@ import { execFile } from 'node:child_process'
 import { accessSync, chmodSync, constants as fsConstants, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { SELF_PROCESS_NAME_ALIASES } from './constants'
 
 const execFileAsync = promisify(execFile)
-
-type FrontProcessInput = {
-  frontProcessName?: string
-  frontProcessPid?: number
-}
 
 type NativeBinaryCandidatesInput = {
   resourcesPath?: string
@@ -46,32 +40,6 @@ export const normalizeAppleScriptText = (value: string): string | undefined => {
   }
 
   return trimmed
-}
-
-export const resolveSelfProcessNames = (appName: string): Set<string> => {
-  const names = new Set<string>(SELF_PROCESS_NAME_ALIASES.map((name) => name.toLowerCase()))
-  const normalizedAppName = appName.trim().toLowerCase()
-  if (normalizedAppName) {
-    names.add(normalizedAppName)
-  }
-
-  return names
-}
-
-// Matches a probe result against the current process identity by pid first, then app-name aliases.
-export const isSelfFrontProcess = (
-  params: FrontProcessInput,
-  selfProcessNames: ReadonlySet<string>
-): boolean => {
-  if (typeof params.frontProcessPid === 'number' && params.frontProcessPid === process.pid) {
-    return true
-  }
-
-  if (!params.frontProcessName) {
-    return false
-  }
-
-  return selfProcessNames.has(params.frontProcessName.toLowerCase())
 }
 
 export const parseEditableProbeOutput = (output: string): ParsedEditableProbeOutput => {

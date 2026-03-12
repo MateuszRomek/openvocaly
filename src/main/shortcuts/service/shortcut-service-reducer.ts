@@ -1,15 +1,17 @@
 import {
+  SHORTCUT_ACTIONS,
   isShortcutAction,
   type ShortcutAction,
   type ShortcutErrorCode,
   type ShortcutRuntimeStatusResponse
 } from '../../../shared/shortcuts'
 import type { PersistedShortcutBinding } from '../accelerator'
+import { SUPPORTED_GLOBAL_ACTIONS } from '../constants'
 import type { SupportedGlobalShortcutAction } from './global-shortcut'
 import { mapPttAvailabilityToMutationError } from './ptt-errors'
 
 const isSupportedGlobalAction = (action: ShortcutAction): action is SupportedGlobalShortcutAction =>
-  action === 'recording.toggle' || action === 'recording.cancel'
+  SUPPORTED_GLOBAL_ACTIONS.has(action)
 
 export type ShortcutUpdateDecision =
   | {
@@ -108,29 +110,38 @@ export const decideShortcutReset = ({
   defaultBindingForAction
 }: ShortcutResetDecisionInput): ShortcutResetDecision => {
   if (!action) {
+    const operations: ShortcutResetOperation[] = []
+
+    for (const supportedAction of SHORTCUT_ACTIONS) {
+      if (supportedAction === 'recording.push_to_talk') {
+        operations.push(
+          pttReady
+            ? {
+                type: 'apply_ptt',
+                binding: defaultBindingForAction('recording.push_to_talk')
+              }
+            : {
+                type: 'persist_ptt',
+                binding: defaultBindingForAction('recording.push_to_talk')
+              }
+        )
+        continue
+      }
+
+      if (!isSupportedGlobalAction(supportedAction)) {
+        continue
+      }
+
+      operations.push({
+        type: 'apply_supported',
+        action: supportedAction,
+        binding: defaultBindingForAction(supportedAction)
+      })
+    }
+
     return {
       type: 'operations',
-      operations: [
-        {
-          type: 'apply_supported',
-          action: 'recording.toggle',
-          binding: defaultBindingForAction('recording.toggle')
-        },
-        {
-          type: 'apply_supported',
-          action: 'recording.cancel',
-          binding: defaultBindingForAction('recording.cancel')
-        },
-        pttReady
-          ? {
-              type: 'apply_ptt',
-              binding: defaultBindingForAction('recording.push_to_talk')
-            }
-          : {
-              type: 'persist_ptt',
-              binding: defaultBindingForAction('recording.push_to_talk')
-            }
-      ]
+      operations
     }
   }
 

@@ -11,6 +11,7 @@ import type { RecordingSessionBus } from '../recording/session-bus'
 import { resolveDictationCommandIntent } from './command-intent'
 import type { DictationIdleResetController } from './idle-reset-controller'
 import type { DictationOverlayPublisher } from './overlay-publisher'
+import { PasteLastTranscriptionCoordinator } from './paste-last-transcription-coordinator'
 import type { DictationSessionStateManager } from './session'
 import { resolveTerminalDisplayDelayMs } from './terminal-policy'
 import type { DictationTranscriptionWorkflow } from './transcription-workflow'
@@ -26,6 +27,7 @@ import type { DictationTranscriptionWorkflow } from './transcription-workflow'
  */
 export class DictationPipelineOrchestrator {
   private initialized = false
+  private readonly pasteLastCoordinator: PasteLastTranscriptionCoordinator
 
   private unsubscribeCommand: (() => void) | null = null
   private unsubscribeRecordingSession: (() => void) | null = null
@@ -44,7 +46,15 @@ export class DictationPipelineOrchestrator {
       pasteService: DictationPasteService
       storageRepository: StorageRepository
     }
-  ) {}
+  ) {
+    this.pasteLastCoordinator = new PasteLastTranscriptionCoordinator({
+      pasteService: dependencies.pasteService,
+      session: dependencies.session,
+      idleReset: dependencies.idleReset,
+      overlayPublisher: dependencies.overlayPublisher,
+      storageRepository: dependencies.storageRepository
+    })
+  }
 
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -74,6 +84,7 @@ export class DictationPipelineOrchestrator {
     this.dependencies.session.initializeFromRecordingRuntime(
       this.dependencies.recordingService.getRuntimeState().state
     )
+    this.pasteLastCoordinator.primeLatestTranscriptCache()
 
     await this.publishOverlayImmediate()
   }
@@ -108,6 +119,22 @@ export class DictationPipelineOrchestrator {
 
   getRuntimeState(): DictationRuntimeStateResponse {
     return this.dependencies.session.toRuntimeStateResponse()
+  }
+
+  async prewarm(): Promise<void> {
+    if (!this.initialized) {
+      return
+    }
+
+    await this.dependencies.overlayPublisher.prewarm()
+  }
+
+  async triggerPasteLastTranscription(): Promise<void> {
+    if (!this.initialized) {
+      return
+    }
+
+    await this.pasteLastCoordinator.trigger()
   }
 
   private async handleShortcutCommand(command: RecordingCommand): Promise<void> {
@@ -215,11 +242,14 @@ export class DictationPipelineOrchestrator {
     artifact: RecordingArtifact,
     transcriptText: string
   ): Promise<void> {
+    const normalizedTranscriptText = transcriptText.trim()
+    this.pasteLastCoordinator.rememberTranscript(normalizedTranscriptText)
+
     // Keep overlay visible while post-transcription paste flow resolves.
     // This avoids a hide/show blink before manual fallback or error states.
     const pasteOutcome = await this.dependencies.pasteService.processTranscript({
       sessionId: artifact.sessionId,
-      transcriptText,
+      transcriptText: normalizedTranscriptText,
       onManualPasteState: async (manualState) => {
         await this.transitionToAwaitingManualPaste(artifact.sessionId, artifact.mode, manualState)
       },

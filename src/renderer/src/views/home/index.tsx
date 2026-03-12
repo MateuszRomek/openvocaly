@@ -547,7 +547,9 @@ function KpiCard({ label, value, note, deltaPercent }: KpiCardProps): React.JSX.
       <CardHeader className="gap-2">
         {typeof deltaPercent === 'number' ? (
           <CardAction>
-            <Badge variant={getDeltaVariant(deltaPercent)}>{formatDeltaPercent(deltaPercent)}</Badge>
+            <Badge variant={getDeltaVariant(deltaPercent)}>
+              {formatDeltaPercent(deltaPercent)}
+            </Badge>
           </CardAction>
         ) : null}
         <CardDescription>{label}</CardDescription>
@@ -581,10 +583,7 @@ export function HomeView(): React.JSX.Element {
     () => topApps.reduce((total, row) => total + row.words, 0),
     [topApps]
   )
-  const recentSessions = useMemo(
-    () => RECENT_SESSIONS_BY_RANGE[selectedRange],
-    [selectedRange]
-  )
+  const recentSessions = useMemo(() => RECENT_SESSIONS_BY_RANGE[selectedRange], [selectedRange])
   const appDetailsTotal = useMemo(
     () => appDetails.reduce((total, row) => total + row.words, 0),
     [appDetails]
@@ -611,9 +610,7 @@ export function HomeView(): React.JSX.Element {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-1.5">
             <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Home</h2>
-            <p className="text-muted-foreground text-sm">
-              Track output, speed, and app usage.
-            </p>
+            <p className="text-muted-foreground text-sm">Track output, speed, and app usage.</p>
           </div>
 
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
@@ -798,8 +795,12 @@ export function HomeView(): React.JSX.Element {
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-sm font-medium">{numberFormatter.format(row.words)}</p>
-                              <p className="text-muted-foreground text-xs">{share.toFixed(1)}% share</p>
+                              <p className="text-sm font-medium">
+                                {numberFormatter.format(row.words)}
+                              </p>
+                              <p className="text-muted-foreground text-xs">
+                                {share.toFixed(1)}% share
+                              </p>
                             </div>
                           </div>
                           <p className="text-muted-foreground mt-1 text-xs">
@@ -906,7 +907,6 @@ export function HomeView(): React.JSX.Element {
                 </div>
               )}
             </div>
-
           </CardContent>
         </Card>
       </div>

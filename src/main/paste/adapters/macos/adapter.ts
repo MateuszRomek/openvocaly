@@ -1,5 +1,6 @@
 import { app, globalShortcut } from 'electron'
 import { MacOSFastPasteClient } from '../../../native/macos/fast-paste-client'
+import { createLogger } from '../../../helpers/logger'
 import type {
   AutoPasteProbeDecision,
   ManualPasteProbeDecision,
@@ -13,28 +14,28 @@ import {
   APPLE_SCRIPT_PASTE_LINES,
   APPLE_SCRIPT_PROBE_EDITABLE_LINES,
   MANUAL_PASTE_ACCELERATOR,
+  NATIVE_FIRST_PROBE_TIMEOUT_MS,
+  NATIVE_FIRST_PROBE_RETRY_TIMEOUT_MS,
   NATIVE_PASTE_BINARY_NAME,
   NATIVE_PASTE_TIMEOUT_MS,
   NATIVE_PROBE_TIMEOUT_MS
 } from './constants'
 import {
   buildNativePasteBinaryCandidates,
-  isSelfFrontProcess,
   parseEditableProbeOutput,
   parseNativeProbeOutput,
   resolveFirstExecutableCandidate,
-  resolveSelfProcessNames,
   runAppleScript,
   toNativePasteExitMessage,
   toNativeProbeExitMessage
 } from './helpers'
-import { evaluateMacOSAutoPasteDecision, evaluateMacOSManualPasteDecision } from './probe-decisions'
 
 export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
+  private readonly logger = createLogger('paste.adapter.macos')
   private watcherRegistered = false
   private nativePasteBinaryPath: string | null | undefined
+  private hasCompletedNativeProbe = false
   private readonly nativeFastPasteClient = new MacOSFastPasteClient()
-  private readonly selfProcessNames = resolveSelfProcessNames(app.getName())
 
   capabilities(): PastePlatformCapabilities {
     return {
@@ -52,7 +53,7 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
     if (nativePasteBinaryPath) {
       const nativeProbeResult = await this.runNativeProbeBinary(nativePasteBinaryPath)
       if (nativeProbeResult.ok && nativeProbeResult.probeResult.ok) {
-        return this.attachSelfProcessFlag(nativeProbeResult.probeResult)
+        return nativeProbeResult.probeResult
       }
 
       if (!nativeProbeResult.ok) {
@@ -72,10 +73,10 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
     try {
       const output = await runAppleScript(APPLE_SCRIPT_PROBE_EDITABLE_LINES)
       const parsedProbe = parseEditableProbeOutput(output)
-      return this.attachSelfProcessFlag({
+      return {
         ok: true,
         ...parsedProbe
-      })
+      }
     } catch (error) {
       return {
         ok: false,
@@ -87,11 +88,17 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
   }
 
   evaluateAutoPasteProbe(probeResult: PasteProbeResult): AutoPasteProbeDecision {
-    return evaluateMacOSAutoPasteDecision(probeResult)
+    void probeResult
+    return {
+      shouldAttemptAutoPaste: true
+    }
   }
 
   evaluateManualPasteProbe(probeResult: PasteProbeResult): ManualPasteProbeDecision {
-    return evaluateMacOSManualPasteDecision(probeResult)
+    void probeResult
+    return {
+      shouldIgnoreManualPaste: false
+    }
   }
 
   async simulatePasteShortcut(): Promise<PasteActionResult> {
@@ -158,6 +165,10 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
     }
 
     this.watcherRegistered = true
+    this.logger.debug({
+      accelerator: MANUAL_PASTE_ACCELERATOR,
+      event: 'manual_watcher_registered'
+    })
     return { ok: true }
   }
 
@@ -168,6 +179,10 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
 
     globalShortcut.unregister(MANUAL_PASTE_ACCELERATOR)
     this.watcherRegistered = false
+    this.logger.debug({
+      accelerator: MANUAL_PASTE_ACCELERATOR,
+      event: 'manual_watcher_unregistered'
+    })
   }
 
   private resolveNativePasteBinaryPath(): string | null {
@@ -187,11 +202,23 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
   }
 
   private async runNativePasteBinary(binaryPath: string): Promise<PasteActionResult> {
+    this.logger.debug({
+      binaryPath,
+      timeoutMs: NATIVE_PASTE_TIMEOUT_MS,
+      event: 'native_paste_start'
+    })
     const result = await this.nativeFastPasteClient.runCommand(
       binaryPath,
       'paste',
       NATIVE_PASTE_TIMEOUT_MS
     )
+    this.logger.debug({
+      ok: result.ok,
+      code: result.code,
+      timedOut: result.timedOut,
+      stderr: result.stderr.trim(),
+      event: 'native_paste_result'
+    })
     if (result.ok) {
       return { ok: true }
     }
@@ -210,11 +237,37 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
   }
 
   private async runNativeProbeBinary(binaryPath: string): Promise<NativeProbeActionResult> {
-    const result = await this.nativeFastPasteClient.runCommand(
+    const isFirstProbe = !this.hasCompletedNativeProbe
+    const timeoutMs = this.hasCompletedNativeProbe
+      ? NATIVE_PROBE_TIMEOUT_MS
+      : NATIVE_FIRST_PROBE_TIMEOUT_MS
+    this.logger.debug({
       binaryPath,
-      'probe',
-      NATIVE_PROBE_TIMEOUT_MS
-    )
+      timeoutMs,
+      isFirstProbe,
+      event: 'native_probe_start'
+    })
+    let result = await this.nativeFastPasteClient.runCommand(binaryPath, 'probe', timeoutMs)
+    if (isFirstProbe && result.timedOut) {
+      this.logger.debug({
+        binaryPath,
+        timeoutMs: NATIVE_FIRST_PROBE_RETRY_TIMEOUT_MS,
+        event: 'native_probe_retry_start'
+      })
+      result = await this.nativeFastPasteClient.runCommand(
+        binaryPath,
+        'probe',
+        NATIVE_FIRST_PROBE_RETRY_TIMEOUT_MS
+      )
+    }
+    this.hasCompletedNativeProbe = true
+    this.logger.debug({
+      ok: result.ok,
+      code: result.code,
+      timedOut: result.timedOut,
+      stderr: result.stderr.trim(),
+      event: 'native_probe_result'
+    })
     if (!result.ok) {
       if (result.message) {
         return {
@@ -250,13 +303,6 @@ export class MacOSPastePlatformAdapter implements PastePlatformAdapter {
         ok: false,
         message: error instanceof Error ? error.message : 'Native probe output parse failed.'
       }
-    }
-  }
-
-  private attachSelfProcessFlag(probeResult: PasteProbeResult): PasteProbeResult {
-    return {
-      ...probeResult,
-      isSelfApp: isSelfFrontProcess(probeResult, this.selfProcessNames)
     }
   }
 }

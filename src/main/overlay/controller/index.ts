@@ -105,6 +105,25 @@ export class RecordingOverlayController {
   }
 
   /**
+   * Pre-creates overlay window resources so first user-visible show is faster.
+   * Keeps the window hidden and in low-power performance mode.
+   */
+  async prewarm(): Promise<void> {
+    await this.ensureWindow()
+
+    const overlayWindow = this.getLiveOverlayWindow()
+    if (!overlayWindow) {
+      return
+    }
+
+    if (overlayWindow.isVisible()) {
+      overlayWindow.hide()
+    }
+
+    this.applyOverlayPerformanceMode(true)
+  }
+
+  /**
    * Fully destroy window, timers and platform observers.
    */
   destroy(): void {

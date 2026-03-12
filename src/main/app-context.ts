@@ -110,6 +110,11 @@ export const createMainAppContext = (): MainAppContext => {
   const shortcutService = new ShortcutService({
     permissionsService,
     emitRecordingShortcutEvent: createRecordingShortcutEventEmitter(recordingCommandBus),
+    onPasteLastTranscriptionShortcut: () => {
+      void pipelineOrchestrator.triggerPasteLastTranscription().catch((error) => {
+        console.error('[shortcuts] paste-last shortcut handler failed', error)
+      })
+    },
     shortcutBindingsRepository
   })
 

@@ -1,4 +1,5 @@
 import { createSettleOnce, type SettleOnceController } from '../../helpers/settle-once'
+import { createLogger } from '../../helpers/logger'
 import type { PastePlatformAdapter } from '../platform-adapter'
 import type { ManualFallbackOutcome, ManualPasteState } from './types'
 import { toSessionTargetApp } from './target-app'
@@ -18,6 +19,7 @@ type ManualFallbackSessionOptions = {
  * Platform-specific target validation stays behind `PastePlatformAdapter`.
  */
 export class ManualFallbackSession {
+  private readonly logger = createLogger('paste.manual-fallback')
   readonly sessionId: string
   private readonly timeoutMs: number
   private readonly replayDelayMs: number
@@ -41,6 +43,12 @@ export class ManualFallbackSession {
   }
 
   async run(): Promise<ManualFallbackOutcome> {
+    this.logger.debug({
+      sessionId: this.sessionId,
+      timeoutMs: this.timeoutMs,
+      supportsManualPasteWatcher: this.supportsManualPasteWatcher,
+      event: 'manual_fallback_start'
+    })
     await this.onManualPasteState({
       remainingMs: this.timeoutMs,
       timeoutMs: this.timeoutMs,
@@ -119,10 +127,26 @@ export class ManualFallbackSession {
         }
 
         if (result.ok) {
+          this.logger.debug({
+            sessionId: this.sessionId,
+            event: 'manual_watcher_ready'
+          })
           return
         }
+
+        this.logger.warn({
+          sessionId: this.sessionId,
+          message: result.message ?? 'manual watcher failed to start',
+          event: 'manual_watcher_start_failed'
+        })
       })
-      .catch(() => {})
+      .catch((error) => {
+        this.logger.warn({
+          sessionId: this.sessionId,
+          message: error instanceof Error ? error.message : 'manual watcher start threw',
+          event: 'manual_watcher_start_error'
+        })
+      })
   }
 
   private readonly handleManualPasteShortcut = (): void => {
@@ -130,6 +154,10 @@ export class ManualFallbackSession {
       return
     }
 
+    this.logger.debug({
+      sessionId: this.sessionId,
+      event: 'manual_shortcut_detected'
+    })
     this.manualPasteInFlight = true
     const replayTimer = setTimeout(() => {
       if (this.isSettled()) {
@@ -145,9 +173,19 @@ export class ManualFallbackSession {
   private async replayManualPasteShortcut(): Promise<void> {
     try {
       const probeResult = await this.adapter.probeEditableTarget()
+      this.logger.debug({
+        sessionId: this.sessionId,
+        probeResult,
+        event: 'manual_replay_probe_result'
+      })
 
       const probeDecision = this.adapter.evaluateManualPasteProbe?.(probeResult)
       if (probeDecision?.shouldIgnoreManualPaste) {
+        this.logger.debug({
+          sessionId: this.sessionId,
+          reason: probeDecision.reason ?? null,
+          event: 'manual_replay_ignored'
+        })
         return
       }
 
@@ -155,6 +193,11 @@ export class ManualFallbackSession {
       this.adapter.stopManualPasteWatcher()
 
       const pasteResult = await this.adapter.simulatePasteShortcut()
+      this.logger.debug({
+        sessionId: this.sessionId,
+        pasteResult,
+        event: 'manual_replay_result'
+      })
 
       if (!pasteResult.ok || this.isSettled()) {
         if (!this.isSettled()) {
@@ -167,7 +210,12 @@ export class ManualFallbackSession {
         type: 'manual_paste_success',
         targetApp: toSessionTargetApp(probeResult)
       })
-    } catch {
+    } catch (error) {
+      this.logger.warn({
+        sessionId: this.sessionId,
+        message: error instanceof Error ? error.message : 'manual replay threw',
+        event: 'manual_replay_error'
+      })
       // Ignore replay failures and keep session running.
     } finally {
       this.manualPasteInFlight = false
@@ -179,6 +227,11 @@ export class ManualFallbackSession {
       return false
     }
 
+    this.logger.debug({
+      sessionId: this.sessionId,
+      outcome: outcome.type,
+      event: 'manual_fallback_settle'
+    })
     return this.settleController.settle(outcome)
   }
 

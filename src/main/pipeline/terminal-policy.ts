@@ -4,6 +4,7 @@ const COMPLETE_DISPLAY_MS = 650
 const FAILURE_DISPLAY_MS = 1900
 const FAILURE_WITH_MESSAGE_DISPLAY_MS = 2900
 const CANCEL_DISPLAY_MS = 120
+const PASTE_LAST_ERROR_DISPLAY_MS = 1_100
 
 export type TerminalOutcome =
   | { type: 'complete' }
@@ -27,3 +28,5 @@ export const resolveTerminalDisplayDelayMs = (outcome: TerminalOutcome): number 
 
   return outcome.hasMessage ? FAILURE_WITH_MESSAGE_DISPLAY_MS : FAILURE_DISPLAY_MS
 }
+
+export const resolvePasteLastErrorDisplayDelayMs = (): number => PASTE_LAST_ERROR_DISPLAY_MS

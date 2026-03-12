@@ -1,15 +1,28 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  ipcMain,
+  nativeImage,
+  nativeTheme,
+  powerMonitor
+} from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import appIconIco from '../../build/icon.ico?asset'
+import appIconBackgroundDarkPng from '../../resources/app-icons/openvocaly-app-icon-background-dark-512.png?asset'
+import appIconBackgroundLightPng from '../../resources/app-icons/openvocaly-app-icon-background-light-512.png?asset'
 import { createMainAppContext } from './app-context'
 import { closeDb } from './db'
 import { withShutdownTimeout } from './helpers/lifecycle'
 import { createLogger } from './helpers/logger'
-import { isLinux, isMacOS, isWindows } from './helpers/platform'
+import { isMacOS, isWindows } from './helpers/platform'
 
 const GRACEFUL_QUIT_TIMEOUT_MS = 2500
+const PASTE_WARMUP_DELAY_MS = 8_000
 const logger = createLogger('main.index')
+const appWindowIcon = isWindows() ? appIconIco : appIconBackgroundDarkPng
+const MAC_DOCK_ICON_INSET_RATIO = 0.1
 
 const mainContext = createMainAppContext()
 
@@ -17,6 +30,8 @@ let mainWindow: BrowserWindow | null = null
 let hasShutdownCompleted = false
 let shutdownPromise: Promise<void> | null = null
 let isQuitting = false
+let pasteWarmupCompleted = false
+let pasteWarmupOnAcListener: (() => void) | null = null
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 if (!hasSingleInstanceLock) {
@@ -28,6 +43,160 @@ const runStep = async (label: string, operation: () => Promise<void> | void): Pr
     await operation()
   } catch (error) {
     console.error(`[main] ${label}`, error)
+  }
+}
+
+const createInsetMacDockIcon = (iconPath: string): Electron.NativeImage => {
+  const baseIcon = nativeImage.createFromPath(iconPath)
+  if (baseIcon.isEmpty()) {
+    return baseIcon
+  }
+
+  const { width, height } = baseIcon.getSize()
+  if (width <= 0 || height <= 0) {
+    return baseIcon
+  }
+
+  const insetX = Math.round(width * MAC_DOCK_ICON_INSET_RATIO)
+  const insetY = Math.round(height * MAC_DOCK_ICON_INSET_RATIO)
+  const targetWidth = Math.max(1, width - insetX * 2)
+  const targetHeight = Math.max(1, height - insetY * 2)
+  const scaledIcon = baseIcon.resize({ width: targetWidth, height: targetHeight, quality: 'best' })
+  const scaledSize = scaledIcon.getSize()
+  const scaledBitmap = scaledIcon.toBitmap()
+
+  const bytesPerPixel = 4
+  const sourceStride = scaledSize.width * bytesPerPixel
+  const destinationStride = width * bytesPerPixel
+  const destinationBuffer = Buffer.alloc(width * height * bytesPerPixel, 0)
+  const offsetX = Math.floor((width - scaledSize.width) / 2)
+  const offsetY = Math.floor((height - scaledSize.height) / 2)
+
+  for (let row = 0; row < scaledSize.height; row += 1) {
+    const sourceStart = row * sourceStride
+    const destinationStart = (offsetY + row) * destinationStride + offsetX * bytesPerPixel
+    scaledBitmap.copy(destinationBuffer, destinationStart, sourceStart, sourceStart + sourceStride)
+  }
+
+  return nativeImage.createFromBitmap(destinationBuffer, {
+    width,
+    height,
+    scaleFactor: 1
+  })
+}
+
+const getMacDockIcon = (): Electron.NativeImage => {
+  const iconPath = nativeTheme.shouldUseDarkColors
+    ? appIconBackgroundLightPng
+    : appIconBackgroundDarkPng
+  return createInsetMacDockIcon(iconPath)
+}
+
+const applyMacDockIcon = (): void => {
+  if (!isMacOS()) {
+    return
+  }
+
+  app.dock?.setIcon(getMacDockIcon())
+}
+
+const clearPasteWarmupOnAcListener = (): void => {
+  if (!pasteWarmupOnAcListener) {
+    return
+  }
+
+  powerMonitor.off('on-ac', pasteWarmupOnAcListener)
+  pasteWarmupOnAcListener = null
+}
+
+const isThermalStateSafeForWarmup = (): boolean => {
+  if (!isMacOS()) {
+    return true
+  }
+
+  try {
+    const thermalState = powerMonitor.getCurrentThermalState()
+    return thermalState !== 'serious' && thermalState !== 'critical'
+  } catch {
+    return true
+  }
+}
+
+const isOnBatteryPowerSafe = (): boolean => {
+  try {
+    return powerMonitor.isOnBatteryPower()
+  } catch {
+    return false
+  }
+}
+
+const ensurePasteWarmupOnAcListener = (): void => {
+  if (pasteWarmupOnAcListener) {
+    return
+  }
+
+  pasteWarmupOnAcListener = () => {
+    void tryRunPasteWarmup('on_ac')
+  }
+
+  powerMonitor.on('on-ac', pasteWarmupOnAcListener)
+}
+
+const tryRunPasteWarmup = async (source: 'startup_delay' | 'on_ac'): Promise<void> => {
+  if (pasteWarmupCompleted) {
+    return
+  }
+
+  if (!isMacOS()) {
+    return
+  }
+
+  if (!mainContext.services.permissionsService.isAccessibilityGranted()) {
+    logger.debug({
+      source,
+      reason: 'accessibility_not_granted',
+      event: 'paste_warmup_skipped'
+    })
+    clearPasteWarmupOnAcListener()
+    return
+  }
+
+  if (!isThermalStateSafeForWarmup()) {
+    logger.debug({
+      source,
+      reason: 'thermal_state_unhealthy',
+      event: 'paste_warmup_skipped'
+    })
+    return
+  }
+
+  if (isOnBatteryPowerSafe()) {
+    logger.debug({
+      source,
+      reason: 'on_battery_power',
+      event: 'paste_warmup_deferred'
+    })
+    ensurePasteWarmupOnAcListener()
+    return
+  }
+
+  const startedAt = Date.now()
+
+  try {
+    await mainContext.services.pasteService.prewarm()
+    pasteWarmupCompleted = true
+    clearPasteWarmupOnAcListener()
+    logger.debug({
+      source,
+      elapsedMs: Date.now() - startedAt,
+      event: 'paste_warmup_complete'
+    })
+  } catch (error) {
+    logger.debug({
+      source,
+      message: error instanceof Error ? error.message : 'Paste warmup failed unexpectedly.',
+      event: 'paste_warmup_failed'
+    })
   }
 }
 
@@ -75,7 +244,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: 'OpenVocaly',
-    ...(isLinux() ? { icon } : {}),
+    icon: appWindowIcon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -126,6 +295,8 @@ app.whenReady().then(async () => {
   }
 
   app.setName('OpenVocaly')
+  applyMacDockIcon()
+  nativeTheme.on('updated', applyMacDockIcon)
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.openvocally.app')
@@ -135,6 +306,13 @@ app.whenReady().then(async () => {
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+    window.on('focus', () => {
+      void runStep('shortcuts failed to repair on window focus', () =>
+        mainContext.services.shortcutService.repairSupportedGlobalRegistrations({
+          source: 'window_focus'
+        })
+      )
+    })
   })
 
   // IPC test
@@ -167,6 +345,15 @@ app.whenReady().then(async () => {
 
   createWindow()
 
+  void runStep('pipeline failed to prewarm overlay', () =>
+    mainContext.services.pipelineOrchestrator.prewarm()
+  )
+
+  const pasteWarmupTimer = setTimeout(() => {
+    void tryRunPasteWarmup('startup_delay')
+  }, PASTE_WARMUP_DELAY_MS)
+  pasteWarmupTimer.unref()
+
   app.on('second-instance', () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       createWindow()
@@ -185,6 +372,12 @@ app.whenReady().then(async () => {
   })
 
   app.on('activate', function () {
+    void runStep('shortcuts failed to repair on activate', () =>
+      mainContext.services.shortcutService.repairSupportedGlobalRegistrations({
+        source: 'activate'
+      })
+    )
+
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -197,6 +390,14 @@ app.whenReady().then(async () => {
     }
 
     mainWindow.focus()
+  })
+
+  powerMonitor.on('resume', () => {
+    void runStep('shortcuts failed to repair on resume', () =>
+      mainContext.services.shortcutService.repairSupportedGlobalRegistrations({
+        source: 'resume'
+      })
+    )
   })
 })
 
@@ -213,6 +414,12 @@ app.on('before-quit', (event) => {
   if (hasShutdownCompleted) {
     isQuitting = true
     return
+  }
+
+  if (isMacOS()) {
+    nativeTheme.removeListener('updated', applyMacDockIcon)
+    clearPasteWarmupOnAcListener()
+    app.dock?.hide()
   }
 
   event.preventDefault()

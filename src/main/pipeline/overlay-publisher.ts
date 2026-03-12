@@ -25,6 +25,10 @@ export class DictationOverlayPublisher {
     await this.publishNow(state)
   }
 
+  async prewarm(): Promise<void> {
+    await this.overlay.prewarm()
+  }
+
   async publishAudioLevels(state: DictationOverlayState | null): Promise<void> {
     if (!state) {
       await this.publishImmediate(null)

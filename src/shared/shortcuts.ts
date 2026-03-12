@@ -1,7 +1,8 @@
 export const SHORTCUT_ACTIONS = [
   'recording.toggle',
   'recording.cancel',
-  'recording.push_to_talk'
+  'recording.push_to_talk',
+  'transcription.paste_last'
 ] as const
 
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number]
@@ -9,7 +10,8 @@ export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number]
 export const DEFAULT_SHORTCUT_BINDINGS: Record<ShortcutAction, string> = {
   'recording.toggle': 'CommandOrControl+Shift+Space',
   'recording.cancel': 'Escape',
-  'recording.push_to_talk': 'CommandOrControl+Shift+L'
+  'recording.push_to_talk': 'CommandOrControl+Shift+L',
+  'transcription.paste_last': 'CommandOrControl+Shift+V'
 }
 
 export type ShortcutErrorCode =
