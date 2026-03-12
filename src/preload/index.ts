@@ -13,6 +13,18 @@ import type {
   ResolveAppIconResult
 } from '../shared/storage'
 import type {
+  GetHomeAppsParams,
+  GetHomeAppsResponse,
+  GetHomeMonthlyOutputParams,
+  GetHomeMonthlyOutputResponse,
+  GetHomeRangeTimelinesParams,
+  GetHomeRangeTimelinesResponse,
+  GetHomeRecentSessionsParams,
+  GetHomeRecentSessionsResponse,
+  GetHomeSummaryParams,
+  GetHomeSummaryResponse
+} from '../shared/reporting'
+import type {
   ShortcutConfigResponse,
   ShortcutMutationResponse,
   ShortcutResetInput,
@@ -81,6 +93,24 @@ const api = {
       ipcRenderer.invoke('storage:listSessions', input),
     resolveAppIcon: (input?: ResolveAppIconInput): Promise<ResolveAppIconResult> =>
       ipcRenderer.invoke('storage:resolveAppIcon', input)
+  },
+  reporting: {
+    getHomeSummary: (params: GetHomeSummaryParams): Promise<GetHomeSummaryResponse> =>
+      ipcRenderer.invoke('reporting:getHomeSummary', params),
+    getHomeRangeTimelines: (
+      params: GetHomeRangeTimelinesParams
+    ): Promise<GetHomeRangeTimelinesResponse> =>
+      ipcRenderer.invoke('reporting:getHomeRangeTimelines', params),
+    getHomeMonthlyOutput: (
+      params: GetHomeMonthlyOutputParams
+    ): Promise<GetHomeMonthlyOutputResponse> =>
+      ipcRenderer.invoke('reporting:getHomeMonthlyOutput', params),
+    getHomeApps: (params: GetHomeAppsParams): Promise<GetHomeAppsResponse> =>
+      ipcRenderer.invoke('reporting:getHomeApps', params),
+    getHomeRecentSessions: (
+      params: GetHomeRecentSessionsParams
+    ): Promise<GetHomeRecentSessionsResponse> =>
+      ipcRenderer.invoke('reporting:getHomeRecentSessions', params)
   },
   shortcuts: {
     getConfig: (): Promise<ShortcutConfigResponse> => ipcRenderer.invoke('shortcuts:getConfig'),

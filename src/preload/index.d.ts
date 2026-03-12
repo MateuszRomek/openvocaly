@@ -12,6 +12,18 @@ import type {
   ResolveAppIconResult
 } from '../shared/storage'
 import type {
+  GetHomeAppsParams,
+  GetHomeAppsResponse,
+  GetHomeMonthlyOutputParams,
+  GetHomeMonthlyOutputResponse,
+  GetHomeRangeTimelinesParams,
+  GetHomeRangeTimelinesResponse,
+  GetHomeRecentSessionsParams,
+  GetHomeRecentSessionsResponse,
+  GetHomeSummaryParams,
+  GetHomeSummaryResponse
+} from '../shared/reporting'
+import type {
   ShortcutConfigResponse,
   ShortcutMutationResponse,
   ShortcutResetInput,
@@ -57,6 +69,19 @@ declare global {
         listTranscripts: (input?: ListTranscriptsInput) => Promise<ListTranscriptsResult>
         listSessions: (input?: ListSessionsInput) => Promise<ListSessionsResult>
         resolveAppIcon: (input?: ResolveAppIconInput) => Promise<ResolveAppIconResult>
+      }
+      reporting: {
+        getHomeSummary: (params: GetHomeSummaryParams) => Promise<GetHomeSummaryResponse>
+        getHomeRangeTimelines: (
+          params: GetHomeRangeTimelinesParams
+        ) => Promise<GetHomeRangeTimelinesResponse>
+        getHomeMonthlyOutput: (
+          params: GetHomeMonthlyOutputParams
+        ) => Promise<GetHomeMonthlyOutputResponse>
+        getHomeApps: (params: GetHomeAppsParams) => Promise<GetHomeAppsResponse>
+        getHomeRecentSessions: (
+          params: GetHomeRecentSessionsParams
+        ) => Promise<GetHomeRecentSessionsResponse>
       }
       shortcuts: {
         getConfig: () => Promise<ShortcutConfigResponse>

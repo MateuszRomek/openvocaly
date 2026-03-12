@@ -163,21 +163,21 @@ export class TranscriptionService extends InitializableComponent {
     }
 
     try {
-      const sessionResult = await this.storageRepository.createSession({
-        startedAt: artifact.startedAt,
-        durationMs: artifact.durationMs ?? null,
-        title: null,
-        source: `recording:${artifact.sessionId}`
-      })
-
-      await this.storageRepository.addTranscript({
-        sessionId: sessionResult.id,
-        createdAt: Date.now(),
-        text: result.transcript.text,
-        language: result.transcript.language ?? null,
-        confidence: result.transcript.confidence ?? null,
-        durationMs: result.transcript.durationMs ?? artifact.durationMs ?? null
-      })
+      await this.storageRepository.createSessionWithTranscriptAndMetrics(
+        {
+          startedAt: artifact.startedAt,
+          durationMs: artifact.durationMs ?? null,
+          title: null,
+          source: `recording:${artifact.sessionId}`
+        },
+        {
+          createdAt: Date.now(),
+          text: result.transcript.text,
+          language: result.transcript.language ?? null,
+          confidence: result.transcript.confidence ?? null,
+          durationMs: result.transcript.durationMs ?? artifact.durationMs ?? null
+        }
+      )
 
       return result
     } catch (error) {
