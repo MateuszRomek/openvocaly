@@ -20,6 +20,8 @@ export type AddTranscriptResult = {
   id: number
 }
 
+export const TRANSCRIPTS_PAGE_SIZE = 30
+
 export type SessionTargetApp = {
   name: string | null
   identifier: string | null
@@ -37,15 +39,32 @@ export type UpdateSessionTargetAppByRecordingSessionResult = {
 }
 
 export type ListTranscriptsInput = {
-  sessionId?: number
-  limit?: number
-  offset?: number
+  page?: number
 }
 
 export type Transcript = InferSelectModel<typeof transcripts>
 
+export type TranscriptListItem = {
+  transcriptId: number
+  sessionId: number
+  createdAt: number
+  text: string
+  language: string | null
+  confidence: number | null
+  durationMs: number | null
+  sessionStartedAt: number
+  targetAppName: string | null
+  targetAppIdentifier: string | null
+  targetAppPath: string | null
+}
+
 export type ListTranscriptsResult = {
-  items: Transcript[]
+  items: TranscriptListItem[]
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+  hasNextPage: boolean
 }
 
 export type Session = InferSelectModel<typeof sessions>

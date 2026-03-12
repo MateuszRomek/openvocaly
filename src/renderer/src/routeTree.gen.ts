@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TranscriptsRouteImport } from './routes/transcripts'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ModelsRouteRouteImport } from './routes/models/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -16,6 +17,11 @@ import { Route as ModelsIndexRouteImport } from './routes/models/index'
 import { Route as ModelsLocalRouteImport } from './routes/models/local'
 import { Route as ModelsCloudRouteImport } from './routes/models/cloud'
 
+const TranscriptsRoute = TranscriptsRouteImport.update({
+  id: '/transcripts',
+  path: '/transcripts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/models': typeof ModelsRouteRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/transcripts': typeof TranscriptsRoute
   '/models/cloud': typeof ModelsCloudRoute
   '/models/local': typeof ModelsLocalRoute
   '/models/': typeof ModelsIndexRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/transcripts': typeof TranscriptsRoute
   '/models/cloud': typeof ModelsCloudRoute
   '/models/local': typeof ModelsLocalRoute
   '/models': typeof ModelsIndexRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/models': typeof ModelsRouteRouteWithChildren
   '/settings': typeof SettingsRoute
+  '/transcripts': typeof TranscriptsRoute
   '/models/cloud': typeof ModelsCloudRoute
   '/models/local': typeof ModelsLocalRoute
   '/models/': typeof ModelsIndexRoute
@@ -77,16 +86,24 @@ export interface FileRouteTypes {
     | '/'
     | '/models'
     | '/settings'
+    | '/transcripts'
     | '/models/cloud'
     | '/models/local'
     | '/models/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings' | '/models/cloud' | '/models/local' | '/models'
+  to:
+    | '/'
+    | '/settings'
+    | '/transcripts'
+    | '/models/cloud'
+    | '/models/local'
+    | '/models'
   id:
     | '__root__'
     | '/'
     | '/models'
     | '/settings'
+    | '/transcripts'
     | '/models/cloud'
     | '/models/local'
     | '/models/'
@@ -96,10 +113,18 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ModelsRouteRoute: typeof ModelsRouteRouteWithChildren
   SettingsRoute: typeof SettingsRoute
+  TranscriptsRoute: typeof TranscriptsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/transcripts': {
+      id: '/transcripts'
+      path: '/transcripts'
+      fullPath: '/transcripts'
+      preLoaderRoute: typeof TranscriptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -165,6 +190,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ModelsRouteRoute: ModelsRouteRouteWithChildren,
   SettingsRoute: SettingsRoute,
+  TranscriptsRoute: TranscriptsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
