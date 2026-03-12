@@ -3,8 +3,6 @@ import { QueryErrorResetBoundary } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ErrorBoundary } from 'react-error-boundary'
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -40,6 +38,8 @@ import {
   SheetTrigger
 } from '@renderer/ui/sheet'
 import { HomeReportingFallback } from './components/home-reporting-fallback'
+import { HomeDailyOutputCard } from './components/home-daily-output-card'
+import { HomeDailyOutputCardSkeleton } from './components/home-daily-output-card-skeleton'
 import { HomeReportingRangeTabs } from './components/home-reporting-range-tabs'
 import { HomeReportingSummaryRow } from './components/home-reporting-summary-row'
 import { HomeReportingSummaryRowSkeleton } from './components/home-reporting-summary-row-skeleton'
@@ -260,13 +260,6 @@ const MOCK_RANGE_DATA: Record<HomeReportingRange, HomeRangeMockData> = {
   }
 }
 
-const wordsChartConfig = {
-  words: {
-    label: 'Words',
-    color: 'var(--color-chart-1)'
-  }
-} satisfies ChartConfig
-
 const wpmChartConfig = {
   wpm: {
     label: 'Per-session WPM',
@@ -478,44 +471,9 @@ export function HomeView(): React.JSX.Element {
               <HomeReportingSummaryRow range={selectedRange} />
             </Suspense>
 
-            <Card className="bg-card/95 ring-foreground/8">
-              <CardHeader className="border-border/50 border-b">
-                <CardTitle>Daily output</CardTitle>
-                <CardDescription>Words dictated each day.</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <ChartContainer config={wordsChartConfig} className="h-64 w-full aspect-auto">
-                  <AreaChart
-                    data={activeData.wordsTimeline}
-                    margin={{ left: 12, right: 12, top: 8 }}
-                  >
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={10}
-                      minTickGap={18}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      width={42}
-                      tickFormatter={(value) => compactFormatter.format(value)}
-                    />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Area
-                      type="monotone"
-                      dataKey="words"
-                      stroke="var(--color-words)"
-                      fill="var(--color-words)"
-                      fillOpacity={0.2}
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
+            <Suspense fallback={<HomeDailyOutputCardSkeleton />}>
+              <HomeDailyOutputCard range={selectedRange} />
+            </Suspense>
 
             <div className="grid gap-4 xl:grid-cols-2">
               <Card className="bg-card/95 ring-foreground/8">
