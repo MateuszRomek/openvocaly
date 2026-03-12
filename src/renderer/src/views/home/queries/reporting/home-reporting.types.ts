@@ -17,3 +17,7 @@ export type HomeMonthlyOutputResponse = Awaited<
 export type HomeMonthlyOutputQueryParams = Parameters<
   Window['api']['reporting']['getHomeMonthlyOutput']
 >[0]
+
+export type HomeAppsResponse = Awaited<ReturnType<typeof window.api.reporting.getHomeApps>>
+
+export type HomeAppsQueryParams = Parameters<Window['api']['reporting']['getHomeApps']>[0]

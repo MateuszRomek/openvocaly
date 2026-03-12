@@ -2,30 +2,7 @@ import { Suspense, useMemo, useTransition } from 'react'
 import { QueryErrorResetBoundary } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ErrorBoundary } from 'react-error-boundary'
-import { Cell, Pie, PieChart } from 'recharts'
-import {
-  CardAction,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@renderer/ui/card'
-import { Button } from '@renderer/ui/button'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig
-} from '@renderer/ui/chart'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger
-} from '@renderer/ui/sheet'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@renderer/ui/card'
 import { HomeReportingFallback } from './components/home-reporting-fallback'
 import { HomeDailyOutputCard } from './components/home-daily-output-card'
 import { HomeDailyOutputCardSkeleton } from './components/home-daily-output-card-skeleton'
@@ -34,233 +11,13 @@ import { HomeMonthlyOutputCardSkeleton } from './components/home-monthly-output-
 import { HomeReportingRangeTabs } from './components/home-reporting-range-tabs'
 import { HomeReportingSummaryRow } from './components/home-reporting-summary-row'
 import { HomeReportingSummaryRowSkeleton } from './components/home-reporting-summary-row-skeleton'
+import { HomeTopAppsCard } from './components/home-top-apps-card'
+import { HomeTopAppsCardSkeleton } from './components/home-top-apps-card-skeleton'
 import { HomeWpmTrendCard } from './components/home-wpm-trend-card'
 import { HomeWpmTrendCardSkeleton } from './components/home-wpm-trend-card-skeleton'
 import { type HomeReportingRange } from './constants/reporting-range'
 
-type HomeRangeMockData = {
-  summary: {
-    averageWpm: number
-    words: number
-    totalMinutes: number
-    sessions: number
-  }
-  wordsTimeline: Array<{ label: string; words: number }>
-  wpmTimeline: Array<{ label: string; wpm: number; rolling: number }>
-  monthlyWords: Array<{ month: string; words: number }>
-  appUsage: Array<{ app: string; words: number; fill: string }>
-}
-const MOCK_RANGE_DATA: Record<HomeReportingRange, HomeRangeMockData> = {
-  '7d': {
-    summary: {
-      averageWpm: 117,
-      words: 3190,
-      totalMinutes: 72,
-      sessions: 12
-    },
-    wordsTimeline: [
-      { label: 'Mon', words: 420 },
-      { label: 'Tue', words: 530 },
-      { label: 'Wed', words: 470 },
-      { label: 'Thu', words: 390 },
-      { label: 'Fri', words: 560 },
-      { label: 'Sat', words: 380 },
-      { label: 'Sun', words: 440 }
-    ],
-    wpmTimeline: [
-      { label: 'Mon', wpm: 104, rolling: 102 },
-      { label: 'Tue', wpm: 114, rolling: 106 },
-      { label: 'Wed', wpm: 118, rolling: 111 },
-      { label: 'Thu', wpm: 112, rolling: 113 },
-      { label: 'Fri', wpm: 125, rolling: 116 },
-      { label: 'Sat', wpm: 119, rolling: 118 },
-      { label: 'Sun', wpm: 129, rolling: 121 }
-    ],
-    monthlyWords: [
-      { month: 'Oct', words: 7200 },
-      { month: 'Nov', words: 7840 },
-      { month: 'Dec', words: 7810 },
-      { month: 'Jan', words: 9630 },
-      { month: 'Feb', words: 11210 },
-      { month: 'Mar', words: 12840 }
-    ],
-    appUsage: [
-      { app: 'Slack', words: 1050, fill: 'var(--color-chart-1)' },
-      { app: 'Notion', words: 840, fill: 'var(--color-chart-2)' },
-      { app: 'Gmail', words: 730, fill: 'var(--color-chart-3)' },
-      { app: 'Linear', words: 570, fill: 'var(--color-chart-4)' }
-    ]
-  },
-  '30d': {
-    summary: {
-      averageWpm: 121,
-      words: 12480,
-      totalMinutes: 281,
-      sessions: 47
-    },
-    wordsTimeline: [
-      { label: 'Mar 1', words: 360 },
-      { label: 'Mar 3', words: 420 },
-      { label: 'Mar 5', words: 390 },
-      { label: 'Mar 7', words: 510 },
-      { label: 'Mar 9', words: 450 },
-      { label: 'Mar 11', words: 530 },
-      { label: 'Mar 13', words: 470 },
-      { label: 'Mar 15', words: 620 },
-      { label: 'Mar 17', words: 590 },
-      { label: 'Mar 19', words: 560 },
-      { label: 'Mar 21', words: 640 },
-      { label: 'Mar 23', words: 580 },
-      { label: 'Mar 25', words: 700 },
-      { label: 'Mar 27', words: 660 }
-    ],
-    wpmTimeline: [
-      { label: 'Mar 1', wpm: 102, rolling: 101 },
-      { label: 'Mar 3', wpm: 108, rolling: 103 },
-      { label: 'Mar 5', wpm: 112, rolling: 106 },
-      { label: 'Mar 7', wpm: 116, rolling: 109 },
-      { label: 'Mar 9', wpm: 111, rolling: 110 },
-      { label: 'Mar 11', wpm: 123, rolling: 113 },
-      { label: 'Mar 13', wpm: 118, rolling: 115 },
-      { label: 'Mar 15', wpm: 126, rolling: 117 },
-      { label: 'Mar 17', wpm: 121, rolling: 118 },
-      { label: 'Mar 19', wpm: 127, rolling: 120 },
-      { label: 'Mar 21', wpm: 129, rolling: 122 },
-      { label: 'Mar 23', wpm: 125, rolling: 123 },
-      { label: 'Mar 25', wpm: 131, rolling: 125 },
-      { label: 'Mar 27', wpm: 134, rolling: 127 }
-    ],
-    monthlyWords: [
-      { month: 'Oct', words: 7200 },
-      { month: 'Nov', words: 7840 },
-      { month: 'Dec', words: 7810 },
-      { month: 'Jan', words: 9630 },
-      { month: 'Feb', words: 11210 },
-      { month: 'Mar', words: 12840 }
-    ],
-    appUsage: [
-      { app: 'Slack', words: 4210, fill: 'var(--color-chart-1)' },
-      { app: 'Notion', words: 3370, fill: 'var(--color-chart-2)' },
-      { app: 'Gmail', words: 2870, fill: 'var(--color-chart-3)' },
-      { app: 'Linear', words: 2030, fill: 'var(--color-chart-4)' }
-    ]
-  },
-  '90d': {
-    summary: {
-      averageWpm: 118,
-      words: 33820,
-      totalMinutes: 768,
-      sessions: 126
-    },
-    wordsTimeline: [
-      { label: 'W1', words: 1860 },
-      { label: 'W2', words: 1940 },
-      { label: 'W3', words: 2210 },
-      { label: 'W4', words: 2150 },
-      { label: 'W5', words: 2320 },
-      { label: 'W6', words: 2480 },
-      { label: 'W7', words: 2570 },
-      { label: 'W8', words: 2710 },
-      { label: 'W9', words: 2860 },
-      { label: 'W10', words: 3010 },
-      { label: 'W11', words: 3160 },
-      { label: 'W12', words: 3330 }
-    ],
-    wpmTimeline: [
-      { label: 'W1', wpm: 101, rolling: 101 },
-      { label: 'W2', wpm: 106, rolling: 103 },
-      { label: 'W3', wpm: 111, rolling: 106 },
-      { label: 'W4', wpm: 108, rolling: 107 },
-      { label: 'W5', wpm: 114, rolling: 108 },
-      { label: 'W6', wpm: 117, rolling: 111 },
-      { label: 'W7', wpm: 119, rolling: 113 },
-      { label: 'W8', wpm: 121, rolling: 115 },
-      { label: 'W9', wpm: 123, rolling: 117 },
-      { label: 'W10', wpm: 125, rolling: 119 },
-      { label: 'W11', wpm: 129, rolling: 121 },
-      { label: 'W12', wpm: 132, rolling: 123 }
-    ],
-    monthlyWords: [
-      { month: 'Oct', words: 7200 },
-      { month: 'Nov', words: 7840 },
-      { month: 'Dec', words: 7810 },
-      { month: 'Jan', words: 9630 },
-      { month: 'Feb', words: 11210 },
-      { month: 'Mar', words: 12840 }
-    ],
-    appUsage: [
-      { app: 'Slack', words: 11340, fill: 'var(--color-chart-1)' },
-      { app: 'Notion', words: 8620, fill: 'var(--color-chart-2)' },
-      { app: 'Gmail', words: 7690, fill: 'var(--color-chart-3)' },
-      { app: 'Linear', words: 6170, fill: 'var(--color-chart-4)' }
-    ]
-  },
-  '12m': {
-    summary: {
-      averageWpm: 114,
-      words: 102130,
-      totalMinutes: 2360,
-      sessions: 381
-    },
-    wordsTimeline: [
-      { label: 'Apr', words: 6120 },
-      { label: 'May', words: 6590 },
-      { label: 'Jun', words: 7040 },
-      { label: 'Jul', words: 7390 },
-      { label: 'Aug', words: 7800 },
-      { label: 'Sep', words: 8260 },
-      { label: 'Oct', words: 9120 },
-      { label: 'Nov', words: 9680 },
-      { label: 'Dec', words: 10220 },
-      { label: 'Jan', words: 11280 },
-      { label: 'Feb', words: 12120 },
-      { label: 'Mar', words: 13510 }
-    ],
-    wpmTimeline: [
-      { label: 'Apr', wpm: 92, rolling: 92 },
-      { label: 'May', wpm: 96, rolling: 94 },
-      { label: 'Jun', wpm: 100, rolling: 96 },
-      { label: 'Jul', wpm: 102, rolling: 97 },
-      { label: 'Aug', wpm: 105, rolling: 99 },
-      { label: 'Sep', wpm: 109, rolling: 101 },
-      { label: 'Oct', wpm: 112, rolling: 103 },
-      { label: 'Nov', wpm: 114, rolling: 105 },
-      { label: 'Dec', wpm: 116, rolling: 107 },
-      { label: 'Jan', wpm: 119, rolling: 109 },
-      { label: 'Feb', wpm: 121, rolling: 112 },
-      { label: 'Mar', wpm: 124, rolling: 114 }
-    ],
-    monthlyWords: [
-      { month: 'Apr', words: 6120 },
-      { month: 'May', words: 6590 },
-      { month: 'Jun', words: 7040 },
-      { month: 'Jul', words: 7390 },
-      { month: 'Aug', words: 7800 },
-      { month: 'Sep', words: 8260 },
-      { month: 'Oct', words: 9120 },
-      { month: 'Nov', words: 9680 },
-      { month: 'Dec', words: 10220 },
-      { month: 'Jan', words: 11280 },
-      { month: 'Feb', words: 12120 },
-      { month: 'Mar', words: 13510 }
-    ],
-    appUsage: [
-      { app: 'Slack', words: 36040, fill: 'var(--color-chart-1)' },
-      { app: 'Notion', words: 27220, fill: 'var(--color-chart-2)' },
-      { app: 'Gmail', words: 20470, fill: 'var(--color-chart-3)' },
-      { app: 'Linear', words: 18400, fill: 'var(--color-chart-4)' }
-    ]
-  }
-}
-
 const numberFormatter = new Intl.NumberFormat('en-US')
-
-type AppDetailRow = {
-  app: string
-  words: number
-  interactions: number
-  averageWpm: number
-}
 
 type RecentSessionRow = {
   at: string
@@ -269,28 +26,6 @@ type RecentSessionRow = {
   durationMinutes: number
   app: string
 }
-
-const APP_DETAIL_EXTRAS: Array<{ app: string; words: number; interactions: number }> = [
-  { app: 'Google Docs', words: 1120, interactions: 9 },
-  { app: 'Figma', words: 760, interactions: 6 },
-  { app: 'Jira', words: 540, interactions: 5 },
-  { app: 'Terminal', words: 380, interactions: 4 }
-]
-
-const RANGE_DETAIL_SCALE: Record<HomeReportingRange, number> = {
-  '7d': 0.35,
-  '30d': 1,
-  '90d': 2.3,
-  '12m': 7.6
-}
-
-const CHART_APP_COLORS = [
-  'var(--color-chart-1)',
-  'var(--color-chart-2)',
-  'var(--color-chart-3)',
-  'var(--color-chart-4)',
-  'var(--color-chart-5)'
-] as const
 
 const RECENT_SESSIONS_BY_RANGE: Record<HomeReportingRange, RecentSessionRow[]> = {
   '7d': [
@@ -327,24 +62,6 @@ const RECENT_SESSIONS_BY_RANGE: Record<HomeReportingRange, RecentSessionRow[]> =
   ]
 }
 
-function buildAppDetails(range: HomeReportingRange, data: HomeRangeMockData): AppDetailRow[] {
-  const primaryRows = data.appUsage.map((item, index) => ({
-    app: item.app,
-    words: item.words,
-    interactions: Math.max(4, Math.round(item.words / 230)),
-    averageWpm: Math.round(data.summary.averageWpm + (index - 1) * 2.5)
-  }))
-
-  const extras = APP_DETAIL_EXTRAS.map((item, index) => ({
-    app: item.app,
-    words: Math.round(item.words * RANGE_DETAIL_SCALE[range]),
-    interactions: Math.max(2, Math.round(item.interactions * RANGE_DETAIL_SCALE[range])),
-    averageWpm: Math.round(data.summary.averageWpm - 6 + index * 2)
-  }))
-
-  return [...primaryRows, ...extras].sort((a, b) => b.words - a.words)
-}
-
 function formatSessionDuration(minutes: number): string {
   const totalSeconds = Math.max(0, Math.round(minutes * 60))
   const mins = Math.floor(totalSeconds / 60)
@@ -358,42 +75,7 @@ export function HomeView(): React.JSX.Element {
   const [, startTransition] = useTransition()
   const selectedRange = search.range
 
-  const activeData = MOCK_RANGE_DATA[selectedRange]
-  const appDetails = useMemo(
-    () => buildAppDetails(selectedRange, activeData),
-    [selectedRange, activeData]
-  )
-  const topApps = useMemo(
-    () =>
-      appDetails.slice(0, 5).map((row, index) => ({
-        app: row.app,
-        words: row.words,
-        fill: CHART_APP_COLORS[index] ?? CHART_APP_COLORS[CHART_APP_COLORS.length - 1]
-      })),
-    [appDetails]
-  )
-  const topAppsWordsTotal = useMemo(
-    () => topApps.reduce((total, row) => total + row.words, 0),
-    [topApps]
-  )
   const recentSessions = useMemo(() => RECENT_SESSIONS_BY_RANGE[selectedRange], [selectedRange])
-  const appDetailsTotal = useMemo(
-    () => appDetails.reduce((total, row) => total + row.words, 0),
-    [appDetails]
-  )
-
-  const appUsageChartConfig = useMemo(() => {
-    const config: ChartConfig = {}
-
-    topApps.forEach((item) => {
-      config[item.app] = {
-        label: item.app,
-        color: item.fill
-      }
-    })
-
-    return config
-  }, [topApps])
 
   const handleRangeChange = (nextRange: HomeReportingRange): void => {
     if (nextRange === selectedRange) {
@@ -457,113 +139,9 @@ export function HomeView(): React.JSX.Element {
             </div>
 
             <div className="grid gap-4 xl:grid-cols-2">
-              <Card className="bg-card/95 ring-foreground/8">
-                <CardHeader className="border-border/50 border-b">
-                  <Sheet>
-                    <CardAction>
-                      <SheetTrigger render={<Button variant="outline" size="sm" />}>
-                        All apps
-                      </SheetTrigger>
-                    </CardAction>
-                    <SheetContent side="right">
-                      <SheetHeader>
-                        <SheetTitle>All apps</SheetTitle>
-                        <SheetDescription>Full breakdown for selected range.</SheetDescription>
-                      </SheetHeader>
-
-                      <div className="app-scroll-area flex-1 overflow-y-auto px-4 pb-4">
-                        <div className="space-y-2">
-                          {appDetails.map((row) => {
-                            const share =
-                              appDetailsTotal > 0 ? (row.words / appDetailsTotal) * 100 : 0
-
-                            return (
-                              <div
-                                key={row.app}
-                                className="border-border/60 bg-background/60 rounded-lg border px-3 py-2.5"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div>
-                                    <p className="text-sm font-medium">{row.app}</p>
-                                    <p className="text-muted-foreground text-xs">
-                                      {row.interactions} interactions
-                                    </p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-sm font-medium">
-                                      {numberFormatter.format(row.words)}
-                                    </p>
-                                    <p className="text-muted-foreground text-xs">
-                                      {share.toFixed(1)}% share
-                                    </p>
-                                  </div>
-                                </div>
-                                <p className="text-muted-foreground mt-1 text-xs">
-                                  Avg WPM in this app: {numberFormatter.format(row.averageWpm)}
-                                </p>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </SheetContent>
-                  </Sheet>
-                  <CardTitle>Top apps</CardTitle>
-                  <CardDescription>Top 5 apps by word count.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4 pt-4 sm:grid-cols-[auto_1fr] sm:items-center">
-                  <ChartContainer
-                    config={appUsageChartConfig}
-                    className="mx-auto h-44 w-44 aspect-auto"
-                  >
-                    <PieChart>
-                      <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-                      <Pie
-                        data={topApps}
-                        dataKey="words"
-                        nameKey="app"
-                        innerRadius={46}
-                        outerRadius={70}
-                        paddingAngle={3}
-                        strokeWidth={2}
-                      >
-                        {topApps.map((item) => (
-                          <Cell key={item.app} fill={item.fill} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ChartContainer>
-
-                  <div className="space-y-2">
-                    {topApps.map((item) => {
-                      const share =
-                        topAppsWordsTotal > 0 ? (item.words / topAppsWordsTotal) * 100 : 0
-
-                      return (
-                        <div
-                          key={item.app}
-                          className="border-border/60 bg-background/60 flex items-center justify-between rounded-lg border px-3 py-2"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="h-2.5 w-2.5 rounded-full"
-                              style={{ backgroundColor: item.fill }}
-                              aria-hidden
-                            />
-                            <span className="text-sm font-medium">{item.app}</span>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium">
-                              {numberFormatter.format(item.words)}
-                            </p>
-                            <p className="text-muted-foreground text-xs">{share.toFixed(1)}%</p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
+              <Suspense fallback={<HomeTopAppsCardSkeleton />}>
+                <HomeTopAppsCard range={selectedRange} />
+              </Suspense>
 
               <Card className="bg-card/95 ring-foreground/8">
                 <CardHeader className="border-border/50 border-b">
