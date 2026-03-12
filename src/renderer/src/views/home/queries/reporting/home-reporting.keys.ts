@@ -1,4 +1,8 @@
-import type { HomeRangeTimelinesQueryParams, HomeSummaryQueryParams } from './home-reporting.types'
+import type {
+  HomeMonthlyOutputQueryParams,
+  HomeRangeTimelinesQueryParams,
+  HomeSummaryQueryParams
+} from './home-reporting.types'
 
 const resolveAsOfKey = (asOfMs?: number): number | 'latest' => asOfMs ?? 'latest'
 
@@ -9,5 +13,8 @@ export const homeReportingKeys = {
     [...homeReportingKeys.summaries(), range, resolveAsOfKey(asOfMs)] as const,
   timelines: () => [...homeReportingKeys.all, 'timelines'] as const,
   timeline: ({ range, asOfMs }: HomeRangeTimelinesQueryParams) =>
-    [...homeReportingKeys.timelines(), range, resolveAsOfKey(asOfMs)] as const
+    [...homeReportingKeys.timelines(), range, resolveAsOfKey(asOfMs)] as const,
+  monthlies: () => [...homeReportingKeys.all, 'monthly'] as const,
+  monthly: ({ asOfMs }: HomeMonthlyOutputQueryParams) =>
+    [...homeReportingKeys.monthlies(), resolveAsOfKey(asOfMs)] as const
 }

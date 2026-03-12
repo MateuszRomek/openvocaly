@@ -9,3 +9,11 @@ export type HomeRangeTimelinesResponse = Awaited<
 export type HomeRangeTimelinesQueryParams = Parameters<
   Window['api']['reporting']['getHomeRangeTimelines']
 >[0]
+
+export type HomeMonthlyOutputResponse = Awaited<
+  ReturnType<typeof window.api.reporting.getHomeMonthlyOutput>
+>
+
+export type HomeMonthlyOutputQueryParams = Parameters<
+  Window['api']['reporting']['getHomeMonthlyOutput']
+>[0]

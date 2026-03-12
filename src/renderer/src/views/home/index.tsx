@@ -2,7 +2,7 @@ import { Suspense, useMemo, useTransition } from 'react'
 import { QueryErrorResetBoundary } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ErrorBoundary } from 'react-error-boundary'
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from 'recharts'
+import { Cell, Pie, PieChart } from 'recharts'
 import {
   CardAction,
   Card,
@@ -29,6 +29,8 @@ import {
 import { HomeReportingFallback } from './components/home-reporting-fallback'
 import { HomeDailyOutputCard } from './components/home-daily-output-card'
 import { HomeDailyOutputCardSkeleton } from './components/home-daily-output-card-skeleton'
+import { HomeMonthlyOutputCard } from './components/home-monthly-output-card'
+import { HomeMonthlyOutputCardSkeleton } from './components/home-monthly-output-card-skeleton'
 import { HomeReportingRangeTabs } from './components/home-reporting-range-tabs'
 import { HomeReportingSummaryRow } from './components/home-reporting-summary-row'
 import { HomeReportingSummaryRowSkeleton } from './components/home-reporting-summary-row-skeleton'
@@ -251,18 +253,7 @@ const MOCK_RANGE_DATA: Record<HomeReportingRange, HomeRangeMockData> = {
   }
 }
 
-const monthlyChartConfig = {
-  words: {
-    label: 'Words',
-    color: 'var(--color-chart-2)'
-  }
-} satisfies ChartConfig
-
 const numberFormatter = new Intl.NumberFormat('en-US')
-const compactFormatter = new Intl.NumberFormat('en-US', {
-  notation: 'compact',
-  maximumFractionDigits: 1
-})
 
 type AppDetailRow = {
   app: string
@@ -460,31 +451,9 @@ export function HomeView(): React.JSX.Element {
                 <HomeWpmTrendCard range={selectedRange} />
               </Suspense>
 
-              <Card className="bg-card/95 ring-foreground/8">
-                <CardHeader className="border-border/50 border-b">
-                  <CardTitle>Monthly output</CardTitle>
-                  <CardDescription>Words by month.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <ChartContainer config={monthlyChartConfig} className="h-56 w-full aspect-auto">
-                    <BarChart
-                      data={activeData.monthlyWords}
-                      margin={{ left: 12, right: 12, top: 8 }}
-                    >
-                      <CartesianGrid vertical={false} />
-                      <XAxis dataKey="month" tickLine={false} axisLine={false} tickMargin={10} />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        width={42}
-                        tickFormatter={(value) => compactFormatter.format(value)}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="words" radius={[6, 6, 0, 0]} fill="var(--color-words)" />
-                    </BarChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
+              <Suspense fallback={<HomeMonthlyOutputCardSkeleton />}>
+                <HomeMonthlyOutputCard />
+              </Suspense>
             </div>
 
             <div className="grid gap-4 xl:grid-cols-2">
