@@ -1,4 +1,5 @@
 import type { RecordingArtifact } from '../../../shared/recording'
+import type { TranscriptAddedEvent } from '../../../shared/storage'
 import type {
   ListLocalModelsResponse,
   LocalModelActionInput,
@@ -17,6 +18,7 @@ import type {
 import { SettingsRepository } from '../../repositories/settings-repository'
 import { StorageRepository } from '../../repositories/storage-repository'
 import { InitializableComponent } from '../../helpers/initializable-component'
+import { emitTranscriptAddedEvent } from '../../storage/transcript-events'
 import { parakeetRuntime } from '../local/parakeet/runtime'
 import { TranscriptionProviderFactory } from '../provider-factory'
 import { TranscriptionPreferencesManager } from './preferences-manager'
@@ -163,21 +165,28 @@ export class TranscriptionService extends InitializableComponent {
     }
 
     try {
-      const sessionResult = await this.storageRepository.createSession({
-        startedAt: artifact.startedAt,
-        durationMs: artifact.durationMs ?? null,
-        title: null,
-        source: `recording:${artifact.sessionId}`
-      })
+      const persisted = await this.storageRepository.createSessionWithTranscriptAndMetrics(
+        {
+          startedAt: artifact.startedAt,
+          durationMs: artifact.durationMs ?? null,
+          title: null,
+          source: `recording:${artifact.sessionId}`
+        },
+        {
+          createdAt: Date.now(),
+          text: result.transcript.text,
+          language: result.transcript.language ?? null,
+          confidence: result.transcript.confidence ?? null,
+          durationMs: result.transcript.durationMs ?? artifact.durationMs ?? null
+        }
+      )
 
-      await this.storageRepository.addTranscript({
-        sessionId: sessionResult.id,
-        createdAt: Date.now(),
-        text: result.transcript.text,
-        language: result.transcript.language ?? null,
-        confidence: result.transcript.confidence ?? null,
-        durationMs: result.transcript.durationMs ?? artifact.durationMs ?? null
-      })
+      const transcriptAddedEvent: TranscriptAddedEvent = {
+        transcriptId: persisted.transcriptId,
+        sessionId: persisted.sessionId,
+        createdAt: Date.now()
+      }
+      emitTranscriptAddedEvent(transcriptAddedEvent)
 
       return result
     } catch (error) {

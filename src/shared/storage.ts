@@ -4,6 +4,8 @@ import { sessions, transcripts } from './schema'
 type SessionInsert = InferInsertModel<typeof sessions>
 type TranscriptInsert = InferInsertModel<typeof transcripts>
 
+export const STORAGE_TRANSCRIPT_ADDED_CHANNEL = 'storage:transcript-added'
+
 export type CreateSessionInput = Omit<SessionInsert, 'id' | 'startedAt'> & {
   startedAt?: number
 }
@@ -19,6 +21,14 @@ export type AddTranscriptInput = Omit<TranscriptInsert, 'id' | 'createdAt'> & {
 export type AddTranscriptResult = {
   id: number
 }
+
+export type TranscriptAddedEvent = {
+  transcriptId: number
+  sessionId: number | null
+  createdAt: number
+}
+
+export const TRANSCRIPTS_PAGE_SIZE = 30
 
 export type SessionTargetApp = {
   name: string | null
@@ -37,15 +47,32 @@ export type UpdateSessionTargetAppByRecordingSessionResult = {
 }
 
 export type ListTranscriptsInput = {
-  sessionId?: number
-  limit?: number
-  offset?: number
+  page?: number
 }
 
 export type Transcript = InferSelectModel<typeof transcripts>
 
+export type TranscriptListItem = {
+  transcriptId: number
+  sessionId: number
+  createdAt: number
+  text: string
+  language: string | null
+  confidence: number | null
+  durationMs: number | null
+  sessionStartedAt: number
+  targetAppName: string | null
+  targetAppIdentifier: string | null
+  targetAppPath: string | null
+}
+
 export type ListTranscriptsResult = {
-  items: Transcript[]
+  items: TranscriptListItem[]
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+  hasNextPage: boolean
 }
 
 export type Session = InferSelectModel<typeof sessions>

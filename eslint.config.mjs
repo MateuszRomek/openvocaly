@@ -28,5 +28,31 @@ export default defineConfig(
       ...eslintPluginReactRefresh.configs.vite.rules
     }
   },
+  {
+    files: ['src/main/reporting/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '../overlay/**',
+                '../paste/**',
+                '../permissions/**',
+                '../pipeline/**',
+                '../recording/**',
+                '../shortcuts/**',
+                '../storage/**',
+                '../transcription/**'
+              ],
+              message:
+                'Reporting domain cannot import nested internals from other main domains. Hoist shared helpers to src/main/helpers first.'
+            }
+          ]
+        }
+      ]
+    }
+  },
   eslintConfigPrettier
 )

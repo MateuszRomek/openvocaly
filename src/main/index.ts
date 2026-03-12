@@ -327,6 +327,7 @@ app.whenReady().then(async () => {
   mainContext.ipc.shortcutsIpc.registerIpcHandlers()
   mainContext.ipc.recordingIpc.registerIpcHandlers()
   mainContext.ipc.transcriptionIpc.registerIpcHandlers()
+  mainContext.ipc.reportingIpc.registerIpcHandlers()
   mainContext.ipc.pipelineIpc.registerIpcHandlers()
   await runStep('shortcuts failed to initialize shortcuts subsystem', () =>
     mainContext.ipc.shortcutsIpc.initialize()

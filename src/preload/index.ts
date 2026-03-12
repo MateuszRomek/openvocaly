@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { STORAGE_TRANSCRIPT_ADDED_CHANNEL } from '../shared/storage'
 import type {
   AddTranscriptInput,
   AddTranscriptResult,
@@ -9,9 +10,22 @@ import type {
   ListSessionsResult,
   ListTranscriptsInput,
   ListTranscriptsResult,
+  TranscriptAddedEvent,
   ResolveAppIconInput,
   ResolveAppIconResult
 } from '../shared/storage'
+import type {
+  GetHomeAppsParams,
+  GetHomeAppsResponse,
+  GetHomeMonthlyOutputParams,
+  GetHomeMonthlyOutputResponse,
+  GetHomeRangeTimelinesParams,
+  GetHomeRangeTimelinesResponse,
+  GetHomeRecentSessionsParams,
+  GetHomeRecentSessionsResponse,
+  GetHomeSummaryParams,
+  GetHomeSummaryResponse
+} from '../shared/reporting'
 import type {
   ShortcutConfigResponse,
   ShortcutMutationResponse,
@@ -80,7 +94,27 @@ const api = {
     listSessions: (input?: ListSessionsInput): Promise<ListSessionsResult> =>
       ipcRenderer.invoke('storage:listSessions', input),
     resolveAppIcon: (input?: ResolveAppIconInput): Promise<ResolveAppIconResult> =>
-      ipcRenderer.invoke('storage:resolveAppIcon', input)
+      ipcRenderer.invoke('storage:resolveAppIcon', input),
+    onTranscriptAdded: (callback: (payload: TranscriptAddedEvent) => void): (() => void) =>
+      subscribeToIpcChannel<TranscriptAddedEvent>(STORAGE_TRANSCRIPT_ADDED_CHANNEL, callback)
+  },
+  reporting: {
+    getHomeSummary: (params: GetHomeSummaryParams): Promise<GetHomeSummaryResponse> =>
+      ipcRenderer.invoke('reporting:getHomeSummary', params),
+    getHomeRangeTimelines: (
+      params: GetHomeRangeTimelinesParams
+    ): Promise<GetHomeRangeTimelinesResponse> =>
+      ipcRenderer.invoke('reporting:getHomeRangeTimelines', params),
+    getHomeMonthlyOutput: (
+      params: GetHomeMonthlyOutputParams
+    ): Promise<GetHomeMonthlyOutputResponse> =>
+      ipcRenderer.invoke('reporting:getHomeMonthlyOutput', params),
+    getHomeApps: (params: GetHomeAppsParams): Promise<GetHomeAppsResponse> =>
+      ipcRenderer.invoke('reporting:getHomeApps', params),
+    getHomeRecentSessions: (
+      params: GetHomeRecentSessionsParams
+    ): Promise<GetHomeRecentSessionsResponse> =>
+      ipcRenderer.invoke('reporting:getHomeRecentSessions', params)
   },
   shortcuts: {
     getConfig: (): Promise<ShortcutConfigResponse> => ipcRenderer.invoke('shortcuts:getConfig'),

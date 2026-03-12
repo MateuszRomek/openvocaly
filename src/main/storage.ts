@@ -14,6 +14,7 @@ import type {
   ResolveAppIconResult
 } from '../shared/storage'
 import { AppIconResolver } from './storage/app-icon-resolver'
+import { emitTranscriptAddedEvent } from './storage/transcript-events'
 
 export type StorageIpcModule = {
   registerIpcHandlers: () => void
@@ -32,8 +33,17 @@ export const createStorageIpcModule = (
 
     ipcMain.handle(
       'storage:addTranscript',
-      async (_event, params: AddTranscriptInput): Promise<AddTranscriptResult> =>
-        await storageRepository.addTranscript(params)
+      async (_event, params: AddTranscriptInput): Promise<AddTranscriptResult> => {
+        const result = await storageRepository.addTranscript(params)
+
+        emitTranscriptAddedEvent({
+          transcriptId: result.id,
+          sessionId: params.sessionId,
+          createdAt: params.createdAt ?? Date.now()
+        })
+
+        return result
+      }
     )
 
     ipcMain.handle(

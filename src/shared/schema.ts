@@ -37,6 +37,20 @@ export const transcripts = sqliteTable(
   ]
 )
 
+export const sessionMetrics = sqliteTable(
+  'session_metrics',
+  {
+    sessionId: integer('session_id')
+      .primaryKey()
+      .references(() => sessions.id),
+    wordCount: integer('word_count').notNull(),
+    wpm: real('wpm'),
+    durationMsEffective: integer('duration_ms_effective').notNull(),
+    computedAt: integer('computed_at').notNull()
+  },
+  (table) => [index('session_metrics_computed_at_idx').on(table.computedAt)]
+)
+
 export const shortcutBindings = sqliteTable(
   'shortcut_bindings',
   {

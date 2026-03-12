@@ -14,6 +14,8 @@ import { RecordingPreferencesManager } from './recording/service/preferences-man
 import { RecordingServiceOrchestrator } from './recording/service/orchestrator'
 import { RecordingSessionBus } from './recording/session-bus'
 import { RecordingOverlayController } from './overlay/controller'
+import { createReportingIpcModule } from './reporting/ipc'
+import { ReportingService } from './reporting/service'
 import { DatabaseLifecycle } from './repositories/database-lifecycle'
 import { SettingsRepository } from './repositories/settings-repository'
 import { ShortcutBindingsRepository } from './repositories/shortcut-bindings-repository'
@@ -30,6 +32,7 @@ export type MainAppContext = {
     permissionsService: PermissionsService
     recordingService: RecordingServiceOrchestrator
     transcriptionService: TranscriptionService
+    reportingService: ReportingService
     shortcutService: ShortcutService
     pipelineOrchestrator: DictationPipelineOrchestrator
     pasteService: DictationPasteService
@@ -45,6 +48,7 @@ export type MainAppContext = {
     shortcutsIpc: ReturnType<typeof createShortcutsIpcModule>
     recordingIpc: ReturnType<typeof createRecordingIpcModule>
     transcriptionIpc: ReturnType<typeof createTranscriptionIpcModule>
+    reportingIpc: ReturnType<typeof createReportingIpcModule>
     pipelineIpc: ReturnType<typeof createPipelineIpcModule>
   }
   repositories: {
@@ -80,6 +84,7 @@ export const createMainAppContext = (): MainAppContext => {
     settingsRepository,
     storageRepository
   })
+  const reportingService = new ReportingService()
   const pasteService = new DictationPasteService(permissionsService)
 
   const overlayController = new RecordingOverlayController()
@@ -118,6 +123,7 @@ export const createMainAppContext = (): MainAppContext => {
   const shortcutsIpc = createShortcutsIpcModule(shortcutService)
   const recordingIpc = createRecordingIpcModule(recordingService)
   const transcriptionIpc = createTranscriptionIpcModule(transcriptionService)
+  const reportingIpc = createReportingIpcModule(reportingService)
   const pipelineIpc = createPipelineIpcModule(pipelineOrchestrator)
 
   return {
@@ -125,6 +131,7 @@ export const createMainAppContext = (): MainAppContext => {
       permissionsService,
       recordingService,
       transcriptionService,
+      reportingService,
       shortcutService,
       pipelineOrchestrator,
       pasteService
@@ -140,6 +147,7 @@ export const createMainAppContext = (): MainAppContext => {
       shortcutsIpc,
       recordingIpc,
       transcriptionIpc,
+      reportingIpc,
       pipelineIpc
     },
     repositories: {

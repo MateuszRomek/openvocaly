@@ -84,12 +84,15 @@ const BAR_SHAPES_BY_PATTERN: Record<OpenVocalyLogoBarPattern, BarShape[]> = {
 }
 
 const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3
-const easeInOutQuad = (t: number): number =>
-  t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2
+const easeInOutQuad = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
 
 const snapToScale = (value: number, scale: number): number => Math.round(value * scale) / scale
 
-const formatSvgValue = (value: number, sharpness: OpenVocalyLogoSharpness, snapScale: number): string => {
+const formatSvgValue = (
+  value: number,
+  sharpness: OpenVocalyLogoSharpness,
+  snapScale: number
+): string => {
   const finalValue = sharpness === 'pixel-snapped' ? snapToScale(value, snapScale) : value
   return finalValue.toFixed(2)
 }
@@ -123,7 +126,8 @@ function OpenVocalyLogo({
     const minStep = 1 / snapScale
     const barShapes = BAR_SHAPES_BY_PATTERN[barPattern]
 
-    const snapValue = (value: number): number => (shouldSnap ? snapToScale(value, snapScale) : value)
+    const snapValue = (value: number): number =>
+      shouldSnap ? snapToScale(value, snapScale) : value
 
     const snapSpan = (start: number, span: number): { start: number; span: number } => {
       if (!shouldSnap) {
@@ -184,7 +188,8 @@ function OpenVocalyLogo({
       return
     }
 
-    const toSvg = (value: number): string => formatSvgValue(value, geometry.sharpness, geometry.snapScale)
+    const toSvg = (value: number): string =>
+      formatSvgValue(value, geometry.sharpness, geometry.snapScale)
 
     const applyStaticState = (): void => {
       circle.style.transition = 'none'
@@ -271,7 +276,8 @@ function OpenVocalyLogo({
       barsState.forEach((state, index) => {
         const interval = 220 + (1 - energy) * 300
         if (energy > 0.01 && t > state.nextChange) {
-          const range = geometry.barMinHeight + energy * (geometry.barMaxHeight - geometry.barMinHeight)
+          const range =
+            geometry.barMinHeight + energy * (geometry.barMaxHeight - geometry.barMinHeight)
           state.target = geometry.barMinHeight + Math.random() * (range - geometry.barMinHeight)
           state.nextChange = t + interval + Math.random() * interval * 0.6
         }

@@ -8,11 +8,14 @@ import type {
   ListSessionsResult,
   ListTranscriptsInput,
   ListTranscriptsResult,
+  TranscriptListItem,
   UpdateSessionTargetAppByRecordingSessionInput,
   UpdateSessionTargetAppByRecordingSessionResult
 } from '../../shared/storage'
-import { sessions, transcripts } from '../../shared/schema'
+import { TRANSCRIPTS_PAGE_SIZE } from '../../shared/storage'
+import { sessionMetrics, sessions, transcripts } from '../../shared/schema'
 import { getDb } from '../db'
+import { computeWordsPerMinute, countWords } from '../helpers/text-metrics'
 
 const DEFAULT_LIMIT = 100
 const MAX_LIMIT = 1000
@@ -23,6 +26,14 @@ const normalizeLimit = (value?: number): number => {
   }
 
   return Math.min(value, MAX_LIMIT)
+}
+
+const normalizePage = (value?: number): number => {
+  if (!Number.isFinite(value)) {
+    return 1
+  }
+
+  return Math.max(1, Math.floor(value as number))
 }
 
 /**
@@ -68,6 +79,67 @@ export class StorageRepository {
     return { id: Number(result.lastInsertRowid) }
   }
 
+  async createSessionWithTranscriptAndMetrics(
+    sessionParams: CreateSessionInput,
+    transcriptParams: Omit<AddTranscriptInput, 'sessionId'>
+  ): Promise<{ sessionId: number; transcriptId: number }> {
+    const db = getDb()
+    const startedAt = sessionParams.startedAt ?? Date.now()
+    const createdAt = transcriptParams.createdAt ?? Date.now()
+    const wordCount = countWords(transcriptParams.text)
+    const durationMsEffective = Math.max(
+      0,
+      transcriptParams.durationMs ?? sessionParams.durationMs ?? 0
+    )
+    const wpm = computeWordsPerMinute(wordCount, durationMsEffective)
+    const computedAt = Date.now()
+
+    return await db.transaction(async (tx) => {
+      const sessionInsert = await tx
+        .insert(sessions)
+        .values({
+          startedAt,
+          durationMs: sessionParams.durationMs ?? null,
+          title: sessionParams.title ?? null,
+          source: sessionParams.source ?? null,
+          targetAppName: sessionParams.targetAppName ?? null,
+          targetAppIdentifier: sessionParams.targetAppIdentifier ?? null,
+          targetAppPath: sessionParams.targetAppPath ?? null
+        })
+        .run()
+
+      const sessionId = Number(sessionInsert.lastInsertRowid)
+
+      const transcriptInsert = await tx
+        .insert(transcripts)
+        .values({
+          sessionId,
+          createdAt,
+          text: transcriptParams.text,
+          language: transcriptParams.language ?? null,
+          confidence: transcriptParams.confidence ?? null,
+          durationMs: transcriptParams.durationMs ?? null
+        })
+        .run()
+
+      await tx
+        .insert(sessionMetrics)
+        .values({
+          sessionId,
+          wordCount,
+          wpm,
+          durationMsEffective,
+          computedAt
+        })
+        .run()
+
+      return {
+        sessionId,
+        transcriptId: Number(transcriptInsert.lastInsertRowid)
+      }
+    })
+  }
+
   async getLatestNonEmptyTranscriptText(): Promise<string | null> {
     const db = getDb()
     const rows = await db
@@ -84,20 +156,63 @@ export class StorageRepository {
 
   async listTranscripts(params: ListTranscriptsInput = {}): Promise<ListTranscriptsResult> {
     const db = getDb()
-    const limit = normalizeLimit(params.limit)
-    const offset = Math.max(params.offset ?? 0, 0)
+    const page = normalizePage(params.page)
+    const pageSize = TRANSCRIPTS_PAGE_SIZE
+    const offset = (page - 1) * pageSize
 
-    const baseQuery = params.sessionId
-      ? db.select().from(transcripts).where(eq(transcripts.sessionId, params.sessionId))
-      : db.select().from(transcripts)
+    const [itemRows, countRows] = await Promise.all([
+      db
+        .select({
+          transcriptId: transcripts.id,
+          sessionId: transcripts.sessionId,
+          createdAt: transcripts.createdAt,
+          text: transcripts.text,
+          language: transcripts.language,
+          confidence: transcripts.confidence,
+          durationMs: transcripts.durationMs,
+          sessionStartedAt: sessions.startedAt,
+          targetAppName: sessions.targetAppName,
+          targetAppIdentifier: sessions.targetAppIdentifier,
+          targetAppPath: sessions.targetAppPath
+        })
+        .from(transcripts)
+        .innerJoin(sessions, eq(transcripts.sessionId, sessions.id))
+        .orderBy(desc(transcripts.createdAt), desc(transcripts.id))
+        .limit(pageSize)
+        .offset(offset)
+        .all(),
+      db
+        .select({
+          totalItems: sql<number>`count(*)`
+        })
+        .from(transcripts)
+        .all()
+    ])
 
-    const items = await baseQuery
-      .orderBy(desc(transcripts.createdAt))
-      .limit(limit)
-      .offset(offset)
-      .all()
+    const totalItems = Number(countRows[0]?.totalItems ?? 0)
+    const totalPages = Math.ceil(totalItems / pageSize)
+    const items: TranscriptListItem[] = itemRows.map((row) => ({
+      transcriptId: Number(row.transcriptId),
+      sessionId: Number(row.sessionId),
+      createdAt: Number(row.createdAt),
+      text: row.text,
+      language: row.language ?? null,
+      confidence: row.confidence === null ? null : Number(row.confidence),
+      durationMs: row.durationMs === null ? null : Number(row.durationMs),
+      sessionStartedAt: Number(row.sessionStartedAt),
+      targetAppName: row.targetAppName ?? null,
+      targetAppIdentifier: row.targetAppIdentifier ?? null,
+      targetAppPath: row.targetAppPath ?? null
+    }))
 
-    return { items }
+    return {
+      items,
+      page,
+      pageSize,
+      totalItems,
+      totalPages,
+      hasNextPage: page < totalPages
+    }
   }
 
   async listSessions(params: ListSessionsInput = {}): Promise<ListSessionsResult> {

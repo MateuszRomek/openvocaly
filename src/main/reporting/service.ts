@@ -1,0 +1,188 @@
+import type {
+  GetHomeAppsParams,
+  GetHomeAppsResponse,
+  GetHomeMonthlyOutputParams,
+  GetHomeMonthlyOutputResponse,
+  GetHomeRangeTimelinesParams,
+  GetHomeRangeTimelinesResponse,
+  GetHomeRecentSessionsParams,
+  GetHomeRecentSessionsResponse,
+  GetHomeSummaryParams,
+  GetHomeSummaryResponse,
+  ReportingBaseParams,
+  ReportingRange
+} from '../../shared/reporting'
+import { buildAppAggregates, toRecentSessionApp } from './core/apps'
+import { summarizeMetrics, toDeltaPct } from './core/metrics'
+import {
+  isReportingRange,
+  normalizeAsOfMs,
+  resolveSystemTimezone,
+  resolveCurrentWindow,
+  resolvePreviousWindow,
+  resolveTrailingMonthsWindow
+} from './core/period'
+import { buildMonthlyOutput, buildWordsTimeline, buildWpmTimeline } from './core/timelines'
+import { ReportingRepository } from './repository'
+import type { ReportingReadStore } from './read-store'
+
+const DEFAULT_TOP_LIMIT = 5
+const DEFAULT_RECENT_LIMIT = 20
+const MAX_TOP_LIMIT = 25
+const MAX_RECENT_LIMIT = 100
+
+const roundTo = (value: number, precision: number): number => {
+  const multiplier = 10 ** precision
+  return Math.round(value * multiplier) / multiplier
+}
+
+export class ReportingService {
+  constructor(private readonly readStore: ReportingReadStore = new ReportingRepository()) {}
+
+  async getHomeSummary(params: GetHomeSummaryParams): Promise<GetHomeSummaryResponse> {
+    const base = this.normalizeBaseParams(params)
+    const range = this.normalizeRange(params.range)
+
+    const currentWindow = resolveCurrentWindow(range, base.asOfMs)
+    const previousWindow = resolvePreviousWindow(range, base.asOfMs)
+
+    const [currentMetrics, previousMetrics, lifetime] = await Promise.all([
+      this.readStore.listMetricsInWindow(currentWindow),
+      this.readStore.listMetricsInWindow(previousWindow),
+      this.readStore.getLifetimeTotals()
+    ])
+
+    const summary = summarizeMetrics(currentMetrics)
+    const previous = summarizeMetrics(previousMetrics)
+
+    return {
+      range,
+      timezone: base.timezone,
+      asOfMs: base.asOfMs,
+      summary,
+      deltas: {
+        averageWpmPct: toDeltaPct(summary.averageWpm, previous.averageWpm),
+        wordsPct: toDeltaPct(summary.words, previous.words),
+        totalMinutesPct: toDeltaPct(summary.totalMinutes, previous.totalMinutes),
+        sessionsPct: toDeltaPct(summary.sessions, previous.sessions)
+      },
+      lifetime
+    }
+  }
+
+  async getHomeRangeTimelines(
+    params: GetHomeRangeTimelinesParams
+  ): Promise<GetHomeRangeTimelinesResponse> {
+    const base = this.normalizeBaseParams(params)
+    const range = this.normalizeRange(params.range)
+    const currentWindow = resolveCurrentWindow(range, base.asOfMs)
+
+    const metrics = await this.readStore.listMetricsInWindow(currentWindow)
+
+    return {
+      range,
+      timezone: base.timezone,
+      asOfMs: base.asOfMs,
+      wordsTimeline: buildWordsTimeline(range, metrics, base.asOfMs, base.timezone),
+      wpmTimeline: buildWpmTimeline(range, metrics, base.asOfMs, base.timezone)
+    }
+  }
+
+  async getHomeMonthlyOutput(
+    params: GetHomeMonthlyOutputParams
+  ): Promise<GetHomeMonthlyOutputResponse> {
+    const base = this.normalizeBaseParams(params)
+    const window = resolveTrailingMonthsWindow(base.asOfMs, 13)
+
+    const metrics = await this.readStore.listMetricsInWindow(window)
+
+    return {
+      timezone: base.timezone,
+      asOfMs: base.asOfMs,
+      monthlyWords: buildMonthlyOutput(metrics, base.timezone, base.asOfMs)
+    }
+  }
+
+  async getHomeApps(params: GetHomeAppsParams): Promise<GetHomeAppsResponse> {
+    const base = this.normalizeBaseParams(params)
+    const range = this.normalizeRange(params.range)
+    const currentWindow = resolveCurrentWindow(range, base.asOfMs)
+
+    const topLimit = this.normalizeTopLimit(params.topLimit)
+    const metrics = await this.readStore.listMetricsInWindow(currentWindow)
+    const aggregates = buildAppAggregates(metrics, topLimit)
+
+    return {
+      range,
+      timezone: base.timezone,
+      asOfMs: base.asOfMs,
+      totalWords: aggregates.totalWords,
+      topApps: aggregates.topApps,
+      appDetails: aggregates.appDetails
+    }
+  }
+
+  async getHomeRecentSessions(
+    params: GetHomeRecentSessionsParams
+  ): Promise<GetHomeRecentSessionsResponse> {
+    const base = this.normalizeBaseParams(params)
+    const range = this.normalizeRange(params.range)
+    const currentWindow = resolveCurrentWindow(range, base.asOfMs)
+
+    const metrics = await this.readStore.listMetricsInWindow({
+      ...currentWindow,
+      descending: true,
+      limit: this.normalizeRecentLimit(params.limit)
+    })
+
+    return {
+      range,
+      timezone: base.timezone,
+      asOfMs: base.asOfMs,
+      items: metrics.map((metric) => {
+        const app = toRecentSessionApp(metric)
+
+        return {
+          sessionId: metric.sessionId,
+          startedAt: metric.startedAt,
+          words: metric.wordCount,
+          wpm: metric.wpm,
+          durationMinutes: roundTo(metric.durationMsEffective / 60_000, 2),
+          appLabel: app.appLabel,
+          appIdentifier: app.appIdentifier
+        }
+      })
+    }
+  }
+
+  private normalizeBaseParams(params: ReportingBaseParams): { timezone: string; asOfMs: number } {
+    return {
+      timezone: resolveSystemTimezone(),
+      asOfMs: normalizeAsOfMs(params.asOfMs)
+    }
+  }
+
+  private normalizeRange(range: ReportingRange): ReportingRange {
+    if (!isReportingRange(range)) {
+      throw new Error(`Unsupported reporting range: ${range}`)
+    }
+
+    return range
+  }
+
+  private normalizeTopLimit(value?: number): number {
+    if (!value || value <= 0) {
+      return DEFAULT_TOP_LIMIT
+    }
+
+    return Math.min(MAX_TOP_LIMIT, Math.floor(value))
+  }
+
+  private normalizeRecentLimit(value?: number): number {
+    if (!value || value <= 0) {
+      return DEFAULT_RECENT_LIMIT
+    }
+
+    return Math.min(MAX_RECENT_LIMIT, Math.floor(value))
+  }
+}

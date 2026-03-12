@@ -1,5 +1,12 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { BlocksIcon, HomeIcon, PanelLeftIcon, SettingsIcon, type LucideIcon } from 'lucide-react'
+import {
+  BlocksIcon,
+  FileTextIcon,
+  HomeIcon,
+  PanelLeftIcon,
+  SettingsIcon,
+  type LucideIcon
+} from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { OpenVocalyStaticLogo } from './openvocaly-static-logo'
 import {
@@ -18,11 +25,12 @@ import {
 type NavigationItem = {
   icon: LucideIcon
   label: string
-  to: '/' | '/models' | '/settings'
+  to: '/' | '/models' | '/settings' | '/transcripts'
 }
 
 const navigation: NavigationItem[] = [
   { icon: HomeIcon, label: 'Home', to: '/' },
+  { icon: FileTextIcon, label: 'Transcripts', to: '/transcripts' },
   { icon: BlocksIcon, label: 'Models', to: '/models' }
 ]
 
