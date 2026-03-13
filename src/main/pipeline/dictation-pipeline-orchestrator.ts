@@ -1,6 +1,7 @@
 import type { DictationFailureReason, DictationRuntimeStateResponse } from '../../shared/dictation'
 import type { RecordingArtifact, RecordingMode } from '../../shared/recording'
 import type { SessionTargetApp } from '../../shared/storage'
+import { emitSessionTargetAppUpdatedEvent } from '../storage/transcript-events'
 import type { DictationPasteService, ManualPasteState } from '../paste/service'
 import type { RecordingCommand, RecordingCommandBus } from '../recording/command-bus'
 import type { RecordingArtifactBus } from '../recording/artifact-bus'
@@ -329,11 +330,19 @@ export class DictationPipelineOrchestrator {
     }
 
     try {
-      await this.dependencies.storageRepository.updateSessionTargetAppByRecordingSession({
-        recordingSessionId,
-        targetApp,
-        onlyIfMissing: options.onlyIfMissing
-      })
+      const result =
+        await this.dependencies.storageRepository.updateSessionTargetAppByRecordingSession({
+          recordingSessionId,
+          targetApp,
+          onlyIfMissing: options.onlyIfMissing
+        })
+
+      if (result.updated) {
+        emitSessionTargetAppUpdatedEvent({
+          recordingSessionId,
+          updatedAt: Date.now()
+        })
+      }
     } catch (error) {
       console.error('[pipeline] failed to persist target app metadata', {
         recordingSessionId,

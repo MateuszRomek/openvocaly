@@ -10,7 +10,14 @@ const RootLayout = (): React.JSX.Element => {
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    return window.api.storage.onTranscriptAdded(() => {
+    const unsubscribeTranscriptAdded = window.api.storage.onTranscriptAdded(() => {
+      void queryClient.invalidateQueries({
+        queryKey: transcriptsKeys.lists(),
+        refetchType: 'active'
+      })
+    })
+
+    const unsubscribeSessionTargetAppUpdated = window.api.storage.onSessionTargetAppUpdated(() => {
       void queryClient.invalidateQueries({
         queryKey: transcriptsKeys.lists(),
         refetchType: 'active'
@@ -21,6 +28,11 @@ const RootLayout = (): React.JSX.Element => {
         refetchType: 'active'
       })
     })
+
+    return () => {
+      unsubscribeTranscriptAdded()
+      unsubscribeSessionTargetAppUpdated()
+    }
   }, [queryClient])
 
   return (
