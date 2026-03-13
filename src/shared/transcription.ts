@@ -1,7 +1,13 @@
 export const DEFAULT_TRANSCRIPTION_PROVIDER_ID = 'groq' as const
 export const DEFAULT_TRANSCRIPTION_MODEL_ID = 'whisper-large-v3-turbo' as const
 
-export type TranscriptionProviderId = 'groq' | 'openai' | 'elevenlabs' | 'gemini' | 'local-parakeet'
+export type TranscriptionProviderId =
+  | 'groq'
+  | 'openai'
+  | 'elevenlabs'
+  | 'gemini'
+  | 'local-parakeet'
+  | 'local-whisper'
 export type TranscriptionProviderAvailability = 'available' | 'coming_soon'
 export type TranscriptionProviderKind = 'cloud' | 'local'
 

@@ -7,7 +7,8 @@ const { tmpdir } = require('node:os')
 const { join, basename, dirname } = require('node:path')
 const { spawn } = require('node:child_process')
 
-const SHERPA_VERSION = '1.12.23'
+// Version can be pinned via environment variable for reproducible builds.
+const SHERPA_VERSION = process.env.SHERPA_ONNX_VERSION || '1.12.23'
 const BIN_DIR = join(__dirname, '..', 'resources', 'bin')
 
 const BINARIES = {

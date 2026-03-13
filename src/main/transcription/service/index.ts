@@ -20,6 +20,7 @@ import { StorageRepository } from '../../repositories/storage-repository'
 import { InitializableComponent } from '../../helpers/initializable-component'
 import { emitTranscriptAddedEvent } from '../../storage/transcript-events'
 import { parakeetRuntime } from '../local/parakeet/runtime'
+import { whisperRuntime } from '../local/whisper/runtime'
 import { TranscriptionProviderFactory } from '../provider-factory'
 import { TranscriptionPreferencesManager } from './preferences-manager'
 import { TranscriptionProviderCredentialsManager } from './provider-credentials-manager'
@@ -60,11 +61,7 @@ export class TranscriptionService extends InitializableComponent {
   }
 
   async shutdown(): Promise<void> {
-    try {
-      await parakeetRuntime.stopRuntime()
-    } catch (error) {
-      console.error('[transcription] failed to stop local runtime during shutdown', error)
-    }
+    await this.stopAllLocalRuntimes()
 
     this.initialized = false
   }
@@ -87,7 +84,7 @@ export class TranscriptionService extends InitializableComponent {
     const preferences = await this.preferencesManager.update(params)
 
     if (this.shouldStopLocalRuntime(previousPreferences, preferences)) {
-      await parakeetRuntime.stopRuntime()
+      await this.stopAllLocalRuntimes()
     }
 
     return {
@@ -100,14 +97,32 @@ export class TranscriptionService extends InitializableComponent {
     previousPreferences: TranscriptionPreferences,
     nextPreferences: TranscriptionPreferences
   ): boolean {
-    const previousWasLocal = previousPreferences.providerId === 'local-parakeet'
+    const localProviderIds = new Set<TranscriptionPreferences['providerId']>([
+      'local-parakeet',
+      'local-whisper'
+    ])
+
+    const previousWasLocal = localProviderIds.has(previousPreferences.providerId)
     if (!previousWasLocal) {
       return false
     }
 
-    const switchedAwayFromLocal = nextPreferences.providerId !== 'local-parakeet'
+    const switchedAwayFromLocal = nextPreferences.providerId !== previousPreferences.providerId
     const switchedLocalModel = nextPreferences.modelId !== previousPreferences.modelId
     return switchedAwayFromLocal || switchedLocalModel
+  }
+
+  private async stopAllLocalRuntimes(): Promise<void> {
+    const stopResults = await Promise.allSettled([
+      parakeetRuntime.stopRuntime(),
+      whisperRuntime.stopRuntime()
+    ])
+
+    for (const result of stopResults) {
+      if (result.status === 'rejected') {
+        console.error('[transcription] failed to stop local runtime during shutdown', result.reason)
+      }
+    }
   }
 
   async setProviderApiKey(

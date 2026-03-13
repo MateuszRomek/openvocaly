@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { Readable } from 'node:stream'
 import WebSocket from 'ws'
+import { createSettleOnce } from '../../../helpers/settle-once'
 import { getParakeetModelDir, getParakeetModelsRootDir } from '../model-dir-utils'
 import type { LocalTranscriptionModelId } from '../../../../shared/local-transcription'
 import { findRuntimePort, resolveRuntimeBinaryPath } from './runtime-discovery'
@@ -56,29 +57,34 @@ export class ParakeetWsClient {
     processRef: ChildProcessByStdio<null, Readable, Readable>
   ): Promise<void> {
     await new Promise<void>((resolve, reject) => {
-      let settled = false
       let stderrOutput = ''
       let stdoutOutput = ''
-      const timeout = setTimeout(() => {
-        if (!settled) {
-          settled = true
-          const details = [stderrOutput, stdoutOutput].join('\n').trim().slice(-1000)
-          reject(
-            new Error(
-              details.length > 0
-                ? `Local Parakeet runtime start timed out. ${details}`
-                : 'Local Parakeet runtime start timed out.'
-            )
-          )
+      const settleController = createSettleOnce<Error | null>((error) => {
+        clearTimeout(timeout)
+
+        if (error) {
+          reject(error)
+          return
         }
+
+        resolve()
+      })
+
+      const timeout = setTimeout(() => {
+        const details = [stderrOutput, stdoutOutput].join('\n').trim().slice(-1000)
+        settleController.settle(
+          new Error(
+            details.length > 0
+              ? `Local Parakeet runtime start timed out. ${details}`
+              : 'Local Parakeet runtime start timed out.'
+          )
+        )
       }, STARTUP_TIMEOUT_MS)
 
       const handleOutputChunk = (chunk: unknown): void => {
         const text = String(chunk)
-        if (!settled && /listening on/i.test(text)) {
-          settled = true
-          clearTimeout(timeout)
-          resolve()
+        if (!settleController.isSettled() && /listening on/i.test(text)) {
+          settleController.settle(null)
         }
       }
 
@@ -94,27 +100,21 @@ export class ParakeetWsClient {
       })
 
       processRef.on('error', (error) => {
-        if (!settled) {
-          settled = true
-          clearTimeout(timeout)
-          reject(new Error(`Failed to start local Parakeet runtime: ${error.message}`))
-        }
+        settleController.settle(
+          new Error(`Failed to start local Parakeet runtime: ${error.message}`)
+        )
       })
 
       processRef.on('close', (code, signal) => {
-        if (!settled) {
-          settled = true
-          clearTimeout(timeout)
-          const details = [stderrOutput, stdoutOutput].join('\n').trim().slice(-1000)
-          const exit = signal ? `signal ${signal}` : `code ${code}`
-          reject(
-            new Error(
-              details.length > 0
-                ? `Local Parakeet runtime exited during startup (${exit}). ${details}`
-                : `Local Parakeet runtime exited during startup (${exit}).`
-            )
+        const details = [stderrOutput, stdoutOutput].join('\n').trim().slice(-1000)
+        const exit = signal ? `signal ${signal}` : `code ${code}`
+        settleController.settle(
+          new Error(
+            details.length > 0
+              ? `Local Parakeet runtime exited during startup (${exit}). ${details}`
+              : `Local Parakeet runtime exited during startup (${exit}).`
           )
-        }
+        )
       })
     })
   }

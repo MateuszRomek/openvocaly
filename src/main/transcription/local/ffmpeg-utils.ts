@@ -36,27 +36,58 @@ const canExecute = (filePath: string): boolean => {
   }
 }
 
+const isUsableFfmpegBinary = (filePath: string): boolean => {
+  if (!existsSync(filePath)) {
+    return false
+  }
+
+  if (process.platform === 'win32') {
+    return true
+  }
+
+  return canExecute(filePath)
+}
+
+const normalizeWindowsExecutablePath = (filePath: string): string => {
+  if (process.platform === 'win32' && !filePath.toLowerCase().endsWith('.exe')) {
+    return `${filePath}.exe`
+  }
+
+  return filePath
+}
+
+const getBundledFfmpegCandidates = (): string[] => {
+  try {
+    const ffmpegStaticPath = ffmpegStatic as string | null
+    if (!ffmpegStaticPath) {
+      return []
+    }
+
+    const normalized = normalizeWindowsExecutablePath(ffmpegStaticPath)
+    const unpacked = normalized.includes('app.asar')
+      ? normalized.replace(/app\.asar([/\\])/, 'app.asar.unpacked$1')
+      : null
+
+    return Array.from(new Set([unpacked, normalized].filter((value): value is string => !!value)))
+  } catch {
+    return []
+  }
+}
+
 export const getFfmpegPath = (): string | null => {
   if (cachedFfmpegPath) {
     return cachedFfmpegPath
   }
 
-  try {
-    const ffmpegStaticPath = ffmpegStatic as string | null
-    if (ffmpegStaticPath && existsSync(ffmpegStaticPath) && canExecute(ffmpegStaticPath)) {
-      cachedFfmpegPath = ffmpegStaticPath
+  for (const candidate of getBundledFfmpegCandidates()) {
+    if (isUsableFfmpegBinary(candidate)) {
+      cachedFfmpegPath = candidate
       return cachedFfmpegPath
     }
-  } catch {
-    // Ignore and fall back to system candidates.
   }
 
   for (const candidate of getSystemFfmpegCandidates()) {
-    if (!existsSync(candidate)) {
-      continue
-    }
-
-    if (process.platform !== 'win32' && !canExecute(candidate)) {
+    if (!isUsableFfmpegBinary(candidate)) {
       continue
     }
 
