@@ -8,6 +8,7 @@ import type {
   ListSessionsResult,
   ListTranscriptsInput,
   ListTranscriptsResult,
+  SessionTargetAppUpdatedEvent,
   TranscriptAddedEvent,
   ResolveAppIconInput,
   ResolveAppIconResult
@@ -71,6 +72,9 @@ declare global {
         listSessions: (input?: ListSessionsInput) => Promise<ListSessionsResult>
         resolveAppIcon: (input?: ResolveAppIconInput) => Promise<ResolveAppIconResult>
         onTranscriptAdded: (callback: (payload: TranscriptAddedEvent) => void) => () => void
+        onSessionTargetAppUpdated: (
+          callback: (payload: SessionTargetAppUpdatedEvent) => void
+        ) => () => void
       }
       reporting: {
         getHomeSummary: (params: GetHomeSummaryParams) => Promise<GetHomeSummaryResponse>

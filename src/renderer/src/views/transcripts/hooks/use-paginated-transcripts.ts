@@ -52,7 +52,8 @@ export function usePaginatedTranscripts(): UsePaginatedTranscriptsResult {
     const nextTotalPages = data?.totalPages ?? 0
 
     const nextIsInitialLoading = transcriptsQuery.isPending && !data
-    const nextIsPageTransitioning = transcriptsQuery.isFetching && transcriptsQuery.isPlaceholderData
+    const nextIsPageTransitioning =
+      transcriptsQuery.isFetching && transcriptsQuery.isPlaceholderData
 
     const nextIsEmpty = !nextIsInitialLoading && nextTotalItems === 0
     const nextIsOutOfRangeEmpty =
@@ -62,8 +63,7 @@ export function usePaginatedTranscripts(): UsePaginatedTranscriptsResult {
     const nextCanGoNext =
       Boolean(data?.hasNextPage) && !nextIsPageTransitioning && !transcriptsQuery.isPlaceholderData
 
-    const nextPageLabel =
-      nextTotalPages > 0 ? `Page ${page} of ${nextTotalPages}` : `Page ${page}`
+    const nextPageLabel = nextTotalPages > 0 ? `Page ${page} of ${nextTotalPages}` : `Page ${page}`
 
     return {
       items: nextItems,

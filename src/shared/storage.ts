@@ -5,6 +5,7 @@ type SessionInsert = InferInsertModel<typeof sessions>
 type TranscriptInsert = InferInsertModel<typeof transcripts>
 
 export const STORAGE_TRANSCRIPT_ADDED_CHANNEL = 'storage:transcript-added'
+export const STORAGE_SESSION_TARGET_APP_UPDATED_CHANNEL = 'storage:session-target-app-updated'
 
 export type CreateSessionInput = Omit<SessionInsert, 'id' | 'startedAt'> & {
   startedAt?: number
@@ -26,6 +27,11 @@ export type TranscriptAddedEvent = {
   transcriptId: number
   sessionId: number | null
   createdAt: number
+}
+
+export type SessionTargetAppUpdatedEvent = {
+  recordingSessionId: string
+  updatedAt: number
 }
 
 export const TRANSCRIPTS_PAGE_SIZE = 30

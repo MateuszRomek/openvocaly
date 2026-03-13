@@ -57,10 +57,10 @@ export function TranscriptAccordionItem({ item }: TranscriptAccordionItemProps):
       <AccordionContent>
         <div className="space-y-3 px-1 pb-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="h-5 px-2 text-[11px]">
+            <Badge variant="outline" size="md">
               {appLabel}
             </Badge>
-            <Badge variant="secondary" className="h-5 px-2 text-[11px]">
+            <Badge variant="secondary" size="md">
               {formatTranscriptDuration(item.durationMs)}
             </Badge>
           </div>

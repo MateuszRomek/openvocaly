@@ -9,7 +9,7 @@ export const HOME_REPORTING_RANGE_VALUES = [
   '12m'
 ] as const satisfies readonly HomeReportingRange[]
 
-export const DEFAULT_HOME_REPORTING_RANGE: HomeReportingRange = '30d'
+export const DEFAULT_HOME_REPORTING_RANGE: HomeReportingRange = '7d'
 
 export const HOME_REPORTING_RANGE_LABELS: Record<HomeReportingRange, string> = {
   '7d': '7 days',
