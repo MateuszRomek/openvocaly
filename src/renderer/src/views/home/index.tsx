@@ -100,8 +100,8 @@ function HomeDashboardContent({ range }: HomeDashboardContentProps): React.JSX.E
       </Suspense>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Suspense fallback={<HomeWpmTrendCardSkeleton />}>
-          <HomeWpmTrendCard range={range} />
+        <Suspense fallback={<HomeTopAppsCardSkeleton />}>
+          <HomeTopAppsCard range={range} />
         </Suspense>
 
         <Suspense fallback={<HomeMonthlyOutputCardSkeleton />}>
@@ -110,8 +110,8 @@ function HomeDashboardContent({ range }: HomeDashboardContentProps): React.JSX.E
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Suspense fallback={<HomeTopAppsCardSkeleton />}>
-          <HomeTopAppsCard range={range} />
+        <Suspense fallback={<HomeWpmTrendCardSkeleton />}>
+          <HomeWpmTrendCard range={range} />
         </Suspense>
 
         <Suspense fallback={<HomeRecentSessionsCardSkeleton />}>
@@ -129,12 +129,12 @@ function HomeDashboardSkeleton(): React.JSX.Element {
       <HomeDailyOutputCardSkeleton />
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <HomeWpmTrendCardSkeleton />
+        <HomeTopAppsCardSkeleton />
         <HomeMonthlyOutputCardSkeleton />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <HomeTopAppsCardSkeleton />
+        <HomeWpmTrendCardSkeleton />
         <HomeRecentSessionsCardSkeleton />
       </div>
     </>
