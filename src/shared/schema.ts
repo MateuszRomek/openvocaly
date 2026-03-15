@@ -44,7 +44,6 @@ export const sessionMetrics = sqliteTable(
       .primaryKey()
       .references(() => sessions.id),
     wordCount: integer('word_count').notNull(),
-    wpm: real('wpm'),
     durationMsEffective: integer('duration_ms_effective').notNull(),
     computedAt: integer('computed_at').notNull()
   },

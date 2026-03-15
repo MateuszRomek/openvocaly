@@ -21,11 +21,3 @@ export type HomeMonthlyOutputQueryParams = Parameters<
 export type HomeAppsResponse = Awaited<ReturnType<typeof window.api.reporting.getHomeApps>>
 
 export type HomeAppsQueryParams = Parameters<Window['api']['reporting']['getHomeApps']>[0]
-
-export type HomeRecentSessionsResponse = Awaited<
-  ReturnType<typeof window.api.reporting.getHomeRecentSessions>
->
-
-export type HomeRecentSessionsQueryParams = Parameters<
-  Window['api']['reporting']['getHomeRecentSessions']
->[0]

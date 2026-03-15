@@ -19,10 +19,6 @@ export function formatDailyOutputLabel(key: string, range: HomeReportingRange): 
   return formatTimelineLabel(key, range)
 }
 
-export function formatWpmTrendLabel(key: string, range: HomeReportingRange): string {
-  return formatTimelineLabel(key, range)
-}
-
 export function formatMonthlyOutputLabel(key: string): string {
   const parsedDate = parseISO(`${key}-01`)
 

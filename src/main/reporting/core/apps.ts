@@ -90,13 +90,3 @@ export const buildAppAggregates = (
     appDetails
   }
 }
-
-export const toRecentSessionApp = (
-  metric: ReportingSessionMetric
-): {
-  appLabel: string
-  appIdentifier: string | null
-} => ({
-  appLabel: metric.targetAppName ?? metric.targetAppIdentifier ?? 'Unknown',
-  appIdentifier: metric.targetAppIdentifier
-})

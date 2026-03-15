@@ -6,8 +6,6 @@ import type {
   GetHomeMonthlyOutputResponse,
   GetHomeRangeTimelinesParams,
   GetHomeRangeTimelinesResponse,
-  GetHomeRecentSessionsParams,
-  GetHomeRecentSessionsResponse,
   GetHomeSummaryParams,
   GetHomeSummaryResponse
 } from '../../shared/reporting'
@@ -44,12 +42,6 @@ export const createReportingIpcModule = (
       'reporting:getHomeApps',
       (_event, params: GetHomeAppsParams): Promise<GetHomeAppsResponse> =>
         reportingService.getHomeApps(params)
-    )
-
-    ipcMain.handle(
-      'reporting:getHomeRecentSessions',
-      (_event, params: GetHomeRecentSessionsParams): Promise<GetHomeRecentSessionsResponse> =>
-        reportingService.getHomeRecentSessions(params)
     )
   })
 

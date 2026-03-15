@@ -1,4 +1,4 @@
-import { BarChart3Icon, Clock3Icon, MicIcon, SparklesIcon } from 'lucide-react'
+import { BarChart3Icon, MicIcon, SparklesIcon } from 'lucide-react'
 import {
   Empty,
   EmptyContent,
@@ -23,13 +23,13 @@ export function HomeFirstRunEmptyState(): React.JSX.Element {
           </EmptyMedia>
           <EmptyTitle className="text-xl sm:text-2xl">Your dashboard is ready</EmptyTitle>
           <EmptyDescription className="max-w-lg text-sm sm:text-base">
-            Start your first dictation and Home will automatically fill with trends, app activity,
-            and recent sessions.
+            Start your first dictation and Home will automatically fill with output, app activity,
+            and performance stats.
           </EmptyDescription>
         </EmptyHeader>
 
         <EmptyContent className="max-w-xl">
-          <div className="grid w-full gap-2 sm:grid-cols-3">
+          <div className="grid w-full gap-2 sm:grid-cols-2">
             <div className="border-border/70 bg-background/70 flex h-10 items-center justify-center gap-2 rounded-lg border px-3">
               <MicIcon className="text-muted-foreground size-4 shrink-0" />
               <span className="text-sm font-medium">Start dictating</span>
@@ -37,10 +37,6 @@ export function HomeFirstRunEmptyState(): React.JSX.Element {
             <div className="border-border/70 bg-background/70 flex h-10 items-center justify-center gap-2 rounded-lg border px-3">
               <BarChart3Icon className="text-muted-foreground size-4 shrink-0" />
               <span className="text-sm font-medium">Track performance</span>
-            </div>
-            <div className="border-border/70 bg-background/70 flex h-10 items-center justify-center gap-2 rounded-lg border px-3">
-              <Clock3Icon className="text-muted-foreground size-4 shrink-0" />
-              <span className="text-sm font-medium">Review sessions</span>
             </div>
           </div>
         </EmptyContent>

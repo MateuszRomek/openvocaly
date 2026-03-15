@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, lt, sql } from 'drizzle-orm'
 import { sessionMetrics, sessions } from '../../shared/schema'
 import { getDb } from '../db'
 import type { ReportingReadStore, TimeWindowFactsQuery } from './read-store'
@@ -8,7 +8,6 @@ type ReportingSessionMetricRow = {
   sessionId: number
   startedAt: number
   wordCount: number
-  wpm: number | null
   durationMsEffective: number
   targetAppName: string | null
   targetAppIdentifier: string | null
@@ -19,12 +18,11 @@ export class ReportingRepository implements ReportingReadStore {
   async listMetricsInWindow(params: TimeWindowFactsQuery): Promise<ReportingSessionMetric[]> {
     const db = getDb()
 
-    const baseQuery = db
+    const rows = await db
       .select({
         sessionId: sessions.id,
         startedAt: sessions.startedAt,
         wordCount: sessionMetrics.wordCount,
-        wpm: sessionMetrics.wpm,
         durationMsEffective: sessionMetrics.durationMsEffective,
         targetAppName: sessions.targetAppName,
         targetAppIdentifier: sessions.targetAppIdentifier,
@@ -33,13 +31,8 @@ export class ReportingRepository implements ReportingReadStore {
       .from(sessions)
       .innerJoin(sessionMetrics, eq(sessionMetrics.sessionId, sessions.id))
       .where(and(gte(sessions.startedAt, params.fromMs), lt(sessions.startedAt, params.toMs)))
-
-    const orderedQuery = params.descending
-      ? baseQuery.orderBy(desc(sessions.startedAt))
-      : baseQuery.orderBy(asc(sessions.startedAt))
-
-    const queryWithLimit = params.limit ? orderedQuery.limit(params.limit) : orderedQuery
-    const rows = await queryWithLimit.all()
+      .orderBy(asc(sessions.startedAt))
+      .all()
 
     return rows.map((row) => this.mapRowToReportingSessionMetric(row as ReportingSessionMetricRow))
   }
@@ -74,7 +67,6 @@ export class ReportingRepository implements ReportingReadStore {
       sessionId: Number(row.sessionId),
       startedAt: Number(row.startedAt),
       wordCount: Number(row.wordCount),
-      wpm: row.wpm === null ? null : Number(row.wpm),
       durationMsEffective: Number(row.durationMsEffective),
       targetAppName: row.targetAppName,
       targetAppIdentifier: row.targetAppIdentifier,

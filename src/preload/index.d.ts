@@ -20,8 +20,6 @@ import type {
   GetHomeMonthlyOutputResponse,
   GetHomeRangeTimelinesParams,
   GetHomeRangeTimelinesResponse,
-  GetHomeRecentSessionsParams,
-  GetHomeRecentSessionsResponse,
   GetHomeSummaryParams,
   GetHomeSummaryResponse
 } from '../shared/reporting'
@@ -86,9 +84,6 @@ declare global {
           params: GetHomeMonthlyOutputParams
         ) => Promise<GetHomeMonthlyOutputResponse>
         getHomeApps: (params: GetHomeAppsParams) => Promise<GetHomeAppsResponse>
-        getHomeRecentSessions: (
-          params: GetHomeRecentSessionsParams
-        ) => Promise<GetHomeRecentSessionsResponse>
       }
       shortcuts: {
         getConfig: () => Promise<ShortcutConfigResponse>

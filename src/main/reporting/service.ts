@@ -5,14 +5,12 @@ import type {
   GetHomeMonthlyOutputResponse,
   GetHomeRangeTimelinesParams,
   GetHomeRangeTimelinesResponse,
-  GetHomeRecentSessionsParams,
-  GetHomeRecentSessionsResponse,
   GetHomeSummaryParams,
   GetHomeSummaryResponse,
   ReportingBaseParams,
   ReportingRange
 } from '../../shared/reporting'
-import { buildAppAggregates, toRecentSessionApp } from './core/apps'
+import { buildAppAggregates } from './core/apps'
 import { summarizeMetrics, toDeltaPct } from './core/metrics'
 import {
   isReportingRange,
@@ -22,19 +20,12 @@ import {
   resolvePreviousWindow,
   resolveTrailingMonthsWindow
 } from './core/period'
-import { buildMonthlyOutput, buildWordsTimeline, buildWpmTimeline } from './core/timelines'
+import { buildMonthlyOutput, buildWordsTimeline } from './core/timelines'
 import { ReportingRepository } from './repository'
 import type { ReportingReadStore } from './read-store'
 
 const DEFAULT_TOP_LIMIT = 5
-const DEFAULT_RECENT_LIMIT = 20
 const MAX_TOP_LIMIT = 25
-const MAX_RECENT_LIMIT = 100
-
-const roundTo = (value: number, precision: number): number => {
-  const multiplier = 10 ** precision
-  return Math.round(value * multiplier) / multiplier
-}
 
 export class ReportingService {
   constructor(private readonly readStore: ReportingReadStore = new ReportingRepository()) {}
@@ -83,8 +74,7 @@ export class ReportingService {
       range,
       timezone: base.timezone,
       asOfMs: base.asOfMs,
-      wordsTimeline: buildWordsTimeline(range, metrics, base.asOfMs, base.timezone),
-      wpmTimeline: buildWpmTimeline(range, metrics, base.asOfMs, base.timezone)
+      wordsTimeline: buildWordsTimeline(range, metrics, base.asOfMs, base.timezone)
     }
   }
 
@@ -122,39 +112,6 @@ export class ReportingService {
     }
   }
 
-  async getHomeRecentSessions(
-    params: GetHomeRecentSessionsParams
-  ): Promise<GetHomeRecentSessionsResponse> {
-    const base = this.normalizeBaseParams(params)
-    const range = this.normalizeRange(params.range)
-    const currentWindow = resolveCurrentWindow(range, base.asOfMs)
-
-    const metrics = await this.readStore.listMetricsInWindow({
-      ...currentWindow,
-      descending: true,
-      limit: this.normalizeRecentLimit(params.limit)
-    })
-
-    return {
-      range,
-      timezone: base.timezone,
-      asOfMs: base.asOfMs,
-      items: metrics.map((metric) => {
-        const app = toRecentSessionApp(metric)
-
-        return {
-          sessionId: metric.sessionId,
-          startedAt: metric.startedAt,
-          words: metric.wordCount,
-          wpm: metric.wpm,
-          durationMinutes: roundTo(metric.durationMsEffective / 60_000, 2),
-          appLabel: app.appLabel,
-          appIdentifier: app.appIdentifier
-        }
-      })
-    }
-  }
-
   private normalizeBaseParams(params: ReportingBaseParams): { timezone: string; asOfMs: number } {
     return {
       timezone: resolveSystemTimezone(),
@@ -176,13 +133,5 @@ export class ReportingService {
     }
 
     return Math.min(MAX_TOP_LIMIT, Math.floor(value))
-  }
-
-  private normalizeRecentLimit(value?: number): number {
-    if (!value || value <= 0) {
-      return DEFAULT_RECENT_LIMIT
-    }
-
-    return Math.min(MAX_RECENT_LIMIT, Math.floor(value))
   }
 }

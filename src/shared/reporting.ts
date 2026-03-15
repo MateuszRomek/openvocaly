@@ -46,14 +46,6 @@ export type ReportingWordsTimelinePoint = {
   words: number
 }
 
-export type ReportingWpmTimelinePoint = {
-  key: string
-  bucketStartMs: number
-  bucketEndMs: number
-  wpm: number | null
-  rollingWpm: number | null
-}
-
 export type GetHomeRangeTimelinesParams = ReportingRangeParams
 
 export type GetHomeRangeTimelinesResponse = {
@@ -61,7 +53,6 @@ export type GetHomeRangeTimelinesResponse = {
   timezone: string
   asOfMs: number
   wordsTimeline: ReportingWordsTimelinePoint[]
-  wpmTimeline: ReportingWpmTimelinePoint[]
 }
 
 export type ReportingMonthlyOutputPoint = {
@@ -106,25 +97,4 @@ export type GetHomeAppsResponse = {
   totalWords: number
   topApps: ReportingTopAppRow[]
   appDetails: ReportingAppDetailRow[]
-}
-
-export type GetHomeRecentSessionsParams = ReportingRangeParams & {
-  limit?: number
-}
-
-export type ReportingRecentSessionRow = {
-  sessionId: number
-  startedAt: number
-  words: number
-  wpm: number | null
-  durationMinutes: number
-  appLabel: string
-  appIdentifier: string | null
-}
-
-export type GetHomeRecentSessionsResponse = {
-  range: ReportingRange
-  timezone: string
-  asOfMs: number
-  items: ReportingRecentSessionRow[]
 }
