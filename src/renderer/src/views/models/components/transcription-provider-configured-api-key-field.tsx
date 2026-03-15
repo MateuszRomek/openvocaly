@@ -71,7 +71,7 @@ export function TranscriptionProviderConfiguredApiKeyField({
             <div className="flex items-center justify-end gap-2">
               <Button
                 type="button"
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 disabled={isRemovingApiKey}
                 onClick={() => {

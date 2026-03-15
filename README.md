@@ -21,14 +21,32 @@ We are building a polished macOS-first dictation experience in the spirit of too
 
 ## Prerequisites
 
-- Node.js 22+
+- Node.js 22+ (see `.nvmrc`)
 - npm 10+
-- macOS, Linux, or Windows
+- Git
+- Internet connection for first runtime download
+
+### macOS (current primary development target)
+
+- Xcode Command Line Tools (`xcode-select -p`)
+- Homebrew (recommended)
+
+Notes:
+
+- `npm run dev` runs runtime preparation automatically (`predev`).
+- If local Whisper runtime binaries are already present in `resources/bin`, you do not need `cmake`.
+- If Whisper runtime must be rebuilt, the script will try to install missing `git`/`cmake` via Homebrew.
+- If Xcode Command Line Tools are missing, macOS will prompt install and you need to finish it before rerunning.
+
+### Windows / Linux
+
+- Windows and Linux are not active development targets right now.
+- Current implementation is macOS-first; Windows/Linux support will be added in upcoming phases.
 
 ## Platform Status
 
 OpenVocaly is currently developed and tested primarily on macOS.
-Windows and Linux support are planned, but should be treated as work in progress for now.
+Windows and Linux support is planned next, after the macOS-first phase.
 
 ## Getting Started
 
@@ -38,23 +56,36 @@ Windows and Linux support are planned, but should be treated as work in progress
 npm install
 ```
 
-2. Start local development:
+2. Create your local environment file:
+
+```bash
+cp .env.example .env
+```
+
+The example file includes safe development defaults you can adjust locally.
+
+3. Start local development:
 
 ```bash
 npm run dev
 ```
 
 This runs the Electron main process and renderer dev server together.
+On first run, this can take longer because local runtimes are prepared/downloaded.
 
 ## Local Configuration
 
-Optional renderer port override is defined in `.env.development`:
+Local development overrides live in `.env`, created from `.env.example` during setup.
+
+Example values:
 
 ```bash
 RENDERER_DEV_SERVER_PORT=5180
+LOG_LEVEL=debug
+LOG_PRETTY=1
 ```
 
-Remove the variable to fall back to Vite default port behavior.
+Remove `RENDERER_DEV_SERVER_PORT` to fall back to Vite default port behavior.
 
 ## Useful Scripts
 

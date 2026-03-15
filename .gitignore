@@ -3,6 +3,8 @@ dist
 out
 .DS_Store
 .eslintcache
+.env*
+!.env.example
 *.log*
 resources/db/dev.sqlite
 resources/bin/macos-fast-paste

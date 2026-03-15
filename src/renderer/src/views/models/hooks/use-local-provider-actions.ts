@@ -7,10 +7,6 @@ import type { TranscriptionProviderId } from './use-transcription-provider-catal
 import type { LocalModelId } from '../types/local-models'
 import { supportsLocalRuntimeActions } from '../constants/local-provider-capabilities'
 
-type ManagedLocalModelId = Parameters<
-  Window['api']['transcription']['local']['downloadModel']
->[0]['modelId']
-
 export type UseLocalProviderActionsResult = {
   actionError: string | null
   isSelectionMutating: boolean
@@ -28,9 +24,7 @@ const getUnsupportedProviderMessage = (providerId: TranscriptionProviderId): str
   return `Local model actions are not implemented for provider "${providerId}" yet.`
 }
 
-const toManagedLocalModelId = (modelId: LocalModelId): ManagedLocalModelId => {
-  return modelId as ManagedLocalModelId
-}
+const GLOBAL_LOCAL_DOWNLOAD_LOCK_MESSAGE = 'Another local model download is already in progress.'
 
 export function useLocalProviderActions(): UseLocalProviderActionsResult {
   const [actionError, setActionError] = useState<string | null>(null)
@@ -75,10 +69,14 @@ export function useLocalProviderActions(): UseLocalProviderActionsResult {
       try {
         await downloadMutation.mutateAsync({
           providerId,
-          modelId: toManagedLocalModelId(modelId)
+          modelId
         })
       } catch (error) {
-        setActionError(getErrorMessage(error, 'Failed to download local model.'))
+        const message = getErrorMessage(error, 'Failed to download local model.')
+        if (message.includes(GLOBAL_LOCAL_DOWNLOAD_LOCK_MESSAGE)) {
+          return
+        }
+        setActionError(message)
       }
     },
     [downloadMutation]
@@ -114,7 +112,7 @@ export function useLocalProviderActions(): UseLocalProviderActionsResult {
       try {
         await deleteMutation.mutateAsync({
           providerId,
-          modelId: toManagedLocalModelId(modelId)
+          modelId
         })
       } catch (error) {
         setActionError(getErrorMessage(error, 'Failed to delete local model.'))

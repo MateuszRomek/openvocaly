@@ -25,8 +25,11 @@ export function LocalProviderSectionProvider({
   )
 
   const isModelDownloading = useCallback(
-    (modelId: string): boolean => controller.activeDownloadModelId === modelId,
-    [controller.activeDownloadModelId]
+    (modelId: string): boolean =>
+      controller.activeDownload !== null &&
+      controller.activeDownload.providerId === providerId &&
+      controller.activeDownload.modelId === modelId,
+    [controller.activeDownload, providerId]
   )
 
   const selectModel = useCallback(
@@ -58,6 +61,7 @@ export function LocalProviderSectionProvider({
     () => ({
       isSelectionMutating: controller.isSelectionMutating,
       supportsRuntimeActions: providerSection.supportsRuntimeActions,
+      isAnyDownloadActive: controller.activeDownload !== null,
       downloadProgress: controller.downloadProgress,
       isSelectedModel,
       isModelDownloading,
@@ -70,6 +74,7 @@ export function LocalProviderSectionProvider({
       cancelDownload,
       controller.downloadProgress,
       controller.isSelectionMutating,
+      controller.activeDownload,
       deleteModel,
       downloadModel,
       isModelDownloading,

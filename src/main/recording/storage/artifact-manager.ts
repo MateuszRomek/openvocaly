@@ -1,9 +1,10 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import { createUuid } from '../../helpers/id'
 import type {
   RecordingArtifact,
+  RecordingFailureDiagnostics,
   RecordingFailureMetadata,
   RecordingArtifactFailureReason,
   RecordingMode,
@@ -73,14 +74,52 @@ export class RecordingArtifactManager {
   async markFailure(
     artifact: RecordingArtifact,
     failureReason: RecordingArtifactFailureReason,
-    message?: string
+    message?: string,
+    diagnostics?: RecordingFailureDiagnostics
   ): Promise<RecordingFailureMetadata> {
+    return await this.persistFailureArtifact({
+      artifact,
+      failureReason,
+      message,
+      diagnostics,
+      mode: 'move'
+    })
+  }
+
+  async markPartialTranscription(
+    artifact: RecordingArtifact,
+    message?: string,
+    diagnostics?: RecordingFailureDiagnostics
+  ): Promise<RecordingFailureMetadata> {
+    return await this.persistFailureArtifact({
+      artifact,
+      failureReason: 'transcription_error',
+      message,
+      diagnostics: {
+        ...diagnostics,
+        partial: true
+      },
+      mode: 'copy'
+    })
+  }
+
+  private async persistFailureArtifact(params: {
+    artifact: RecordingArtifact
+    failureReason: RecordingArtifactFailureReason
+    message?: string
+    diagnostics?: RecordingFailureDiagnostics
+    mode: 'move' | 'copy'
+  }): Promise<RecordingFailureMetadata> {
     await this.ensureDirectories()
 
-    const failedAudioPath = toFailedAudioPath(this.paths.failedDir, artifact.sessionId)
+    const failedAudioPath = toFailedAudioPath(this.paths.failedDir, params.artifact.sessionId)
 
     try {
-      await rename(artifact.filePath, failedAudioPath)
+      if (params.mode === 'copy') {
+        await copyFile(params.artifact.filePath, failedAudioPath)
+      } else {
+        await rename(params.artifact.filePath, failedAudioPath)
+      }
     } catch (error) {
       if (!isMissingFileError(error)) {
         throw error
@@ -88,15 +127,16 @@ export class RecordingArtifactManager {
     }
 
     const metadata: RecordingFailureMetadata = {
-      ...artifact,
+      ...params.artifact,
       filePath: failedAudioPath,
-      failureReason,
+      failureReason: params.failureReason,
       failedAt: Date.now(),
-      message
+      message: params.message,
+      diagnostics: params.diagnostics
     }
 
     await writeFile(
-      metadataPathForSession(this.paths.failedDir, artifact.sessionId),
+      metadataPathForSession(this.paths.failedDir, params.artifact.sessionId),
       JSON.stringify(metadata),
       {
         encoding: 'utf8'

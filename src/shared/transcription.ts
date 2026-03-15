@@ -1,7 +1,13 @@
 export const DEFAULT_TRANSCRIPTION_PROVIDER_ID = 'groq' as const
 export const DEFAULT_TRANSCRIPTION_MODEL_ID = 'whisper-large-v3-turbo' as const
 
-export type TranscriptionProviderId = 'groq' | 'openai' | 'elevenlabs' | 'gemini' | 'local-parakeet'
+export type TranscriptionProviderId =
+  | 'groq'
+  | 'openai'
+  | 'elevenlabs'
+  | 'gemini'
+  | 'local-parakeet'
+  | 'local-whisper'
 export type TranscriptionProviderAvailability = 'available' | 'coming_soon'
 export type TranscriptionProviderKind = 'cloud' | 'local'
 
@@ -76,6 +82,38 @@ export type TranscriptionSuccessResult = {
     durationMs?: number
     confidence?: number
   }
+  diagnostics?: TranscriptionDiagnostics
+}
+
+export type TranscriptionDiagnosticsResultType =
+  | 'success_full'
+  | 'success_partial'
+  | 'failed_empty'
+  | 'failed_runtime'
+  | 'failed_timeout'
+  | 'failed_protocol'
+
+export type TranscriptionChunkDiagnostics = {
+  chunkIndex: number
+  chunkCount: number
+  attempt: number
+  restarted: boolean
+  resultType: TranscriptionDiagnosticsResultType
+  elapsedMs: number
+  message?: string
+}
+
+export type TranscriptionDiagnostics = {
+  providerId?: TranscriptionProviderId
+  modelId?: string
+  partial?: boolean
+  resultType?: TranscriptionDiagnosticsResultType
+  durationMs?: number
+  chunkCount?: number
+  chunkDurationSeconds?: number
+  chunkOverlapMs?: number
+  failedChunkIndexes?: number[]
+  chunks?: TranscriptionChunkDiagnostics[]
 }
 
 export type TranscriptionFailureCode =
@@ -97,6 +135,7 @@ export type TranscriptionFailureResult = {
   ok: false
   message?: string
   code?: TranscriptionFailureCode
+  diagnostics?: TranscriptionDiagnostics
 }
 
 export type TranscriptionResult = TranscriptionSuccessResult | TranscriptionFailureResult

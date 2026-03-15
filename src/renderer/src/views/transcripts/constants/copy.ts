@@ -16,7 +16,7 @@ export const TRANSCRIPTS_COPY = {
     copy: 'Could not copy transcript text.'
   },
   actions: {
-    copy: 'Copy transcript',
+    copy: 'Copy',
     copied: 'Transcript copied.',
     retry: 'Try again',
     goToLastPage: 'Go to last page'

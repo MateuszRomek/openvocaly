@@ -3,8 +3,8 @@ import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { app } from 'electron'
 
-const PORT_RANGE_START = 6006
-const PORT_RANGE_END = 6029
+const PORT_RANGE_START = 6030
+const PORT_RANGE_END = 6059
 
 type FindRuntimePortOptions = {
   exclude?: Set<number>
@@ -24,37 +24,38 @@ export const findRuntimePort = async (options?: FindRuntimePortOptions): Promise
       server.once('listening', () => {
         server.close(() => resolve(true))
       })
-      // Let OS pick the best local interface family for the probe to avoid false positives.
       server.listen(port)
     })
+
     if (isFree) {
       return port
     }
   }
 
-  throw new Error('No available local runtime port.')
+  throw new Error('No available Whisper runtime port.')
 }
 
 const resolveBinaryNames = (): string[] => {
   const arch = process.arch
   const platform = process.platform
+
   if (platform === 'darwin') {
-    // Prefer host arch first, then fallback. sherpa-onnx mac archive is expected to be universal.
     if (arch === 'arm64') {
-      return ['sherpa-onnx-ws-darwin-arm64', 'sherpa-onnx-ws-darwin-x64']
+      return ['whisper-server-darwin-arm64', 'whisper-server-darwin-x64']
     }
     if (arch === 'x64') {
-      return ['sherpa-onnx-ws-darwin-x64', 'sherpa-onnx-ws-darwin-arm64']
+      return ['whisper-server-darwin-x64', 'whisper-server-darwin-arm64']
     }
 
-    return ['sherpa-onnx-ws-darwin-arm64', 'sherpa-onnx-ws-darwin-x64']
+    return ['whisper-server-darwin-arm64', 'whisper-server-darwin-x64']
   }
 
   if (platform === 'win32' && arch === 'x64') {
-    return ['sherpa-onnx-ws-win32-x64.exe']
+    return ['whisper-server-win32-x64.exe']
   }
+
   if (platform === 'linux' && arch === 'x64') {
-    return ['sherpa-onnx-ws-linux-x64']
+    return ['whisper-server-linux-x64']
   }
 
   return []

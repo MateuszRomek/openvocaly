@@ -1,14 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
-import type { TranscriptionProviderId } from '../../hooks/use-transcription-provider-catalog'
 import { transcriptionKeys } from './transcription.keys'
 
 type CancelLocalModelDownloadResponse = Awaited<
   ReturnType<Window['api']['transcription']['local']['cancelDownload']>
 >
-type CancelLocalModelDownloadMutationInput = {
-  providerId: TranscriptionProviderId
-}
+type CancelLocalModelDownloadMutationInput = Parameters<
+  Window['api']['transcription']['local']['cancelDownload']
+>[0]
 
 export function useCancelLocalModelDownloadMutation(): UseMutationResult<
   CancelLocalModelDownloadResponse,
@@ -18,8 +17,10 @@ export function useCancelLocalModelDownloadMutation(): UseMutationResult<
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async () => {
-      const response = await window.api.transcription.local.cancelDownload()
+    mutationFn: async ({ providerId }) => {
+      const response = await window.api.transcription.local.cancelDownload({
+        providerId
+      })
       if (!response.ok) {
         throw new Error(response.message ?? 'Failed to cancel download.')
       }

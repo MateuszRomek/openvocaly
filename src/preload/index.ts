@@ -54,6 +54,7 @@ import type {
   LocalModelActionInput,
   LocalModelActionResponse,
   LocalModelDownloadProgress,
+  LocalProviderActionInput,
   LocalRuntimeStatusResponse
 } from '../shared/local-transcription'
 import type {
@@ -164,20 +165,20 @@ const api = {
         ipcRenderer.invoke('transcription:clearProviderApiKey', input)
     },
     local: {
-      listModels: (): Promise<ListLocalModelsResponse> =>
-        ipcRenderer.invoke('transcription:listLocalModels'),
+      listModels: (input: LocalProviderActionInput): Promise<ListLocalModelsResponse> =>
+        ipcRenderer.invoke('transcription:listLocalModels', input),
       downloadModel: (input: LocalModelActionInput): Promise<LocalModelActionResponse> =>
         ipcRenderer.invoke('transcription:downloadLocalModel', input),
-      cancelDownload: (): Promise<LocalModelActionResponse> =>
-        ipcRenderer.invoke('transcription:cancelLocalModelDownload'),
+      cancelDownload: (input: LocalProviderActionInput): Promise<LocalModelActionResponse> =>
+        ipcRenderer.invoke('transcription:cancelLocalModelDownload', input),
       deleteModel: (input: LocalModelActionInput): Promise<LocalModelActionResponse> =>
         ipcRenderer.invoke('transcription:deleteLocalModel', input),
-      getRuntimeStatus: (): Promise<LocalRuntimeStatusResponse> =>
-        ipcRenderer.invoke('transcription:getLocalRuntimeStatus'),
+      getRuntimeStatus: (input: LocalProviderActionInput): Promise<LocalRuntimeStatusResponse> =>
+        ipcRenderer.invoke('transcription:getLocalRuntimeStatus', input),
       startRuntime: (input: LocalModelActionInput): Promise<LocalModelActionResponse> =>
         ipcRenderer.invoke('transcription:startLocalRuntime', input),
-      stopRuntime: (): Promise<LocalModelActionResponse> =>
-        ipcRenderer.invoke('transcription:stopLocalRuntime'),
+      stopRuntime: (input: LocalProviderActionInput): Promise<LocalModelActionResponse> =>
+        ipcRenderer.invoke('transcription:stopLocalRuntime', input),
       onDownloadProgress: (callback: (payload: LocalModelDownloadProgress) => void): (() => void) =>
         subscribeToIpcChannel<LocalModelDownloadProgress>(
           'transcription:localModelDownloadProgress',

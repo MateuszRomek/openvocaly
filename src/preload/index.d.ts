@@ -49,6 +49,7 @@ import type {
   LocalModelActionInput,
   LocalModelActionResponse,
   LocalModelDownloadProgress,
+  LocalProviderActionInput,
   LocalRuntimeStatusResponse
 } from '../shared/local-transcription'
 import type {
@@ -117,13 +118,13 @@ declare global {
           ) => Promise<TranscriptionProviderApiKeyMutationResponse>
         }
         local: {
-          listModels: () => Promise<ListLocalModelsResponse>
+          listModels: (input: LocalProviderActionInput) => Promise<ListLocalModelsResponse>
           downloadModel: (input: LocalModelActionInput) => Promise<LocalModelActionResponse>
-          cancelDownload: () => Promise<LocalModelActionResponse>
+          cancelDownload: (input: LocalProviderActionInput) => Promise<LocalModelActionResponse>
           deleteModel: (input: LocalModelActionInput) => Promise<LocalModelActionResponse>
-          getRuntimeStatus: () => Promise<LocalRuntimeStatusResponse>
+          getRuntimeStatus: (input: LocalProviderActionInput) => Promise<LocalRuntimeStatusResponse>
           startRuntime: (input: LocalModelActionInput) => Promise<LocalModelActionResponse>
-          stopRuntime: () => Promise<LocalModelActionResponse>
+          stopRuntime: (input: LocalProviderActionInput) => Promise<LocalModelActionResponse>
           onDownloadProgress: (
             callback: (payload: LocalModelDownloadProgress) => void
           ) => () => void

@@ -1,9 +1,6 @@
-import {
-  LOCAL_PARAKEET_MODEL_ID,
-  type LocalTranscriptionModelId
-} from '../../../../shared/local-transcription'
+import { LOCAL_PARAKEET_MODEL_ID } from '../../../../shared/local-transcription'
 
-export type ParakeetModelId = LocalTranscriptionModelId
+export type ParakeetModelId = typeof LOCAL_PARAKEET_MODEL_ID
 
 export type ParakeetModelDefinition = {
   id: ParakeetModelId

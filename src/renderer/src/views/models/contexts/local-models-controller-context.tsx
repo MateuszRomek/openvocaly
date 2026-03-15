@@ -4,7 +4,10 @@ import type { LocalModelDownloadProgress } from '../types/local-models'
 
 export type LocalModelsControllerValue = {
   selectedModelId: string
-  activeDownloadModelId: string | null
+  activeDownload: {
+    providerId: LocalModelDownloadProgress['providerId']
+    modelId: LocalModelDownloadProgress['modelId']
+  } | null
   downloadProgress: LocalModelDownloadProgress | null
   isSelectionMutating: boolean
   selectModel: (providerId: TranscriptionProviderId, modelId: string) => void

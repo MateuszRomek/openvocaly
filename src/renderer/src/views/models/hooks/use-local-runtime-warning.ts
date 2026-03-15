@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import type { TranscriptionProviderId } from './use-transcription-provider-catalog'
 import { supportsLocalRuntimeActions } from '../constants/local-provider-capabilities'
 import { useLocalRuntimeStatusQuery } from '../queries/transcription/use-local-runtime-status-query'
 
@@ -8,10 +7,33 @@ type UseLocalRuntimeWarningResult = {
   runtimeError: unknown
 }
 
+type UseLocalRuntimeWarningOptions = {
+  enabled?: boolean
+}
+
+type LocalProviderId = Parameters<
+  Window['api']['transcription']['local']['getRuntimeStatus']
+>[0]['providerId']
+
+const RUNTIME_UNAVAILABLE_MESSAGE_BY_PROVIDER: Record<LocalProviderId, string> = {
+  'local-parakeet':
+    'Local runtime binary not found. It should be prepared automatically on npm run dev/build. If still missing, run npm run download:sherpa-onnx and restart app.',
+  'local-whisper':
+    'Local runtime binary not found. It should be prepared automatically on npm run dev/build. If still missing, run npm run build:whisper-cpp-runtime and restart app.'
+}
+
+const getProviderLabel = (providerId: LocalProviderId): string => {
+  return providerId === 'local-whisper' ? 'Local Whisper' : 'Local Parakeet'
+}
+
 export const useLocalRuntimeWarning = (
-  providerId: TranscriptionProviderId
+  providerId: LocalProviderId,
+  options: UseLocalRuntimeWarningOptions = {}
 ): UseLocalRuntimeWarningResult => {
-  const runtimeStatusQuery = useLocalRuntimeStatusQuery(providerId)
+  const shouldCheckRuntime = supportsLocalRuntimeActions(providerId) && options.enabled !== false
+  const runtimeStatusQuery = useLocalRuntimeStatusQuery(providerId, {
+    enabled: shouldCheckRuntime
+  })
   const runtimeStatus = runtimeStatusQuery.data?.status ?? null
 
   const warning = useMemo(() => {
@@ -28,14 +50,14 @@ export const useLocalRuntimeWarning = (
     }
 
     if (!runtimeStatus.platformSupported) {
-      return 'Local Parakeet is currently supported on macOS only in this release.'
+      return `${getProviderLabel(providerId)} is currently supported on macOS only in this release.`
     }
 
-    return 'Local runtime binary not found. It should be prepared automatically on npm run dev/build. If still missing, run npm run download:sherpa-onnx and restart app.'
+    return RUNTIME_UNAVAILABLE_MESSAGE_BY_PROVIDER[providerId]
   }, [providerId, runtimeStatus])
 
   return {
     warning,
-    runtimeError: supportsLocalRuntimeActions(providerId) ? runtimeStatusQuery.error : null
+    runtimeError: shouldCheckRuntime ? runtimeStatusQuery.error : null
   }
 }

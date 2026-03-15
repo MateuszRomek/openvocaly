@@ -35,7 +35,7 @@ export function TranscriptAccordionItem({ item }: TranscriptAccordionItemProps):
       value={`transcript-${item.transcriptId}`}
       className="border-border/70 bg-card/95 rounded-xl border px-3 py-1 ring-1 ring-foreground/8"
     >
-      <AccordionTrigger className="hover:no-underline">
+      <AccordionTrigger className="items-center hover:no-underline">
         <div className="flex w-full min-w-0 items-center justify-between gap-2 pr-2">
           <p className="text-sm font-medium">{formatTranscriptTimestamp(item.createdAt)}</p>
           <Button

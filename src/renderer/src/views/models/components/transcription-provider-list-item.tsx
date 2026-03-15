@@ -95,7 +95,9 @@ export function TranscriptionProviderListItem({
             {showOverflowMenu ? (
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  render={<Button type="button" variant="outline" size="icon" className="size-8" />}
+                  render={
+                    <Button type="button" variant="secondary" size="icon" className="size-8" />
+                  }
                   disabled={isSelectionMutating}
                 >
                   <MoreHorizontalIcon className="size-4" />
@@ -129,7 +131,7 @@ export function TranscriptionProviderListItem({
 
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   onClick={handleConfigureProvider}
                   disabled={isSelectionMutating}
                 >

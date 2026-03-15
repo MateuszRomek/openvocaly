@@ -33,14 +33,33 @@ export class DictationTranscriptionWorkflow {
   async processArtifact(artifact: RecordingArtifact): Promise<TranscriptionWorkflowResult> {
     const transcriptionResult =
       await this.dependencies.transcriptionService.transcribeArtifact(artifact)
+
+    const diagnostics = transcriptionResult.diagnostics
     this.logger.debug({
       sessionId: artifact.sessionId,
       ok: transcriptionResult.ok,
       failureCode: transcriptionResult.ok ? undefined : transcriptionResult.code,
-      transcriptLength: transcriptionResult.ok ? transcriptionResult.transcript.text.length : 0
+      transcriptLength: transcriptionResult.ok ? transcriptionResult.transcript.text.length : 0,
+      resultType: diagnostics?.resultType,
+      partial: diagnostics?.partial ?? false,
+      chunkCount: diagnostics?.chunkCount,
+      failedChunkIndexes: diagnostics?.failedChunkIndexes,
+      event: 'transcription_result'
     })
 
     if (transcriptionResult.ok) {
+      if (diagnostics?.partial) {
+        try {
+          await this.artifactManager.markPartialTranscription(
+            artifact,
+            'Partial transcription result preserved for diagnostics.',
+            diagnostics
+          )
+        } catch (error) {
+          console.error('[pipeline] failed to persist partial transcription diagnostics', error)
+        }
+      }
+
       await this.artifactManager.markTranscriptionSuccess(artifact)
       return {
         type: 'complete',
@@ -52,7 +71,8 @@ export class DictationTranscriptionWorkflow {
       await this.artifactManager.markFailure(
         artifact,
         'transcription_error',
-        transcriptionResult.message
+        transcriptionResult.message,
+        transcriptionResult.diagnostics
       )
     } catch (error) {
       console.error('[pipeline] failed to persist transcription failure artifact', error)

@@ -4,6 +4,7 @@ import type {
   ListLocalModelsResponse,
   LocalModelActionInput,
   LocalModelActionResponse,
+  LocalProviderActionInput,
   LocalRuntimeStatusResponse
 } from '../../shared/local-transcription'
 import type {
@@ -59,7 +60,8 @@ export const createTranscriptionIpcModule = (
 
     ipcMain.handle(
       'transcription:listLocalModels',
-      (): Promise<ListLocalModelsResponse> => transcriptionService.listLocalModels()
+      (_event, params: LocalProviderActionInput): Promise<ListLocalModelsResponse> =>
+        transcriptionService.listLocalModels(params)
     )
 
     ipcMain.handle(
@@ -75,7 +77,8 @@ export const createTranscriptionIpcModule = (
 
     ipcMain.handle(
       'transcription:cancelLocalModelDownload',
-      (): LocalModelActionResponse => transcriptionService.cancelLocalModelDownload()
+      (_event, params: LocalProviderActionInput): LocalModelActionResponse =>
+        transcriptionService.cancelLocalModelDownload(params)
     )
 
     ipcMain.handle(
@@ -86,7 +89,8 @@ export const createTranscriptionIpcModule = (
 
     ipcMain.handle(
       'transcription:getLocalRuntimeStatus',
-      (): LocalRuntimeStatusResponse => transcriptionService.getLocalRuntimeStatus()
+      (_event, params: LocalProviderActionInput): LocalRuntimeStatusResponse =>
+        transcriptionService.getLocalRuntimeStatus(params)
     )
 
     ipcMain.handle(
@@ -97,7 +101,8 @@ export const createTranscriptionIpcModule = (
 
     ipcMain.handle(
       'transcription:stopLocalRuntime',
-      (): Promise<LocalModelActionResponse> => transcriptionService.stopLocalRuntime()
+      (_event, params: LocalProviderActionInput): Promise<LocalModelActionResponse> =>
+        transcriptionService.stopLocalRuntime(params)
     )
   })
 

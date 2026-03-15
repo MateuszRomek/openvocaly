@@ -3,11 +3,13 @@ import { elevenLabsProvider } from './elevenlabs-provider'
 import { geminiProvider } from './gemini-provider'
 import { groqProvider } from './groq-provider'
 import { localParakeetProvider } from './local-parakeet-provider'
+import { localWhisperProvider } from './local-whisper-provider'
 import { openAiProvider } from './openai-provider'
 import type { TranscriptionProviderDefinition } from './types'
 
 export const transcriptionProviders: TranscriptionProviderDefinition[] = [
   localParakeetProvider,
+  localWhisperProvider,
   groqProvider,
   openAiProvider,
   elevenLabsProvider,

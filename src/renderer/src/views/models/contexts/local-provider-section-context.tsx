@@ -4,6 +4,7 @@ import type { LocalModelDownloadProgress } from '../types/local-models'
 export type LocalProviderSectionContextValue = {
   isSelectionMutating: boolean
   supportsRuntimeActions: boolean
+  isAnyDownloadActive: boolean
   downloadProgress: LocalModelDownloadProgress | null
   isSelectedModel: (modelId: string) => boolean
   isModelDownloading: (modelId: string) => boolean
