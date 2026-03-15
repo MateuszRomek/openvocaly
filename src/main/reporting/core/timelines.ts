@@ -2,8 +2,7 @@ import type {
   GetHomeMonthlyOutputResponse,
   ReportingMonthlyOutputPoint,
   ReportingRange,
-  ReportingWordsTimelinePoint,
-  ReportingWpmTimelinePoint
+  ReportingWordsTimelinePoint
 } from '../../../shared/reporting'
 import { tz } from '@date-fns/tz'
 import {
@@ -34,11 +33,6 @@ const RANGE_BUCKET_COUNT: Record<ReportingRange, number> = {
 }
 
 type TimelineBucket = Pick<ReportingWordsTimelinePoint, 'key' | 'bucketStartMs' | 'bucketEndMs'>
-
-const roundTo = (value: number, precision: number): number => {
-  const multiplier = 10 ** precision
-  return Math.round(value * multiplier) / multiplier
-}
 
 const buildTimelineBucket = (
   range: ReportingRange,
@@ -148,54 +142,6 @@ export const buildWordsTimeline = (
     ...bucket,
     words: wordsByKey.get(bucket.key) ?? 0
   }))
-}
-
-export const buildWpmTimeline = (
-  range: ReportingRange,
-  metrics: ReportingSessionMetric[],
-  asOfMs: number,
-  timezone: string
-): ReportingWpmTimelinePoint[] => {
-  const buckets = buildRangeBuckets(range, asOfMs, timezone)
-  const keySet = new Set(buckets.map((bucket) => bucket.key))
-  const grouped = new Map<string, { words: number; durationMs: number }>()
-
-  for (const metric of metrics) {
-    const key = toBucketKey(range, metric.startedAt, timezone)
-    if (!keySet.has(key)) {
-      continue
-    }
-
-    const row = grouped.get(key) ?? { words: 0, durationMs: 0 }
-    row.words += metric.wordCount
-    row.durationMs += Math.max(0, metric.durationMsEffective)
-    grouped.set(key, row)
-  }
-
-  const points: ReportingWpmTimelinePoint[] = buckets.map((bucket) => {
-    const row = grouped.get(bucket.key)
-
-    const wpm = row && row.durationMs > 0 ? roundTo(row.words / (row.durationMs / 60_000), 2) : null
-
-    return {
-      ...bucket,
-      wpm,
-      rollingWpm: null
-    }
-  })
-
-  return points.map((point, idx) => {
-    const window = points.slice(Math.max(0, idx - 2), idx + 1).map((entry) => entry.wpm)
-    const valid = window.filter((value): value is number => value !== null)
-
-    return {
-      ...point,
-      rollingWpm:
-        valid.length > 0
-          ? roundTo(valid.reduce((sum, value) => sum + value, 0) / valid.length, 2)
-          : null
-    }
-  })
 }
 
 const buildTrailingMonthBuckets = (

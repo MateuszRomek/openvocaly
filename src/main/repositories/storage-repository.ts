@@ -15,7 +15,7 @@ import type {
 import { TRANSCRIPTS_PAGE_SIZE } from '../../shared/storage'
 import { sessionMetrics, sessions, transcripts } from '../../shared/schema'
 import { getDb } from '../db'
-import { computeWordsPerMinute, countWords } from '../helpers/text-metrics'
+import { countWords } from '../helpers/text-metrics'
 
 const DEFAULT_LIMIT = 100
 const MAX_LIMIT = 1000
@@ -91,7 +91,6 @@ export class StorageRepository {
       0,
       transcriptParams.durationMs ?? sessionParams.durationMs ?? 0
     )
-    const wpm = computeWordsPerMinute(wordCount, durationMsEffective)
     const computedAt = Date.now()
 
     return await db.transaction(async (tx) => {
@@ -127,7 +126,6 @@ export class StorageRepository {
         .values({
           sessionId,
           wordCount,
-          wpm,
           durationMsEffective,
           computedAt
         })

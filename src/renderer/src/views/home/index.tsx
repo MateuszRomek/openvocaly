@@ -2,8 +2,6 @@ import { Suspense, useTransition } from 'react'
 import { QueryErrorResetBoundary } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { ErrorBoundary } from 'react-error-boundary'
-import { HomeRecentSessionsCard } from './components/home-recent-sessions-card'
-import { HomeRecentSessionsCardSkeleton } from './components/home-recent-sessions-card-skeleton'
 import { HomeReportingFallback } from './components/home-reporting-fallback'
 import { HomeDailyOutputCard } from './components/home-daily-output-card'
 import { HomeDailyOutputCardSkeleton } from './components/home-daily-output-card-skeleton'
@@ -15,8 +13,6 @@ import { HomeReportingSummaryRow } from './components/home-reporting-summary-row
 import { HomeReportingSummaryRowSkeleton } from './components/home-reporting-summary-row-skeleton'
 import { HomeTopAppsCard } from './components/home-top-apps-card'
 import { HomeTopAppsCardSkeleton } from './components/home-top-apps-card-skeleton'
-import { HomeWpmTrendCard } from './components/home-wpm-trend-card'
-import { HomeWpmTrendCardSkeleton } from './components/home-wpm-trend-card-skeleton'
 import { type HomeReportingRange } from './constants/reporting-range'
 import { useHomeSummarySuspenseQuery } from './queries/reporting/use-home-summary-suspense-query'
 
@@ -108,16 +104,6 @@ function HomeDashboardContent({ range }: HomeDashboardContentProps): React.JSX.E
           <HomeMonthlyOutputCard />
         </Suspense>
       </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Suspense fallback={<HomeWpmTrendCardSkeleton />}>
-          <HomeWpmTrendCard range={range} />
-        </Suspense>
-
-        <Suspense fallback={<HomeRecentSessionsCardSkeleton />}>
-          <HomeRecentSessionsCard range={range} />
-        </Suspense>
-      </div>
     </>
   )
 }
@@ -131,11 +117,6 @@ function HomeDashboardSkeleton(): React.JSX.Element {
       <div className="grid gap-4 xl:grid-cols-2">
         <HomeTopAppsCardSkeleton />
         <HomeMonthlyOutputCardSkeleton />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <HomeWpmTrendCardSkeleton />
-        <HomeRecentSessionsCardSkeleton />
       </div>
     </>
   )

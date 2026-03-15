@@ -25,8 +25,6 @@ import type {
   GetHomeMonthlyOutputResponse,
   GetHomeRangeTimelinesParams,
   GetHomeRangeTimelinesResponse,
-  GetHomeRecentSessionsParams,
-  GetHomeRecentSessionsResponse,
   GetHomeSummaryParams,
   GetHomeSummaryResponse
 } from '../shared/reporting'
@@ -122,11 +120,7 @@ const api = {
     ): Promise<GetHomeMonthlyOutputResponse> =>
       ipcRenderer.invoke('reporting:getHomeMonthlyOutput', params),
     getHomeApps: (params: GetHomeAppsParams): Promise<GetHomeAppsResponse> =>
-      ipcRenderer.invoke('reporting:getHomeApps', params),
-    getHomeRecentSessions: (
-      params: GetHomeRecentSessionsParams
-    ): Promise<GetHomeRecentSessionsResponse> =>
-      ipcRenderer.invoke('reporting:getHomeRecentSessions', params)
+      ipcRenderer.invoke('reporting:getHomeApps', params)
   },
   shortcuts: {
     getConfig: (): Promise<ShortcutConfigResponse> => ipcRenderer.invoke('shortcuts:getConfig'),

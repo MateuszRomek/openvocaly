@@ -2,7 +2,6 @@ export type ReportingSessionMetric = {
   sessionId: number
   startedAt: number
   wordCount: number
-  wpm: number | null
   durationMsEffective: number
   targetAppName: string | null
   targetAppIdentifier: string | null

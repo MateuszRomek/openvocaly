@@ -52,13 +52,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "wpm": {
-          "name": "wpm",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "duration_ms_effective": {
           "name": "duration_ms_effective",
           "type": "integer",
