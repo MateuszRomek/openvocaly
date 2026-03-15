@@ -147,6 +147,13 @@ const copyUniversalBinary = async (binaryPath) => {
   }
 }
 
+const copyArchBinary = async (binaryPath, arch) => {
+  const outputName = arch === 'arm64' ? 'whisper-server-darwin-arm64' : 'whisper-server-darwin-x64'
+  const outputPath = join(BIN_DIR, outputName)
+  await cp(binaryPath, outputPath, { force: true })
+  setExecutable(outputPath)
+}
+
 const ensureHomebrew = async () => {
   if (isCommandAvailable('brew', getBrewEnv())) {
     return
@@ -297,26 +304,27 @@ const run = async () => {
         'Universal build failed, retrying host-arch whisper-server build:',
         error instanceof Error ? error.message : error
       )
+      const archBuilds = [
+        { arch: 'arm64', cmakeArchValue: 'arm64' },
+        { arch: 'x86_64', cmakeArchValue: 'x86_64' }
+      ]
 
-      const hostBuildDir = join(tmpRoot, 'build-host')
-      binaryPath = await buildWhisperServer({
-        sourceDir,
-        buildDir: hostBuildDir,
-        cmakeArchValue: process.arch === 'arm64' ? 'arm64' : 'x86_64'
-      })
-
-      const outputName =
-        process.arch === 'arm64' ? 'whisper-server-darwin-arm64' : 'whisper-server-darwin-x64'
-      const outputPath = join(BIN_DIR, outputName)
-      await cp(binaryPath, outputPath, { force: true })
-      setExecutable(outputPath)
-
-      // Keep both aliases available for runtime discovery.
-      const aliasName =
-        process.arch === 'arm64' ? 'whisper-server-darwin-x64' : 'whisper-server-darwin-arm64'
-      const aliasPath = join(BIN_DIR, aliasName)
-      await cp(outputPath, aliasPath, { force: true })
-      setExecutable(aliasPath)
+      for (const archBuild of archBuilds) {
+        const buildDir = join(tmpRoot, `build-${archBuild.arch}`)
+        try {
+          binaryPath = await buildWhisperServer({
+            sourceDir,
+            buildDir,
+            cmakeArchValue: archBuild.cmakeArchValue
+          })
+          await copyArchBinary(binaryPath, archBuild.arch)
+        } catch (archError) {
+          const message = archError instanceof Error ? archError.message : String(archError)
+          throw new Error(
+            `Failed to build whisper-server for ${archBuild.arch} after universal fallback. ${message}`
+          )
+        }
+      }
     }
 
     console.log(`Saved whisper-server binaries in ${BIN_DIR}`)

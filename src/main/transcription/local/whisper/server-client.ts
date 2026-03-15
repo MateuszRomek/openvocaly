@@ -170,11 +170,12 @@ export class WhisperServerClient {
   }
 
   async start(modelId: WhisperModelId): Promise<void> {
+    this.clearIdleStopTimer()
+
     if (this.modelId === modelId && this.isRunning()) {
       return
     }
 
-    this.clearIdleStopTimer()
     await this.stop()
 
     this.binaryPath = resolveRuntimeBinaryPath()
@@ -316,7 +317,6 @@ export class WhisperServerClient {
 
       const payload = (await response.json()) as { text?: unknown }
       const text = typeof payload.text === 'string' ? payload.text.trim() : ''
-      this.scheduleIdleStop()
       return text
     } catch (error) {
       if (abortController.signal.aborted) {
@@ -327,6 +327,7 @@ export class WhisperServerClient {
       throw new Error(`Local Whisper runtime request failed: ${message}`)
     } finally {
       clearTimeout(timeout)
+      this.scheduleIdleStop()
     }
   }
 }
