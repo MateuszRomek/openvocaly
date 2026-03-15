@@ -5,6 +5,8 @@ import type {
   LocalModelActionInput,
   LocalModelActionResponse,
   LocalModelDownloadProgress,
+  LocalProviderActionInput,
+  LocalTranscriptionProviderId,
   LocalRuntimeStatusResponse
 } from '../../../shared/local-transcription'
 import type {
@@ -21,15 +23,68 @@ import { InitializableComponent } from '../../helpers/initializable-component'
 import { emitTranscriptAddedEvent } from '../../storage/transcript-events'
 import { parakeetRuntime } from '../local/parakeet/runtime'
 import { whisperRuntime } from '../local/whisper/runtime'
+import {
+  resolveDefaultTranscriptionModelId,
+  resolveDefaultTranscriptionProviderId
+} from '../provider-helpers'
 import { TranscriptionProviderFactory } from '../provider-factory'
 import { TranscriptionPreferencesManager } from './preferences-manager'
 import { TranscriptionProviderCredentialsManager } from './provider-credentials-manager'
+
+type LocalRuntimeController = {
+  listModels: () => Promise<ListLocalModelsResponse>
+  downloadModel: (
+    modelId: string,
+    onProgress?: (progress: LocalModelDownloadProgress) => void
+  ) => Promise<LocalModelActionResponse>
+  cancelDownload: () => LocalModelActionResponse
+  deleteModel: (modelId: string) => Promise<LocalModelActionResponse>
+  getRuntimeStatus: () => LocalRuntimeStatusResponse
+  startRuntime: (modelId: string) => Promise<LocalModelActionResponse>
+  stopRuntime: () => Promise<LocalModelActionResponse>
+}
+
+const LOCAL_PROVIDER_IDS = new Set<LocalTranscriptionProviderId>([
+  'local-parakeet',
+  'local-whisper'
+])
+
+const LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeController> = {
+  'local-parakeet': {
+    listModels: () => parakeetRuntime.listModels(),
+    downloadModel: (modelId, onProgress) => parakeetRuntime.downloadModel(modelId, onProgress),
+    cancelDownload: () => parakeetRuntime.cancelDownload(),
+    deleteModel: (modelId) => parakeetRuntime.deleteModel(modelId),
+    getRuntimeStatus: () => parakeetRuntime.getRuntimeStatus(),
+    startRuntime: (modelId) => parakeetRuntime.startRuntime(modelId),
+    stopRuntime: () => parakeetRuntime.stopRuntime()
+  },
+  'local-whisper': {
+    listModels: () => whisperRuntime.listModels(),
+    downloadModel: (modelId, onProgress) => whisperRuntime.downloadModel(modelId, onProgress),
+    cancelDownload: () => whisperRuntime.cancelDownload(),
+    deleteModel: (modelId) => whisperRuntime.deleteModel(modelId),
+    getRuntimeStatus: () => whisperRuntime.getRuntimeStatus(),
+    startRuntime: (modelId) => whisperRuntime.startRuntime(modelId),
+    stopRuntime: () => whisperRuntime.stopRuntime()
+  }
+}
+
+const GLOBAL_LOCAL_DOWNLOAD_LOCK_MESSAGE =
+  'Another local model download is already in progress. Wait for it to finish or cancel it first.'
+
+const isLocalProviderId = (
+  providerId: TranscriptionPreferences['providerId']
+): providerId is LocalTranscriptionProviderId => {
+  return LOCAL_PROVIDER_IDS.has(providerId as LocalTranscriptionProviderId)
+}
 
 export class TranscriptionService extends InitializableComponent {
   private readonly preferencesManager: TranscriptionPreferencesManager
   private readonly credentialsManager: TranscriptionProviderCredentialsManager
   private readonly storageRepository: StorageRepository
   private readonly providerFactory: TranscriptionProviderFactory
+  private activeDownloadProviderId: LocalTranscriptionProviderId | null = null
 
   constructor(
     options: {
@@ -97,12 +152,7 @@ export class TranscriptionService extends InitializableComponent {
     previousPreferences: TranscriptionPreferences,
     nextPreferences: TranscriptionPreferences
   ): boolean {
-    const localProviderIds = new Set<TranscriptionPreferences['providerId']>([
-      'local-parakeet',
-      'local-whisper'
-    ])
-
-    const previousWasLocal = localProviderIds.has(previousPreferences.providerId)
+    const previousWasLocal = isLocalProviderId(previousPreferences.providerId)
     if (!previousWasLocal) {
       return false
     }
@@ -139,35 +189,99 @@ export class TranscriptionService extends InitializableComponent {
     return this.credentialsManager.clearApiKey(providerId)
   }
 
-  async listLocalModels(): Promise<ListLocalModelsResponse> {
-    return parakeetRuntime.listModels()
+  private getLocalRuntime(providerId: LocalTranscriptionProviderId): LocalRuntimeController {
+    return LOCAL_RUNTIMES[providerId]
+  }
+
+  async listLocalModels(params: LocalProviderActionInput): Promise<ListLocalModelsResponse> {
+    return this.getLocalRuntime(params.providerId).listModels()
   }
 
   async downloadLocalModel(
     params: LocalModelActionInput,
     onProgress?: (progress: LocalModelDownloadProgress) => void
   ): Promise<LocalModelActionResponse> {
-    return parakeetRuntime.downloadModel(params, onProgress)
+    // TODO: Allow to download multiple models simultaneously by tracking active downloads per provider instead of a global lock
+    if (this.activeDownloadProviderId) {
+      return { ok: false, message: GLOBAL_LOCAL_DOWNLOAD_LOCK_MESSAGE }
+    }
+
+    this.activeDownloadProviderId = params.providerId
+
+    try {
+      return await this.getLocalRuntime(params.providerId).downloadModel(
+        params.modelId,
+        onProgress
+          ? (progress) => {
+              onProgress({
+                ...progress,
+                providerId: params.providerId
+              })
+            }
+          : undefined
+      )
+    } finally {
+      this.activeDownloadProviderId = null
+    }
   }
 
-  cancelLocalModelDownload(): LocalModelActionResponse {
-    return parakeetRuntime.cancelDownload()
+  cancelLocalModelDownload(params: LocalProviderActionInput): LocalModelActionResponse {
+    return this.getLocalRuntime(params.providerId).cancelDownload()
   }
 
   async deleteLocalModel(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
-    return parakeetRuntime.deleteModel(params)
+    const response = await this.getLocalRuntime(params.providerId).deleteModel(params.modelId)
+    if (!response.ok) {
+      return response
+    }
+
+    const preferences = this.preferencesManager.get()
+    const isDeletingActiveModel =
+      preferences.providerId === params.providerId && preferences.modelId === params.modelId
+
+    if (!isDeletingActiveModel) {
+      return response
+    }
+
+    try {
+      const fallbackProviderId = resolveDefaultTranscriptionProviderId()
+      const fallbackModelId = resolveDefaultTranscriptionModelId(fallbackProviderId)
+
+      await this.updatePreferences({
+        providerId: fallbackProviderId,
+        modelId: fallbackModelId
+      })
+
+      return response
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Deleted local model, but failed to reset active transcription preferences.'
+
+      console.error('[transcription] failed to reset active model after local delete', {
+        providerId: params.providerId,
+        modelId: params.modelId,
+        error: message
+      })
+
+      return {
+        ok: false,
+        message
+      }
+    }
   }
 
-  getLocalRuntimeStatus(): LocalRuntimeStatusResponse {
-    return parakeetRuntime.getRuntimeStatus()
+  getLocalRuntimeStatus(params: LocalProviderActionInput): LocalRuntimeStatusResponse {
+    return this.getLocalRuntime(params.providerId).getRuntimeStatus()
   }
 
   async startLocalRuntime(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
-    return parakeetRuntime.startRuntime(params)
+    return this.getLocalRuntime(params.providerId).startRuntime(params.modelId)
   }
 
-  async stopLocalRuntime(): Promise<LocalModelActionResponse> {
-    return parakeetRuntime.stopRuntime()
+  async stopLocalRuntime(params: LocalProviderActionInput): Promise<LocalModelActionResponse> {
+    return this.getLocalRuntime(params.providerId).stopRuntime()
   }
 
   async transcribeArtifact(artifact: RecordingArtifact): Promise<TranscriptionResult> {

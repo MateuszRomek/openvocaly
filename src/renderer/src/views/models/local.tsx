@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import { AlertTriangleIcon } from 'lucide-react'
+import { SectionCard } from '@renderer/components/section-card'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/ui/alert'
 import { LocalProviderSection } from './components/local-provider-section'
 import { MODELS_COPY } from './constants/copy'
@@ -10,7 +11,7 @@ export function LocalModelsView(): JSX.Element {
   const {
     requestError,
     selectedModelId,
-    activeDownloadModelId,
+    activeDownload,
     downloadProgress,
     isSelectionMutating,
     providerSections,
@@ -38,7 +39,7 @@ export function LocalModelsView(): JSX.Element {
       <LocalModelsControllerProvider
         value={{
           selectedModelId,
-          activeDownloadModelId,
+          activeDownload,
           downloadProgress,
           isSelectionMutating,
           selectModel,
@@ -47,12 +48,15 @@ export function LocalModelsView(): JSX.Element {
           deleteModel
         }}
       >
-        {providerSections.map((providerSection) => (
-          <LocalProviderSection
-            key={providerSection.provider.id}
-            providerSection={providerSection}
-          />
-        ))}
+        <SectionCard>
+          {providerSections.map((providerSection, index) => (
+            <LocalProviderSection
+              key={providerSection.provider.id}
+              providerSection={providerSection}
+              isLastSection={index === providerSections.length - 1}
+            />
+          ))}
+        </SectionCard>
       </LocalModelsControllerProvider>
     </section>
   )

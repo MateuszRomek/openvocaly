@@ -55,7 +55,7 @@ export function TranscriptionProviderDraftApiKeyField({
                 <TooltipTrigger
                   render={
                     <InputGroupButton
-                      variant="ghost"
+                      variant="secondary"
                       size="icon-xs"
                       aria-label={isDraftApiKeyVisible ? 'Hide API key' : 'Show API key'}
                     />

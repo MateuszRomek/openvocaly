@@ -23,6 +23,7 @@ export type WhisperModelInfo = {
 }
 
 export type WhisperModelDownloadProgress = {
+  providerId: 'local-whisper'
   modelId: WhisperModelId
   state: WhisperModelDownloadState
   downloadedBytes: number
@@ -35,6 +36,8 @@ type DownloadState = {
   modelId: WhisperModelId
   abortController: AbortController
 }
+
+const WHISPER_PROVIDER_ID = 'local-whisper' as const
 
 export class WhisperModelManager {
   private activeDownload: DownloadState | null = null
@@ -116,6 +119,7 @@ export class WhisperModelManager {
   ): Promise<void> {
     if (this.isModelDownloaded(modelId)) {
       const complete = {
+        providerId: WHISPER_PROVIDER_ID,
         modelId,
         state: 'complete',
         downloadedBytes: 0,
@@ -140,6 +144,7 @@ export class WhisperModelManager {
 
     try {
       const downloading = {
+        providerId: WHISPER_PROVIDER_ID,
         modelId,
         state: 'downloading',
         downloadedBytes: 0,
@@ -155,6 +160,7 @@ export class WhisperModelManager {
         abortController.signal,
         (downloaded, total) => {
           const progress = {
+            providerId: WHISPER_PROVIDER_ID,
             modelId,
             state: 'downloading',
             downloadedBytes: downloaded,
@@ -167,6 +173,7 @@ export class WhisperModelManager {
       )
 
       const installing = {
+        providerId: WHISPER_PROVIDER_ID,
         modelId,
         state: 'installing',
         downloadedBytes: 0,
@@ -186,6 +193,7 @@ export class WhisperModelManager {
       }
 
       const complete = {
+        providerId: WHISPER_PROVIDER_ID,
         modelId,
         state: 'complete',
         downloadedBytes: 0,
@@ -196,6 +204,7 @@ export class WhisperModelManager {
       onProgress?.(complete)
     } catch (error) {
       const progress = {
+        providerId: WHISPER_PROVIDER_ID,
         modelId,
         state: 'error',
         downloadedBytes: 0,
@@ -236,6 +245,7 @@ export class WhisperModelManager {
 
     await rm(modelPath, { force: true })
     this.updateProgress({
+      providerId: WHISPER_PROVIDER_ID,
       modelId,
       state: 'idle',
       downloadedBytes: 0,

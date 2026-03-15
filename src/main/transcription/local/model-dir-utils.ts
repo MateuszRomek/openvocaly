@@ -1,6 +1,5 @@
 import { app } from 'electron'
 import { join } from 'node:path'
-import type { LocalTranscriptionModelId } from '../../../shared/local-transcription'
 
 const PARAKEET_MODELS_DIR_NAME = 'parakeet-models'
 const WHISPER_MODELS_DIR_NAME = 'whisper-models'
@@ -22,7 +21,7 @@ export const getParakeetModelsRootDir = (): string =>
 /**
  * Returns model-specific storage directory under the local Parakeet cache root.
  */
-export const getParakeetModelDir = (modelId: LocalTranscriptionModelId): string =>
+export const getParakeetModelDir = (modelId: string): string =>
   join(getParakeetModelsRootDir(), modelId)
 
 /**

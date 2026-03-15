@@ -69,6 +69,30 @@ const setExecutable = (filePath) => {
 }
 
 const exists = (filePath) => fs.existsSync(filePath)
+const getHostOutputName = () =>
+  process.arch === 'arm64' ? 'whisper-server-darwin-arm64' : 'whisper-server-darwin-x64'
+
+const canExecuteWhisperServer = (binaryPath) => {
+  const probe = spawnSync(binaryPath, ['--help'], {
+    stdio: ['ignore', 'ignore', 'pipe'],
+    windowsHide: true
+  })
+
+  if (probe.error) {
+    return false
+  }
+
+  return probe.status === 0
+}
+
+const isExistingRuntimeUsable = () => {
+  const hostOutputPath = join(BIN_DIR, getHostOutputName())
+  if (!exists(hostOutputPath)) {
+    return false
+  }
+
+  return canExecuteWhisperServer(hostOutputPath)
+}
 const getBrewEnv = () => {
   const currentPath = process.env.PATH || ''
   const pathEntries = currentPath.split(':').filter(Boolean)
@@ -199,6 +223,7 @@ const buildWhisperServer = async ({ sourceDir, buildDir, cmakeArchValue }) => {
       '-B',
       buildDir,
       '-DCMAKE_BUILD_TYPE=Release',
+      '-DBUILD_SHARED_LIBS=OFF',
       '-DWHISPER_BUILD_SERVER=ON',
       '-DWHISPER_BUILD_EXAMPLES=ON',
       '-DWHISPER_BUILD_TESTS=OFF',
@@ -234,8 +259,12 @@ const run = async () => {
   await mkdir(BIN_DIR, { recursive: true })
 
   if (allOutputsExist() && !process.argv.includes('--force')) {
-    console.log('Whisper runtime already exists (use --force to rebuild).')
-    process.exit(0)
+    if (isExistingRuntimeUsable()) {
+      console.log('Whisper runtime already exists (use --force to rebuild).')
+      process.exit(0)
+    }
+
+    console.warn('Existing whisper runtime binaries are not usable. Rebuilding...')
   }
 
   await ensureRequiredBuildTools()

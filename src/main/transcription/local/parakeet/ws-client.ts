@@ -4,9 +4,10 @@ import { dirname, join } from 'node:path'
 import type { Readable } from 'node:stream'
 import WebSocket from 'ws'
 import { createSettleOnce } from '../../../helpers/settle-once'
+import { createLogger } from '../../../helpers/logger'
 import { getParakeetModelDir, getParakeetModelsRootDir } from '../model-dir-utils'
-import type { LocalTranscriptionModelId } from '../../../../shared/local-transcription'
 import { findRuntimePort, resolveRuntimeBinaryPath } from './runtime-discovery'
+import type { ParakeetModelId } from './model-catalog'
 
 const STARTUP_TIMEOUT_SECONDS = 60
 const STARTUP_TIMEOUT_MS = STARTUP_TIMEOUT_SECONDS * 1000
@@ -21,14 +22,15 @@ const isAddressInUseError = (message: string): boolean =>
 export type ParakeetRuntimeStatus = {
   available: boolean
   running: boolean
-  modelId: LocalTranscriptionModelId | null
+  modelId: ParakeetModelId | null
   binaryPath: string | null
 }
 
 export class ParakeetWsClient {
+  private readonly logger = createLogger('transcription.local.parakeet.ws-client')
   private process: ChildProcessByStdio<null, Readable, Readable> | null = null
   private port: number | null = null
-  private modelId: LocalTranscriptionModelId | null = null
+  private modelId: ParakeetModelId | null = null
   private binaryPath: string | null = null
 
   private isRunning(): boolean {
@@ -119,10 +121,15 @@ export class ParakeetWsClient {
     })
   }
 
-  async start(modelId: LocalTranscriptionModelId): Promise<void> {
+  async start(modelId: ParakeetModelId): Promise<void> {
     if (this.modelId === modelId && this.isRunning()) {
       return
     }
+
+    this.logger.debug({
+      event: 'runtime_start_requested',
+      modelId
+    })
 
     await this.stop()
 
@@ -173,6 +180,11 @@ export class ParakeetWsClient {
 
       try {
         await this.waitUntilReady(processRef)
+        this.logger.debug({
+          event: 'runtime_started',
+          modelId,
+          port: selectedPort
+        })
         return
       } catch (error) {
         const message =
@@ -183,13 +195,19 @@ export class ParakeetWsClient {
         await this.stop()
 
         if (canRetry) {
-          console.warn('[transcription] local runtime bind conflict, retrying on another port', {
+          this.logger.warn({
+            event: 'runtime_bind_retry',
             attempt,
             port: selectedPort
           })
           continue
         }
 
+        this.logger.error({
+          event: 'runtime_start_failed',
+          modelId,
+          message
+        })
         throw error
       }
     }
@@ -204,6 +222,14 @@ export class ParakeetWsClient {
 
     const processRef = this.process
     this.process = null
+    const currentModelId = this.modelId
+    const currentPort = this.port
+
+    this.logger.debug({
+      event: 'runtime_stop_requested',
+      modelId: currentModelId,
+      port: currentPort
+    })
 
     await new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
@@ -230,6 +256,12 @@ export class ParakeetWsClient {
 
     this.port = null
     this.modelId = null
+
+    this.logger.debug({
+      event: 'runtime_stopped',
+      modelId: currentModelId,
+      port: currentPort
+    })
   }
 
   async transcribe(float32Samples: Buffer, sampleRate: number): Promise<string> {
@@ -241,6 +273,17 @@ export class ParakeetWsClient {
       // Batch mode keeps one short-lived websocket per transcription request.
       const ws = new WebSocket(`ws://127.0.0.1:${this.port}`)
       let result = ''
+      let doneSent = false
+      const startedAt = Date.now()
+
+      const sendDone = (): void => {
+        if (doneSent || ws.readyState !== WebSocket.OPEN) {
+          return
+        }
+
+        doneSent = true
+        ws.send('Done')
+      }
 
       const timeout = setTimeout(() => {
         ws.close()
@@ -257,21 +300,44 @@ export class ParakeetWsClient {
 
       ws.on('message', (chunk) => {
         result += String(chunk)
-        ws.send('Done')
+        sendDone()
       })
 
       ws.on('close', () => {
         clearTimeout(timeout)
+        const elapsedMs = Date.now() - startedAt
         try {
           const parsed = JSON.parse(result) as { text?: string }
-          resolve((parsed.text ?? '').trim())
+          const text = (parsed.text ?? '').trim()
+          this.logger.debug({
+            event: 'runtime_transcribe_complete',
+            elapsedMs,
+            sampleRate,
+            sampleBytes: float32Samples.length,
+            resultLength: text.length
+          })
+          resolve(text)
         } catch {
-          resolve(result.trim())
+          const text = result.trim()
+          this.logger.debug({
+            event: 'runtime_transcribe_complete',
+            elapsedMs,
+            sampleRate,
+            sampleBytes: float32Samples.length,
+            resultLength: text.length
+          })
+          resolve(text)
         }
       })
 
       ws.on('error', (error) => {
         clearTimeout(timeout)
+        this.logger.warn({
+          event: 'runtime_transcribe_error',
+          sampleRate,
+          sampleBytes: float32Samples.length,
+          message: error.message
+        })
         reject(new Error(`Local Parakeet runtime request failed: ${error.message}`))
       })
     })

@@ -198,7 +198,7 @@ export function TranscriptionProviderConfigSheet({
                 {saveProviderApiKey.isPending ? 'Saving...' : 'Save API key'}
               </Button>
             ) : null}
-            <SheetClose render={<Button type="button" variant="outline" className="w-full" />}>
+            <SheetClose render={<Button type="button" variant="secondary" className="w-full" />}>
               Close panel
             </SheetClose>
           </SheetFooter>

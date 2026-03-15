@@ -1,6 +1,5 @@
 import type { TranscriptionProviderSettingsProvider } from '../hooks/use-transcription-provider-catalog'
 import type { LocalModelCardItem, LocalModelInfo } from '../types/local-models'
-import { LOCAL_PARAKEET_PROVIDER_ID } from '../constants/local-provider-capabilities'
 
 const toLocalModelCardItem = (
   model:
@@ -21,7 +20,7 @@ export const getLocalProviderModels = (
   provider: TranscriptionProviderSettingsProvider,
   managedModels?: LocalModelInfo[]
 ): LocalModelCardItem[] => {
-  if (provider.id === LOCAL_PARAKEET_PROVIDER_ID && managedModels) {
+  if (managedModels) {
     return managedModels.map(toLocalModelCardItem)
   }
 

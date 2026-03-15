@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
   LocalModelDownloadProgress,
-  LocalModelInfo,
-  LocalTranscriptionModelId
+  LocalModelInfo
 } from '../../../../shared/local-transcription'
 import { createArchiveExtractor } from '../archive-extractor'
 import type { ArchiveExtractor } from '../archive-extractor'
@@ -26,13 +25,20 @@ type DownloadState = {
 
 type ParakeetModelManagerDeps = {
   archiveExtractor?: ArchiveExtractor
-  progressByModel?: Map<ParakeetModelId, LocalModelDownloadProgress>
+  progressByModel?: Map<ParakeetModelId, ParakeetModelDownloadProgress>
+}
+
+const PARAKEET_PROVIDER_ID = 'local-parakeet' as const
+
+type ParakeetModelDownloadProgress = LocalModelDownloadProgress & {
+  providerId: typeof PARAKEET_PROVIDER_ID
+  modelId: ParakeetModelId
 }
 
 export class ParakeetModelManager {
   private activeDownload: DownloadState | null = null
   private readonly archiveExtractor: ArchiveExtractor
-  private readonly progressByModel: Map<ParakeetModelId, LocalModelDownloadProgress>
+  private readonly progressByModel: Map<ParakeetModelId, ParakeetModelDownloadProgress>
 
   constructor(deps: ParakeetModelManagerDeps = {}) {
     this.archiveExtractor = deps.archiveExtractor ?? createArchiveExtractor()
@@ -69,7 +75,7 @@ export class ParakeetModelManager {
     return getParakeetModelIds().map((modelId) => this.toModelInfo(modelId))
   }
 
-  private updateProgress(progress: LocalModelDownloadProgress): void {
+  private updateProgress(progress: ParakeetModelDownloadProgress): void {
     this.progressByModel.set(progress.modelId, progress)
   }
 
@@ -139,12 +145,13 @@ export class ParakeetModelManager {
   ): Promise<void> {
     if (this.isModelDownloaded(modelId)) {
       const progress = {
+        providerId: PARAKEET_PROVIDER_ID,
         modelId,
         state: 'complete',
         downloadedBytes: 0,
         totalBytes: 0,
         percentage: 100
-      } satisfies LocalModelDownloadProgress
+      } satisfies ParakeetModelDownloadProgress
       this.updateProgress(progress)
       onProgress?.(progress)
       return
@@ -162,12 +169,13 @@ export class ParakeetModelManager {
 
     try {
       const downloading = {
+        providerId: PARAKEET_PROVIDER_ID,
         modelId,
         state: 'downloading',
         downloadedBytes: 0,
         totalBytes: 0,
         percentage: 0
-      } satisfies LocalModelDownloadProgress
+      } satisfies ParakeetModelDownloadProgress
       this.updateProgress(downloading)
       onProgress?.(downloading)
 
@@ -177,47 +185,51 @@ export class ParakeetModelManager {
         abortController.signal,
         (downloaded, total) => {
           const progress = {
+            providerId: PARAKEET_PROVIDER_ID,
             modelId,
             state: 'downloading',
             downloadedBytes: downloaded,
             totalBytes: total,
             percentage: total > 0 ? Math.round((downloaded / total) * 100) : 0
-          } satisfies LocalModelDownloadProgress
+          } satisfies ParakeetModelDownloadProgress
           this.updateProgress(progress)
           onProgress?.(progress)
         }
       )
 
       const installing = {
+        providerId: PARAKEET_PROVIDER_ID,
         modelId,
         state: 'installing',
         downloadedBytes: 0,
         totalBytes: 0,
         percentage: 100
-      } satisfies LocalModelDownloadProgress
+      } satisfies ParakeetModelDownloadProgress
       this.updateProgress(installing)
       onProgress?.(installing)
 
       await this.extractModelArchive(archivePath, modelId)
 
       const complete = {
+        providerId: PARAKEET_PROVIDER_ID,
         modelId,
         state: 'complete',
         downloadedBytes: 0,
         totalBytes: 0,
         percentage: 100
-      } satisfies LocalModelDownloadProgress
+      } satisfies ParakeetModelDownloadProgress
       this.updateProgress(complete)
       onProgress?.(complete)
     } catch (error) {
       const progress = {
+        providerId: PARAKEET_PROVIDER_ID,
         modelId,
         state: 'error',
         downloadedBytes: 0,
         totalBytes: 0,
         percentage: 0,
         error: error instanceof Error ? error.message : 'Failed to download local model.'
-      } satisfies LocalModelDownloadProgress
+      } satisfies ParakeetModelDownloadProgress
       this.updateProgress(progress)
       onProgress?.(progress)
       throw error
@@ -253,6 +265,7 @@ export class ParakeetModelManager {
 
     await rm(modelDir, { recursive: true, force: true })
     this.updateProgress({
+      providerId: PARAKEET_PROVIDER_ID,
       modelId,
       state: 'idle',
       downloadedBytes: 0,
@@ -266,7 +279,7 @@ export class ParakeetModelManager {
     return getParakeetModelIds()
   }
 
-  ensureSupportedModel(modelId: string): modelId is LocalTranscriptionModelId {
+  ensureSupportedModel(modelId: string): modelId is ParakeetModelId {
     return isSupportedParakeetModelId(modelId)
   }
 }

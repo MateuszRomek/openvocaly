@@ -1,10 +1,13 @@
 import { spawn } from 'node:child_process'
 import { existsSync, accessSync, constants as fsConstants } from 'node:fs'
-import { readFile, unlink } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, stat, unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import ffmpegStatic from 'ffmpeg-static'
 
 const FLOAT32_BYTES_PER_SAMPLE = 4
 const INT16_MAX = 32768
+const PCM16_BYTES_PER_SAMPLE = 2
 
 let cachedFfmpegPath: string | null = null
 const MACOS_FFMPEG_CANDIDATES = [
@@ -154,6 +157,98 @@ export const convertFileToWav = async (
   })
 }
 
+export const estimatePcm16WavDurationMs = async (
+  wavPath: string,
+  options: { sampleRate?: number; channels?: number } = {}
+): Promise<number> => {
+  const sampleRate = Math.max(1, options.sampleRate ?? 16000)
+  const channels = Math.max(1, options.channels ?? 1)
+  const bytesPerSecond = sampleRate * channels * PCM16_BYTES_PER_SAMPLE
+  const info = await stat(wavPath)
+  const payloadBytes = Math.max(0, info.size - 44)
+
+  return Math.floor((payloadBytes / bytesPerSecond) * 1000)
+}
+
+export const splitWavFileIntoChunks = async (
+  inputPath: string,
+  options: { chunkDurationSeconds: number; chunkFilePrefix: string }
+): Promise<{ chunkPaths: string[]; chunksDir: string }> => {
+  const ffmpegPath = getFfmpegPath()
+  if (!ffmpegPath) {
+    throw new Error('FFmpeg not found.')
+  }
+
+  if (!Number.isFinite(options.chunkDurationSeconds) || options.chunkDurationSeconds <= 0) {
+    throw new Error('Chunk duration must be greater than zero.')
+  }
+
+  const chunksDir = await mkdtemp(join(tmpdir(), `${options.chunkFilePrefix}-`))
+  const outputPattern = join(chunksDir, 'chunk-%03d.wav')
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const ffmpegArgs = [
+        '-i',
+        inputPath,
+        '-f',
+        'segment',
+        '-segment_time',
+        String(options.chunkDurationSeconds),
+        '-reset_timestamps',
+        '1',
+        '-map',
+        '0:a:0',
+        '-c:a',
+        'copy',
+        '-y',
+        outputPattern
+      ]
+
+      const processRef = spawn(ffmpegPath, ffmpegArgs, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true
+      })
+
+      let stderr = ''
+      processRef.stderr.on('data', (chunk) => {
+        stderr += String(chunk)
+      })
+
+      processRef.on('error', (error) => {
+        reject(new Error(`FFmpeg process error: ${error.message}`))
+      })
+
+      processRef.on('close', (code) => {
+        if (code === 0) {
+          resolve()
+          return
+        }
+
+        reject(new Error(`FFmpeg chunk split failed with code ${code}: ${stderr.slice(-300)}`))
+      })
+    })
+
+    const entries = await readdir(chunksDir)
+    const chunkPaths = entries
+      .filter((entry) => entry.toLowerCase().endsWith('.wav'))
+      .sort((left, right) => left.localeCompare(right))
+      .map((entry) => join(chunksDir, entry))
+
+    if (!chunkPaths.length) {
+      throw new Error('FFmpeg did not produce any WAV chunks.')
+    }
+
+    return {
+      chunkPaths,
+      chunksDir
+    }
+  } catch (error) {
+    await rm(chunksDir, { recursive: true, force: true }).catch(() => undefined)
+    throw error
+  }
+}
+
 const parseWavDataChunk = (wavBuffer: Buffer): { dataOffset: number; dataSize: number } => {
   if (wavBuffer.length < 44) {
     throw new Error('Invalid WAV buffer.')
@@ -206,6 +301,18 @@ export const safeCleanupFiles = async (filePaths: string[]): Promise<void> => {
     filePaths.map(async (filePath) => {
       try {
         await unlink(filePath)
+      } catch {
+        // Ignore cleanup failures.
+      }
+    })
+  )
+}
+
+export const safeCleanupPaths = async (paths: string[]): Promise<void> => {
+  await Promise.all(
+    paths.map(async (targetPath) => {
+      try {
+        await rm(targetPath, { recursive: true, force: true })
       } catch {
         // Ignore cleanup failures.
       }

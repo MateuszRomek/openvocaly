@@ -1,15 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
-import type { TranscriptionProviderId } from '../../hooks/use-transcription-provider-catalog'
 import { transcriptionKeys } from './transcription.keys'
 
 type DeleteLocalModelInput = Parameters<Window['api']['transcription']['local']['deleteModel']>[0]
 type DeleteLocalModelResponse = Awaited<
   ReturnType<Window['api']['transcription']['local']['deleteModel']>
 >
-type DeleteLocalModelMutationInput = DeleteLocalModelInput & {
-  providerId: TranscriptionProviderId
-}
+type DeleteLocalModelMutationInput = DeleteLocalModelInput
 
 export function useDeleteLocalModelMutation(): UseMutationResult<
   DeleteLocalModelResponse,
@@ -20,7 +17,10 @@ export function useDeleteLocalModelMutation(): UseMutationResult<
 
   return useMutation({
     mutationFn: async (input: DeleteLocalModelMutationInput) => {
-      const response = await window.api.transcription.local.deleteModel({ modelId: input.modelId })
+      const response = await window.api.transcription.local.deleteModel({
+        providerId: input.providerId,
+        modelId: input.modelId
+      })
       if (!response.ok) {
         throw new Error(response.message ?? 'Failed to delete local model.')
       }

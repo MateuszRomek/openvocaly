@@ -6,13 +6,17 @@ const isTerminalProgressState = (state: LocalModelDownloadProgress['state']): bo
 }
 
 type UseLocalModelDownloadProgressResult = {
-  // Tracks which model currently emits download/install progress events.
-  activeDownloadModelId: string | null
+  // Tracks which provider/model currently emits download/install progress events.
+  activeDownload: {
+    providerId: LocalModelDownloadProgress['providerId']
+    modelId: LocalModelDownloadProgress['modelId']
+  } | null
   downloadProgress: LocalModelDownloadProgress | null
 }
 
 export function useLocalModelDownloadProgress(): UseLocalModelDownloadProgressResult {
-  const [activeDownloadModelId, setActiveDownloadModelId] = useState<string | null>(null)
+  const [activeDownload, setActiveDownload] =
+    useState<UseLocalModelDownloadProgressResult['activeDownload']>(null)
   const [downloadProgress, setDownloadProgress] = useState<LocalModelDownloadProgress | null>(null)
 
   useEffect(() => {
@@ -20,13 +24,16 @@ export function useLocalModelDownloadProgress(): UseLocalModelDownloadProgressRe
       setDownloadProgress(progress)
 
       if (isTerminalProgressState(progress.state)) {
-        setActiveDownloadModelId(null)
+        setActiveDownload(null)
         return
       }
 
-      setActiveDownloadModelId(progress.modelId)
+      setActiveDownload({
+        providerId: progress.providerId,
+        modelId: progress.modelId
+      })
     })
   }, [])
 
-  return { activeDownloadModelId, downloadProgress }
+  return { activeDownload, downloadProgress }
 }

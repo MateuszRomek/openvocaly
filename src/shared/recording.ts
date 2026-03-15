@@ -1,3 +1,9 @@
+import type {
+  TranscriptionChunkDiagnostics,
+  TranscriptionDiagnostics,
+  TranscriptionDiagnosticsResultType
+} from './transcription'
+
 export const RECORDING_CAPTURE_COMMAND_CHANNEL = 'recording:capture-command'
 export const RECORDING_CAPTURE_EVENT_CHANNEL = 'recording:capture-event'
 export const RECORDING_CAPTURE_READY_CHANNEL = 'recording:capture-ready'
@@ -153,7 +159,14 @@ export type RecordingFailureMetadata = RecordingArtifact & {
   failureReason: RecordingArtifactFailureReason
   failedAt: number
   message?: string
+  diagnostics?: RecordingFailureDiagnostics
 }
+
+export type RecordingFailureDiagnosticsResultType = TranscriptionDiagnosticsResultType
+
+export type RecordingFailureChunkDiagnostics = TranscriptionChunkDiagnostics
+
+export type RecordingFailureDiagnostics = TranscriptionDiagnostics
 
 export type RecordingRuntimeStateResponse = {
   state: RecordingRuntimeState

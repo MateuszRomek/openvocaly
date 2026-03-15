@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { MODELS_COPY } from '../constants/copy'
 import {
   LOCAL_PARAKEET_PROVIDER_ID,
+  LOCAL_WHISPER_PROVIDER_ID,
   supportsLocalRuntimeActions
 } from '../constants/local-provider-capabilities'
 import { getLocalProviderModels } from '../helpers/local-provider-models'
@@ -14,7 +15,11 @@ import {
 } from './use-transcription-provider-catalog'
 import { useLocalModelsQuery } from '../queries/transcription/use-local-models-query'
 import { useLocalRuntimeWarning } from './use-local-runtime-warning'
-import type { LocalModelCardItem, LocalModelDownloadProgress } from '../types/local-models'
+import type {
+  LocalModelCardItem,
+  LocalModelDownloadProgress,
+  LocalModelInfo
+} from '../types/local-models'
 
 export type LocalProviderSection = {
   provider: TranscriptionProviderSettingsProvider
@@ -27,7 +32,10 @@ export type LocalProviderSection = {
 type UseLocalProviderSettingsResult = {
   requestError: string | null
   selectedModelId: string
-  activeDownloadModelId: string | null
+  activeDownload: {
+    providerId: LocalModelDownloadProgress['providerId']
+    modelId: LocalModelDownloadProgress['modelId']
+  } | null
   downloadProgress: LocalModelDownloadProgress | null
   isSelectionMutating: boolean
   providerSections: LocalProviderSection[]
@@ -45,10 +53,49 @@ export type { TranscriptionProviderSettingsProvider } from './use-transcription-
 
 export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
   const providerCatalog = useLocalTranscriptionProviderCatalog()
-  const localModelsQuery = useLocalModelsQuery(LOCAL_PARAKEET_PROVIDER_ID)
-  const localRuntimeWarning = useLocalRuntimeWarning(LOCAL_PARAKEET_PROVIDER_ID)
+  const hasParakeetProvider = providerCatalog.providers.some(
+    (provider) => provider.id === LOCAL_PARAKEET_PROVIDER_ID
+  )
+  const hasWhisperProvider = providerCatalog.providers.some(
+    (provider) => provider.id === LOCAL_WHISPER_PROVIDER_ID
+  )
+
+  const parakeetModelsQuery = useLocalModelsQuery(LOCAL_PARAKEET_PROVIDER_ID, {
+    enabled: hasParakeetProvider
+  })
+  const whisperModelsQuery = useLocalModelsQuery(LOCAL_WHISPER_PROVIDER_ID, {
+    enabled: hasWhisperProvider
+  })
+
+  const parakeetRuntimeWarning = useLocalRuntimeWarning(LOCAL_PARAKEET_PROVIDER_ID, {
+    enabled: hasParakeetProvider
+  })
+  const whisperRuntimeWarning = useLocalRuntimeWarning(LOCAL_WHISPER_PROVIDER_ID, {
+    enabled: hasWhisperProvider
+  })
+
   const localProviderActions = useLocalProviderActions()
-  const { activeDownloadModelId, downloadProgress } = useLocalModelDownloadProgress()
+  const { activeDownload, downloadProgress } = useLocalModelDownloadProgress()
+
+  const managedModelsByProviderId = useMemo<
+    Partial<Record<TranscriptionProviderId, LocalModelInfo[] | undefined>>
+  >(
+    () => ({
+      [LOCAL_PARAKEET_PROVIDER_ID]: parakeetModelsQuery.data?.models,
+      [LOCAL_WHISPER_PROVIDER_ID]: whisperModelsQuery.data?.models
+    }),
+    [parakeetModelsQuery.data?.models, whisperModelsQuery.data?.models]
+  )
+
+  const runtimeWarningsByProviderId = useMemo<
+    Partial<Record<TranscriptionProviderId, string | null>>
+  >(
+    () => ({
+      [LOCAL_PARAKEET_PROVIDER_ID]: parakeetRuntimeWarning.warning,
+      [LOCAL_WHISPER_PROVIDER_ID]: whisperRuntimeWarning.warning
+    }),
+    [parakeetRuntimeWarning.warning, whisperRuntimeWarning.warning]
+  )
 
   const requestError = useMemo(() => {
     if (localProviderActions.actionError) {
@@ -59,17 +106,31 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
       return MODELS_COPY.errors.loadSettings
     }
 
-    const modelsError = toErrorMessage(localModelsQuery.error)
-    if (modelsError) {
-      return modelsError
+    for (const queryError of [parakeetModelsQuery.error, whisperModelsQuery.error]) {
+      const modelsError = toErrorMessage(queryError)
+      if (modelsError) {
+        return modelsError
+      }
     }
 
-    return toErrorMessage(localRuntimeWarning.runtimeError)
+    for (const runtimeError of [
+      parakeetRuntimeWarning.runtimeError,
+      whisperRuntimeWarning.runtimeError
+    ]) {
+      const warningError = toErrorMessage(runtimeError)
+      if (warningError) {
+        return warningError
+      }
+    }
+
+    return null
   }, [
-    localModelsQuery.error,
     localProviderActions.actionError,
-    localRuntimeWarning.runtimeError,
-    providerCatalog.hasError
+    parakeetModelsQuery.error,
+    parakeetRuntimeWarning.runtimeError,
+    providerCatalog.hasError,
+    whisperModelsQuery.error,
+    whisperRuntimeWarning.runtimeError
   ])
 
   const providerSections = useMemo<LocalProviderSection[]>(() => {
@@ -81,23 +142,25 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
         isSelected: provider.id === providerCatalog.selectedProviderId,
         models: getLocalProviderModels(
           provider,
-          isManagedProvider ? localModelsQuery.data?.models : undefined
+          isManagedProvider ? managedModelsByProviderId[provider.id] : undefined
         ),
-        runtimeWarning: isManagedProvider ? localRuntimeWarning.warning : null,
+        runtimeWarning: isManagedProvider
+          ? (runtimeWarningsByProviderId[provider.id] ?? null)
+          : null,
         supportsRuntimeActions: provider.availability === 'available' && isManagedProvider
       }
     })
   }, [
-    localModelsQuery.data?.models,
-    localRuntimeWarning.warning,
+    managedModelsByProviderId,
     providerCatalog.providers,
-    providerCatalog.selectedProviderId
+    providerCatalog.selectedProviderId,
+    runtimeWarningsByProviderId
   ])
 
   return {
     requestError,
     selectedModelId: providerCatalog.preferredModelId,
-    activeDownloadModelId,
+    activeDownload,
     downloadProgress,
     isSelectionMutating: localProviderActions.isSelectionMutating,
     providerSections,

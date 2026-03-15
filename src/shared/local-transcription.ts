@@ -1,6 +1,13 @@
+import type { TranscriptionProviderId } from './transcription'
+
 export const LOCAL_PARAKEET_MODEL_ID = 'parakeet-tdt-0.6b-v3' as const
 
-export type LocalTranscriptionModelId = typeof LOCAL_PARAKEET_MODEL_ID
+export type LocalTranscriptionProviderId = Extract<
+  TranscriptionProviderId,
+  'local-parakeet' | 'local-whisper'
+>
+
+export type LocalTranscriptionModelId = string
 
 export type LocalModelDownloadState = 'idle' | 'downloading' | 'installing' | 'complete' | 'error'
 
@@ -15,6 +22,7 @@ export type LocalModelInfo = {
 }
 
 export type LocalModelDownloadProgress = {
+  providerId: LocalTranscriptionProviderId
   modelId: LocalTranscriptionModelId
   state: LocalModelDownloadState
   downloadedBytes: number
@@ -35,7 +43,11 @@ export type ListLocalModelsResponse = {
   models: LocalModelInfo[]
 }
 
-export type LocalModelActionInput = {
+export type LocalProviderActionInput = {
+  providerId: LocalTranscriptionProviderId
+}
+
+export type LocalModelActionInput = LocalProviderActionInput & {
   modelId: LocalTranscriptionModelId
 }
 

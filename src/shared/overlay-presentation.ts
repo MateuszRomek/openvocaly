@@ -29,15 +29,53 @@ const clamp = (value: number, min: number, max: number): number => {
   return value
 }
 
-const normalizeLine = (value: string): string => value.replace(/\s+/g, ' ').trim()
-
-const trimTrailingPeriod = (value: string): string => value.replace(/\.+$/, '')
-
-const stripProviderPrefix = (value: string): string =>
-  value.replace(/^[\w\s-]+ request failed:\s*/i, '')
-
 const truncate = (value: string, maxLength: number): string =>
   value.length <= maxLength ? value : `${value.slice(0, maxLength - 1).trimEnd()}...`
+
+const hasAnyText = (value: string, patterns: string[]): boolean =>
+  patterns.some((pattern) => value.includes(pattern))
+
+const resolveTranscriptionFailureMessage = (rawMessage: string): string => {
+  const normalized = rawMessage.toLowerCase()
+
+  if (hasAnyText(normalized, ['not configured', 'add an api key', 'missing api key'])) {
+    return 'Missing API key'
+  }
+
+  if (
+    hasAnyText(normalized, [
+      'invalid api key',
+      'invalid_api_key',
+      'unauthorized',
+      'forbidden',
+      'authentication'
+    ])
+  ) {
+    return 'Invalid API key'
+  }
+
+  if (hasAnyText(normalized, ['empty transcription', 'no speech'])) {
+    return 'No speech detected'
+  }
+
+  if (hasAnyText(normalized, ['model is not downloaded', 'local model not downloaded'])) {
+    return 'Local model not downloaded'
+  }
+
+  if (
+    hasAnyText(normalized, [
+      'runtime is unavailable',
+      'runtime unavailable',
+      'runtime binary',
+      'whisper runtime',
+      'whisper-server'
+    ])
+  ) {
+    return 'Local runtime unavailable'
+  }
+
+  return 'Transcription failed'
+}
 
 export const resolveOverlayMessage = (
   state: Pick<DictationOverlayState, 'phase' | 'failureReason' | 'message' | 'manualPaste'>
@@ -59,59 +97,29 @@ export const resolveOverlayMessage = (
   }
 
   if (state.failureReason === 'paste_runtime_error') {
-    const message = (state.message ?? '').trim()
-    return message.length > 0
-      ? truncate(normalizeLine(message), MAX_ERROR_MESSAGE_LENGTH)
-      : 'Auto-paste failed'
+    return 'Auto-paste failed'
   }
 
   if (state.failureReason === 'aborted') {
     return null
   }
 
-  const rawMessage = (state.message ?? '').trim()
-  if (!rawMessage) {
-    return null
-  }
-
-  const normalized = rawMessage.toLowerCase()
-
-  if (normalized.includes('not configured') || normalized.includes('add an api key')) {
-    return 'Missing API key'
-  }
-
-  if (
-    normalized.includes('invalid api key') ||
-    normalized.includes('invalid_api_key') ||
-    normalized.includes('unauthorized') ||
-    normalized.includes('forbidden')
-  ) {
-    return 'Invalid API key'
-  }
-
-  if (normalized.includes('microphone permission')) {
+  if (state.failureReason === 'microphone_permission_denied') {
     return 'Microphone permission denied'
   }
 
-  if (normalized.includes('empty transcription')) {
-    return 'No speech detected'
+  if (state.failureReason === 'capture_error') {
+    return 'Recording failed'
   }
 
-  if (normalized.includes('model is not downloaded')) {
-    return 'Local model not downloaded'
+  if (state.failureReason === 'transcription_error') {
+    return truncate(
+      resolveTranscriptionFailureMessage((state.message ?? '').trim()),
+      MAX_ERROR_MESSAGE_LENGTH
+    )
   }
 
-  if (normalized.includes('runtime is unavailable') || normalized.includes('runtime binary')) {
-    return 'Local runtime unavailable'
-  }
-
-  const lines = rawMessage
-    .split(/\r?\n/)
-    .map((line) => normalizeLine(trimTrailingPeriod(stripProviderPrefix(line))))
-    .filter(Boolean)
-
-  const cleaned = lines.join('\n')
-  return truncate(cleaned, MAX_ERROR_MESSAGE_LENGTH)
+  return 'Something went wrong. Please try again'
 }
 
 export const resolveOverlayWindowSize = (

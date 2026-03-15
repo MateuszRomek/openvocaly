@@ -32,14 +32,22 @@ export const localParakeetProvider: TranscriptionProviderDefinition = {
   ],
   transcribe: async (artifact, context) => {
     try {
-      const result = await parakeetRuntime.transcribeArtifact(artifact.filePath, context.modelId)
+      const result = await parakeetRuntime.transcribeArtifact(artifact.filePath, context.modelId, {
+        sessionId: artifact.sessionId
+      })
       const text = result.text.trim()
+      const diagnostics = {
+        ...result.diagnostics,
+        providerId: 'local-parakeet' as const,
+        modelId: context.modelId
+      }
 
       if (!text.length) {
         return {
           ok: false,
           code: 'empty_transcription',
-          message: 'No speech detected in local transcription result.'
+          message: 'No speech detected in local transcription result.',
+          diagnostics
         }
       }
 
@@ -48,7 +56,8 @@ export const localParakeetProvider: TranscriptionProviderDefinition = {
         transcript: {
           text,
           language: result.language
-        }
+        },
+        diagnostics
       }
     } catch (error) {
       if (error instanceof LocalParakeetError) {

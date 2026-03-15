@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseMutationResult } from '@tanstack/react-query'
-import type { TranscriptionProviderId } from '../../hooks/use-transcription-provider-catalog'
 import { transcriptionKeys } from './transcription.keys'
 
 type DownloadLocalModelInput = Parameters<
@@ -9,9 +8,7 @@ type DownloadLocalModelInput = Parameters<
 type DownloadLocalModelResponse = Awaited<
   ReturnType<Window['api']['transcription']['local']['downloadModel']>
 >
-type DownloadLocalModelMutationInput = DownloadLocalModelInput & {
-  providerId: TranscriptionProviderId
-}
+type DownloadLocalModelMutationInput = DownloadLocalModelInput
 
 export function useDownloadLocalModelMutation(): UseMutationResult<
   DownloadLocalModelResponse,
@@ -23,6 +20,7 @@ export function useDownloadLocalModelMutation(): UseMutationResult<
   return useMutation({
     mutationFn: async (input: DownloadLocalModelMutationInput) => {
       const response = await window.api.transcription.local.downloadModel({
+        providerId: input.providerId,
         modelId: input.modelId
       })
       if (!response.ok) {

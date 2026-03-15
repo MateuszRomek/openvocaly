@@ -18,6 +18,9 @@ const DEFAULT_THREADS = Math.max(2, Math.min(4, Math.floor(cpus().length * 0.5) 
 const isAddressInUseError = (message: string): boolean =>
   /address already in use|eaddrinuse/i.test(message)
 
+const isMissingWhisperDylibError = (details: string): boolean =>
+  /Library not loaded:\s*@rpath\/libwhisper\.1\.dylib/i.test(details)
+
 export type WhisperRuntimeStatus = {
   available: boolean
   running: boolean
@@ -145,6 +148,16 @@ export class WhisperServerClient {
       processRef.on('close', (code, signal) => {
         const details = [stderrOutput, stdoutOutput].join('\n').trim().slice(-1000)
         const exit = signal ? `signal ${signal}` : `code ${code}`
+
+        if (isMissingWhisperDylibError(details)) {
+          settleController.settle(
+            new Error(
+              'Whisper runtime binary is incomplete (missing libwhisper.1.dylib). Rebuild with "npm run build:whisper-cpp-runtime -- --force" and restart app.'
+            )
+          )
+          return
+        }
+
         settleController.settle(
           new Error(
             details.length > 0

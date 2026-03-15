@@ -2,37 +2,28 @@ import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { convertFileToWav, getFfmpegPath, safeCleanupFiles } from '../ffmpeg-utils'
+import type {
+  ListLocalModelsResponse,
+  LocalModelActionResponse,
+  LocalModelDownloadProgress,
+  LocalRuntimeStatusResponse
+} from '../../../../shared/local-transcription'
+import {
+  convertFileToWav,
+  estimatePcm16WavDurationMs,
+  getFfmpegPath,
+  safeCleanupPaths,
+  splitWavFileIntoChunks
+} from '../ffmpeg-utils'
 import { LocalWhisperError } from './errors'
-import type { WhisperModelDownloadProgress, WhisperModelInfo } from './model-manager'
 import { whisperModelManager } from './model-manager'
 import { WhisperServerClient } from './server-client'
-import { type WhisperModelId } from './model-catalog'
 
 const WHISPER_SAMPLE_RATE = 16000
+const LONG_AUDIO_SEGMENT_SECONDS = 45
+const LONG_AUDIO_SEGMENT_THRESHOLD_MS = LONG_AUDIO_SEGMENT_SECONDS * 1000
 
-type WhisperModelActionInput = {
-  modelId: WhisperModelId
-}
-
-type WhisperModelActionResponse = {
-  ok: boolean
-  message?: string
-}
-
-type WhisperListModelsResponse = {
-  models: WhisperModelInfo[]
-}
-
-type WhisperRuntimeStatusResponse = {
-  status: {
-    available: boolean
-    running: boolean
-    modelId: WhisperModelId | null
-    binaryPath: string | null
-    platformSupported: boolean
-  }
-}
+const normalizeWhisperText = (text: string): string => text.replace(/\s+/g, ' ').trim()
 
 export class WhisperRuntime {
   private readonly serverClient = new WhisperServerClient()
@@ -41,7 +32,7 @@ export class WhisperRuntime {
     return process.platform === 'darwin'
   }
 
-  async listModels(): Promise<WhisperListModelsResponse> {
+  async listModels(): Promise<ListLocalModelsResponse> {
     const models = await whisperModelManager.listModels()
     return { models }
   }
@@ -55,15 +46,15 @@ export class WhisperRuntime {
   }
 
   async downloadModel(
-    params: WhisperModelActionInput,
-    onProgress?: (progress: WhisperModelDownloadProgress) => void
-  ): Promise<WhisperModelActionResponse> {
-    if (!whisperModelManager.ensureSupportedModel(params.modelId)) {
+    modelId: string,
+    onProgress?: (progress: LocalModelDownloadProgress) => void
+  ): Promise<LocalModelActionResponse> {
+    if (!whisperModelManager.ensureSupportedModel(modelId)) {
       return { ok: false, message: 'Unsupported local model.' }
     }
 
     try {
-      await whisperModelManager.downloadModel(params.modelId, onProgress)
+      await whisperModelManager.downloadModel(modelId, onProgress)
       return { ok: true }
     } catch (error) {
       const message =
@@ -72,19 +63,19 @@ export class WhisperRuntime {
     }
   }
 
-  cancelDownload(): WhisperModelActionResponse {
+  cancelDownload(): LocalModelActionResponse {
     const cancelled = whisperModelManager.cancelDownload()
     return cancelled
       ? { ok: true, message: 'Download cancelled.' }
       : { ok: false, message: 'No cancellable download in progress.' }
   }
 
-  async deleteModel(params: WhisperModelActionInput): Promise<WhisperModelActionResponse> {
-    if (!whisperModelManager.ensureSupportedModel(params.modelId)) {
+  async deleteModel(modelId: string): Promise<LocalModelActionResponse> {
+    if (!whisperModelManager.ensureSupportedModel(modelId)) {
       return { ok: false, message: 'Unsupported local model.' }
     }
 
-    const deleted = await whisperModelManager.deleteModel(params.modelId)
+    const deleted = await whisperModelManager.deleteModel(modelId)
     if (deleted) {
       await this.serverClient.stop()
       return { ok: true }
@@ -93,7 +84,7 @@ export class WhisperRuntime {
     return { ok: false, message: 'Model not found.' }
   }
 
-  getRuntimeStatus(): WhisperRuntimeStatusResponse {
+  getRuntimeStatus(): LocalRuntimeStatusResponse {
     const status = this.serverClient.getStatus()
 
     return {
@@ -107,21 +98,21 @@ export class WhisperRuntime {
     }
   }
 
-  async startRuntime(params: WhisperModelActionInput): Promise<WhisperModelActionResponse> {
+  async startRuntime(modelId: string): Promise<LocalModelActionResponse> {
     if (!this.isPlatformSupported()) {
       return { ok: false, message: 'Local Whisper is currently supported on macOS only.' }
     }
 
-    if (!whisperModelManager.ensureSupportedModel(params.modelId)) {
+    if (!whisperModelManager.ensureSupportedModel(modelId)) {
       return { ok: false, message: 'Unsupported local model.' }
     }
 
-    if (!whisperModelManager.isModelDownloaded(params.modelId)) {
+    if (!whisperModelManager.isModelDownloaded(modelId)) {
       return { ok: false, message: 'Local model is not downloaded.' }
     }
 
     try {
-      await this.serverClient.start(params.modelId)
+      await this.serverClient.start(modelId)
       return { ok: true }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start local runtime.'
@@ -129,7 +120,7 @@ export class WhisperRuntime {
     }
   }
 
-  async stopRuntime(): Promise<WhisperModelActionResponse> {
+  async stopRuntime(): Promise<LocalModelActionResponse> {
     await this.serverClient.stop()
     return { ok: true }
   }
@@ -171,6 +162,8 @@ export class WhisperRuntime {
     }
 
     const wavPath = join(tmpdir(), `openvocaly-whisper-${randomUUID()}.wav`)
+    let chunksDir: string | null = null
+    let chunkPaths: string[] = [wavPath]
 
     try {
       await convertFileToWav(artifactPath, wavPath, {
@@ -178,15 +171,45 @@ export class WhisperRuntime {
         channels: 1
       })
 
-      const wavBuffer = await readFile(wavPath)
+      const durationMs = await estimatePcm16WavDurationMs(wavPath, {
+        sampleRate: WHISPER_SAMPLE_RATE,
+        channels: 1
+      })
+
+      if (durationMs > LONG_AUDIO_SEGMENT_THRESHOLD_MS) {
+        const split = await splitWavFileIntoChunks(wavPath, {
+          chunkDurationSeconds: LONG_AUDIO_SEGMENT_SECONDS,
+          chunkFilePrefix: 'openvocaly-whisper-chunks'
+        })
+        chunksDir = split.chunksDir
+        chunkPaths = split.chunkPaths
+      }
+
       await this.serverClient.start(modelId)
-      const text = await this.serverClient.transcribe(wavBuffer)
+      const transcriptChunks: string[] = []
+
+      for (const chunkPath of chunkPaths) {
+        const wavBuffer = await readFile(chunkPath)
+        const chunkText = await this.serverClient.transcribe(wavBuffer)
+        const trimmedChunk = normalizeWhisperText(chunkText)
+
+        if (trimmedChunk.length > 0) {
+          transcriptChunks.push(trimmedChunk)
+        }
+      }
+
+      const text = transcriptChunks.join(' ').trim()
       return { text, language: 'auto' }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Local Whisper transcription failed.'
       throw new LocalWhisperError('local_transcription_failed', message)
     } finally {
-      await safeCleanupFiles([wavPath])
+      const cleanupTargets = [wavPath]
+      if (chunksDir) {
+        cleanupTargets.push(chunksDir)
+      }
+
+      await safeCleanupPaths(cleanupTargets)
     }
   }
 }

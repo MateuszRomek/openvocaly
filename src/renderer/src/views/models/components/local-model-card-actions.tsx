@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import {
   CheckCircle2Icon,
   DownloadIcon,
@@ -6,6 +6,17 @@ import {
   MoreHorizontalIcon,
   Trash2Icon
 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle
+} from '@renderer/ui/alert-dialog'
 import { Button } from '@renderer/ui/button'
 import {
   DropdownMenu,
@@ -13,6 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@renderer/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/ui/tooltip'
 import { useLocalProviderSectionContext } from '../contexts/local-provider-section-context'
 import { getLocalModelCardActionsCount } from '../helpers/local-model-card-actions'
 import { useMediaQuery } from '../hooks/use-media-query'
@@ -31,10 +43,12 @@ export function LocalModelCardActions({
   isSelected,
   isDownloading
 }: LocalModelCardActionsProps): JSX.Element {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const section = useLocalProviderSectionContext()
   const compactActions = useMediaQuery('(max-width: 830px)')
   const isSelectionMutating = section.isSelectionMutating
   const supportsRuntimeActions = section.supportsRuntimeActions
+  const isDownloadLockedByAnotherModel = section.isAnyDownloadActive && !isDownloading
 
   const actionsCount = getLocalModelCardActionsCount({
     isDownloaded,
@@ -48,10 +62,18 @@ export function LocalModelCardActions({
   }
 
   const handleDelete = (): void => {
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = (): void => {
+    setIsDeleteDialogOpen(false)
     void section.deleteModel(modelId)
   }
 
   const handleDownload = (): void => {
+    if (isDownloadLockedByAnotherModel) {
+      return
+    }
     void section.downloadModel(modelId)
   }
 
@@ -67,84 +89,132 @@ export function LocalModelCardActions({
     )
   }
 
-  if (showOverflowMenu) {
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={<Button type="button" variant="outline" size="icon" className="size-8" />}
-          disabled={isSelectionMutating}
-        >
-          <MoreHorizontalIcon className="size-4" />
-          <span className="sr-only">Model actions</span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="bottom" className="w-44">
-          {isDownloaded ? (
-            <>
-              {!isSelected ? (
-                <DropdownMenuItem onClick={handleSelect}>
-                  <CheckCircle2Icon className="size-4" />
-                  Set as active
-                </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuItem variant="destructive" onClick={handleDelete}>
-                <Trash2Icon className="size-4" />
-                Delete
-              </DropdownMenuItem>
-            </>
-          ) : (
-            <>
-              {!isDownloading ? (
-                <DropdownMenuItem onClick={handleDownload}>
-                  <DownloadIcon className="size-4" />
-                  Download
-                </DropdownMenuItem>
-              ) : null}
-              {isDownloading ? (
-                <DropdownMenuItem onClick={handleCancel}>Cancel</DropdownMenuItem>
-              ) : null}
-            </>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
-  }
-
-  if (isDownloaded) {
-    return (
-      <div className="flex items-center gap-2 self-center">
-        {!isSelected ? (
-          <Button
-            type="button"
-            variant="default"
-            disabled={isSelectionMutating}
-            onClick={handleSelect}
-          >
-            Set as active
-          </Button>
-        ) : null}
-        <Button type="button" variant="destructive" onClick={handleDelete}>
-          <Trash2Icon className="size-4" />
-          <span>Delete</span>
-        </Button>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex items-center gap-2 self-center">
-      <Button type="button" variant="default" disabled={isDownloading} onClick={handleDownload}>
-        {isDownloading ? (
-          <Loader2Icon className="mr-1.5 size-4 animate-spin" />
-        ) : (
-          <DownloadIcon className="mr-1.5 size-4" />
-        )}
-        Download
-      </Button>
-      {isDownloading ? (
-        <Button type="button" variant="outline" onClick={handleCancel}>
-          Cancel
-        </Button>
-      ) : null}
-    </div>
+    <>
+      {showOverflowMenu ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button type="button" variant="secondary" size="icon" className="size-8" />}
+            disabled={isSelectionMutating}
+          >
+            <MoreHorizontalIcon className="size-4" />
+            <span className="sr-only">Model actions</span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="bottom" className="w-44">
+            {isDownloaded ? (
+              <>
+                {!isSelected ? (
+                  <DropdownMenuItem onClick={handleSelect}>
+                    <CheckCircle2Icon className="size-4" />
+                    Set as active
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+                  <Trash2Icon className="size-4" />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <>
+                {!isDownloading ? (
+                  <DropdownMenuItem
+                    onClick={handleDownload}
+                    disabled={isDownloadLockedByAnotherModel}
+                  >
+                    <DownloadIcon className="size-4" />
+                    Download
+                  </DropdownMenuItem>
+                ) : null}
+                {isDownloading ? (
+                  <DropdownMenuItem onClick={handleCancel}>Cancel</DropdownMenuItem>
+                ) : null}
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : isDownloaded ? (
+        <div className="flex items-center gap-2 self-center">
+          {!isSelected ? (
+            <Button
+              type="button"
+              variant="default"
+              disabled={isSelectionMutating}
+              onClick={handleSelect}
+            >
+              Set as active
+            </Button>
+          ) : null}
+          <Button type="button" variant="destructive" onClick={handleDelete}>
+            <Trash2Icon className="size-4" />
+            <span>Delete</span>
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 self-center">
+          {isDownloadLockedByAnotherModel ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    tabIndex={0}
+                    role="button"
+                    aria-disabled="true"
+                    aria-label="Download unavailable while another model download is active"
+                    className="inline-flex"
+                  />
+                }
+              >
+                <Button type="button" variant="secondary" disabled className="pointer-events-none">
+                  <DownloadIcon className="mr-1.5 size-4" />
+                  Download
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" align="center">
+                Another model is downloading. Finish or cancel it first.
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={isDownloading}
+              onClick={handleDownload}
+            >
+              {isDownloading ? (
+                <Loader2Icon className="mr-1.5 size-4 animate-spin" />
+              ) : (
+                <DownloadIcon className="mr-1.5 size-4" />
+              )}
+              Download
+            </Button>
+          )}
+          {isDownloading ? (
+            <Button type="button" variant="secondary" onClick={handleCancel}>
+              Cancel
+            </Button>
+          ) : null}
+        </div>
+      )}
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogMedia>
+              <Trash2Icon />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Delete local model?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the local model files from this device.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="secondary">Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleConfirmDelete}>
+              Delete model
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
