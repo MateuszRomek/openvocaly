@@ -6,6 +6,7 @@ const { request: httpsRequest } = require('node:https')
 const { tmpdir } = require('node:os')
 const { join, basename, dirname } = require('node:path')
 const { spawn } = require('node:child_process')
+const { spawnSync } = require('node:child_process')
 
 // Version can be pinned via environment variable for reproducible builds.
 const SHERPA_VERSION = process.env.SHERPA_ONNX_VERSION || '1.12.23'
@@ -204,12 +205,44 @@ const ensureDarwinBinaryAliases = async () => {
   const armPath = join(BIN_DIR, 'sherpa-onnx-ws-darwin-arm64')
   const x64Path = join(BIN_DIR, 'sherpa-onnx-ws-darwin-x64')
 
+  const isUniversal2Binary = (filePath) => {
+    const probe = spawnSync('lipo', ['-archs', filePath], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true
+    })
+
+    if (probe.error || probe.status !== 0) {
+      return false
+    }
+
+    const archs = String(probe.stdout || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+
+    return archs.includes('arm64') && archs.includes('x86_64')
+  }
+
   if (fs.existsSync(armPath) && !fs.existsSync(x64Path)) {
+    if (!isUniversal2Binary(armPath)) {
+      console.warn(
+        `[download-sherpa-onnx] Skipping darwin-x64 alias copy: ${armPath} is not a universal2 binary.`
+      )
+      return
+    }
+
     await cp(armPath, x64Path)
     setExecutable(x64Path)
   }
 
   if (fs.existsSync(x64Path) && !fs.existsSync(armPath)) {
+    if (!isUniversal2Binary(x64Path)) {
+      console.warn(
+        `[download-sherpa-onnx] Skipping darwin-arm64 alias copy: ${x64Path} is not a universal2 binary.`
+      )
+      return
+    }
+
     await cp(x64Path, armPath)
     setExecutable(armPath)
   }

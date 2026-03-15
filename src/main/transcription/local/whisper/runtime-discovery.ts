@@ -40,6 +40,13 @@ const resolveBinaryNames = (): string[] => {
   const platform = process.platform
 
   if (platform === 'darwin') {
+    if (arch === 'arm64') {
+      return ['whisper-server-darwin-arm64', 'whisper-server-darwin-x64']
+    }
+    if (arch === 'x64') {
+      return ['whisper-server-darwin-x64', 'whisper-server-darwin-arm64']
+    }
+
     return ['whisper-server-darwin-arm64', 'whisper-server-darwin-x64']
   }
 

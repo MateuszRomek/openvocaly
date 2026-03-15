@@ -39,7 +39,14 @@ const resolveBinaryNames = (): string[] => {
   const arch = process.arch
   const platform = process.platform
   if (platform === 'darwin') {
-    // sherpa-onnx mac archive is universal; allow either file name to avoid arch mismatch issues.
+    // Prefer host arch first, then fallback. sherpa-onnx mac archive is expected to be universal.
+    if (arch === 'arm64') {
+      return ['sherpa-onnx-ws-darwin-arm64', 'sherpa-onnx-ws-darwin-x64']
+    }
+    if (arch === 'x64') {
+      return ['sherpa-onnx-ws-darwin-x64', 'sherpa-onnx-ws-darwin-arm64']
+    }
+
     return ['sherpa-onnx-ws-darwin-arm64', 'sherpa-onnx-ws-darwin-x64']
   }
 
