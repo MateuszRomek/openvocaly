@@ -56,7 +56,15 @@ Windows and Linux support is planned next, after the macOS-first phase.
 npm install
 ```
 
-2. Start local development:
+2. Create your local environment file:
+
+```bash
+cp .env.example .env
+```
+
+The example file includes safe development defaults you can adjust locally.
+
+3. Start local development:
 
 ```bash
 npm run dev
@@ -67,13 +75,17 @@ On first run, this can take longer because local runtimes are prepared/downloade
 
 ## Local Configuration
 
-Optional renderer port override is defined in `.env.development`:
+Local development overrides live in `.env`, created from `.env.example` during setup.
+
+Example values:
 
 ```bash
 RENDERER_DEV_SERVER_PORT=5180
+LOG_LEVEL=debug
+LOG_PRETTY=1
 ```
 
-Remove the variable to fall back to Vite default port behavior.
+Remove `RENDERER_DEV_SERVER_PORT` to fall back to Vite default port behavior.
 
 ## Useful Scripts
 
