@@ -1,32 +1,35 @@
 # OpenVocaly
 
 OpenVocaly turns your voice into ready-to-use text anywhere you work.
-Press a shortcut, speak naturally, and insert the transcription into your current app without breaking flow.
+Press a shortcut, speak naturally, and insert transcription into your current app without breaking flow.
 
-## Vision
+> OpenVocaly currently targets macOS.
+> Windows and Linux support is planned after the core experience is stable on one platform.
 
-We are building a polished macOS-first dictation experience in the spirit of tools like WhisperFlow:
+## How You Can Help Right Now
 
-- trigger recording instantly with shortcuts
-- get fast, reliable transcription
-- insert text directly into your current workflow
-- keep the interaction lightweight with live overlay feedback
+We are currently feedback-first.
 
-## Tech Stack
+- report bugs with clear reproduction steps
+- share onboarding/setup friction
+- propose workflow improvements and use cases
+- suggest docs improvements and clarifications
 
-- Electron + electron-vite
-- React + TypeScript
-- TanStack Router + TanStack Query
-- SQLite (`better-sqlite3`) + Drizzle ORM
+For non-trivial code changes, open an issue first so scope and direction can be aligned before implementation.
+Large unsolicited refactors are usually not accepted at this stage.
 
-## Prerequisites
+See `CONTRIBUTING.md` for full contribution guidance.
+
+## Getting Started (Local Development)
+
+### Prerequisites
 
 - Node.js 22+ (see `.nvmrc`)
 - npm 10+
 - Git
-- Internet connection for first runtime download
+- internet connection for first runtime download
 
-### macOS (current primary development target)
+### macOS requirements
 
 - Xcode Command Line Tools (`xcode-select -p`)
 - Homebrew (recommended)
@@ -34,21 +37,11 @@ We are building a polished macOS-first dictation experience in the spirit of too
 Notes:
 
 - `npm run dev` runs runtime preparation automatically (`predev`).
-- If local Whisper runtime binaries are already present in `resources/bin`, you do not need `cmake`.
-- If Whisper runtime must be rebuilt, the script will try to install missing `git`/`cmake` via Homebrew.
-- If Xcode Command Line Tools are missing, macOS will prompt install and you need to finish it before rerunning.
+- if local Whisper runtime binaries are already present in `resources/bin`, you do not need `cmake`
+- if Whisper runtime must be rebuilt, the script will try to install missing `git`/`cmake` via Homebrew
+- if Xcode Command Line Tools are missing, macOS prompts install and you need to finish it before rerunning
 
-### Windows / Linux
-
-- Windows and Linux are not active development targets right now.
-- Current implementation is macOS-first; Windows/Linux support will be added in upcoming phases.
-
-## Platform Status
-
-OpenVocaly is currently developed and tested primarily on macOS.
-Windows and Linux support is planned next, after the macOS-first phase.
-
-## Getting Started
+### Setup
 
 1. Install dependencies:
 
@@ -56,13 +49,13 @@ Windows and Linux support is planned next, after the macOS-first phase.
 npm install
 ```
 
-2. Create your local environment file:
+2. Run local setup:
 
 ```bash
-cp .env.example .env
+npm run setup:dev
 ```
 
-The example file includes safe development defaults you can adjust locally.
+This command creates `.env` from `.env.example` if needed and applies local database migrations.
 
 3. Start local development:
 
@@ -71,11 +64,12 @@ npm run dev
 ```
 
 This runs the Electron main process and renderer dev server together.
-On first run, this can take longer because local runtimes are prepared/downloaded.
+On first run, startup can take longer because local runtimes are prepared/downloaded.
 
 ## Local Configuration
 
-Local development overrides live in `.env`, created from `.env.example` during setup.
+Local development overrides live in `.env`.
+If `.env` is missing, run `npm run setup:dev`.
 
 Example values:
 
@@ -90,19 +84,16 @@ Remove `RENDERER_DEV_SERVER_PORT` to fall back to Vite default port behavior.
 ## Useful Scripts
 
 ```bash
+# Initial local setup
+npm run setup:dev
+
 # Quality
 npm run lint
 npm run format
 npm run typecheck
 
-# Database
-npm run db:generate
-npm run db:migrate
-
 # Build app bundles
 npm run build:mac
-npm run build:win
-npm run build:linux
 ```
 
 ## Project Structure
@@ -113,16 +104,18 @@ npm run build:linux
 - `src/shared` - IPC contracts and shared types
 - `docs` - architecture/flow/contract docs for main, dictation, recording, transcription, and paste
 
-## Build Output
-
-- `npm run build` creates production Electron assets
-- platform scripts (`build:mac`, `build:win`, `build:linux`) create distributables with `electron-builder`
-
 ## Documentation
 
 Start with `docs/README.md` for subsystem map and recommended reading order.
 
+## Tech Stack
+
+- Electron + electron-vite
+- React + TypeScript
+- TanStack Router + TanStack Query
+- SQLite (via `@libsql/client`) + Drizzle ORM
+
 ## License
 
 This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
-See the `LICENSE` file for details.
+See `LICENSE` for details.

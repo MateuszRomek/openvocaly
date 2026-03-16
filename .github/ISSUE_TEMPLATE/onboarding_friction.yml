@@ -1,0 +1,62 @@
+name: Onboarding friction
+description: Report setup or first-run friction for new users/developers
+title: 'onboarding: '
+labels:
+  - onboarding
+  - feedback
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for setup, installation, and first-run experience problems.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where did friction happen?
+      options:
+        - README instructions
+        - Local setup
+        - First app launch
+        - Permissions (mic/accessibility)
+        - Runtime download/build
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: expectation
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps and command output
+      description: Include exact commands and relevant output snippets.
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: OS version
+      placeholder: macOS 14.6
+    validations:
+      required: true
+
+  - type: textarea
+    id: docs_fix
+    attributes:
+      label: Suggested docs fix
+      description: If you have an idea for clearer wording or missing steps, share it here.

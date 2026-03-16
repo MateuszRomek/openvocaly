@@ -31,7 +31,6 @@ const CHUNK_OVERLAP_MS = 500
 const CHUNK_RETRY_ATTEMPTS = 2
 const CHUNK_DEDUPE_MAX_TOKENS = 16
 const CHUNK_DEDUPE_MIN_TOKENS = 2
-const PARTIAL_TRANSCRIPTION_PREFIX = '[Partial transcription]'
 
 type TranscribeArtifactOptions = {
   sessionId?: string
@@ -283,7 +282,7 @@ export class ParakeetRuntime {
 
       const normalizedText = mergedText.trim()
       const partial = normalizedText.length > 0 && failedChunkIndexes.length > 0
-      const text = partial ? `${PARTIAL_TRANSCRIPTION_PREFIX}\n${normalizedText}` : normalizedText
+      const text = normalizedText
       const resultType = this.resolveOverallResultType({
         text,
         failedChunkIndexes,
