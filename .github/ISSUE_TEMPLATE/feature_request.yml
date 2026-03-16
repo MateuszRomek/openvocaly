@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose a product or workflow improvement
+title: 'feature: '
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please focus on the user problem and the smallest useful scope.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      placeholder: I often need to dictate into short-lived popovers, and current timing causes missed input.
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Real use case
+      description: Describe your workflow and where this problem appears.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_workaround
+    attributes:
+      label: Current workaround
+      description: How do you work around it today, and what is painful about that?
+    validations:
+      required: false
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected outcome
+      description: What should be better for the user after this is solved?
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Smallest useful scope
+      description: Suggest a minimal version that still delivers value.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: alignment
+    attributes:
+      label: Collaboration check
+      options:
+        - label: I understand non-trivial changes should be aligned in an issue/discussion before implementation.
+          required: true
