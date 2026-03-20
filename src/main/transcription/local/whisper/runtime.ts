@@ -238,7 +238,9 @@ export class WhisperRuntime {
         chunkDiagnostics.push(...segmentResult.attempts)
 
         if (!segmentResult.text) {
-          failedChunkIndexes.push(segment.chunkIndex)
+          if (this.hasHardChunkFailure(segmentResult.attempts)) {
+            failedChunkIndexes.push(segment.chunkIndex)
+          }
           continue
         }
 
@@ -516,6 +518,15 @@ export class WhisperRuntime {
     }
 
     return 'failed_runtime'
+  }
+
+  private hasHardChunkFailure(attempts: TranscriptionChunkDiagnostics[]): boolean {
+    return attempts.some(
+      (attempt) =>
+        attempt.resultType === 'failed_runtime' ||
+        attempt.resultType === 'failed_timeout' ||
+        attempt.resultType === 'failed_protocol'
+    )
   }
 
   private resolveOverallResultType(params: {

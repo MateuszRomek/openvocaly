@@ -232,6 +232,7 @@ export class ParakeetRuntime {
       let failedChunkIndexes: number[] = []
       const failedSegments: ParakeetChunkSegment[] = []
       const chunkDiagnostics: TranscriptionChunkDiagnostics[] = []
+      const chunkTextByIndex = new Map<number, string>()
       const sampleCount = Math.floor(float32Samples.length / 4)
       let maxCoveredEndSample = 0
 
@@ -244,21 +245,21 @@ export class ParakeetRuntime {
         chunkDiagnostics.push(...segmentResult.attempts)
 
         if (!segmentResult.text) {
-          failedChunkIndexes.push(segment.chunkIndex)
           failedSegments.push(segment)
           continue
         }
 
-        mergedText = mergeTranscriptChunkText(mergedText, segmentResult.text)
+        chunkTextByIndex.set(segment.chunkIndex, segmentResult.text)
         maxCoveredEndSample = Math.max(maxCoveredEndSample, segment.endSample)
       }
 
       if (failedSegments.length > 0) {
+        const initiallyFailedChunkIndexes = failedSegments.map((segment) => segment.chunkIndex)
         this.logger.debug({
           event: 'parakeet_failed_chunk_rescue_started',
           sessionId: options.sessionId ?? null,
           modelId: resolvedModelId,
-          failedChunkIndexes
+          failedChunkIndexes: initiallyFailedChunkIndexes
         })
 
         const rescuedChunkIndexes = new Set<number>()
@@ -276,12 +277,14 @@ export class ParakeetRuntime {
           }
 
           rescuedChunkIndexes.add(failedSegment.chunkIndex)
-          mergedText = mergeTranscriptChunkText(mergedText, rescueResult.text)
+          chunkTextByIndex.set(failedSegment.chunkIndex, rescueResult.text)
           maxCoveredEndSample = Math.max(maxCoveredEndSample, failedSegment.endSample)
         }
 
         if (rescuedChunkIndexes.size > 0) {
-          failedChunkIndexes = failedChunkIndexes.filter((index) => !rescuedChunkIndexes.has(index))
+          failedChunkIndexes = segments
+            .filter((segment) => !chunkTextByIndex.has(segment.chunkIndex))
+            .map((segment) => segment.chunkIndex)
           this.logger.debug({
             event: 'parakeet_failed_chunk_rescue_completed',
             sessionId: options.sessionId ?? null,
@@ -291,6 +294,11 @@ export class ParakeetRuntime {
           })
         }
       }
+
+      failedChunkIndexes = segments
+        .filter((segment) => !chunkTextByIndex.has(segment.chunkIndex))
+        .map((segment) => segment.chunkIndex)
+      mergedText = this.composeChunkTextsInOrder(segments, chunkTextByIndex)
 
       const tailCoverageGapSamples = Math.max(0, sampleCount - maxCoveredEndSample)
       const tailCoverageGapMs = Math.round((tailCoverageGapSamples * 1000) / PARAKEET_SAMPLE_RATE)
@@ -667,6 +675,24 @@ export class ParakeetRuntime {
       startSample,
       endSample: totalSampleCount
     })
+  }
+
+  private composeChunkTextsInOrder(
+    segments: ParakeetChunkSegment[],
+    chunkTextByIndex: ReadonlyMap<number, string>
+  ): string {
+    let merged = ''
+
+    for (const segment of segments) {
+      const text = chunkTextByIndex.get(segment.chunkIndex)
+      if (!text) {
+        continue
+      }
+
+      merged = mergeTranscriptChunkText(merged, text)
+    }
+
+    return merged.trim()
   }
 
   private computeRms(float32Samples: Buffer): number {
