@@ -1,15 +1,15 @@
 import { useCallback, useMemo } from 'react'
-import { SETTINGS_COPY } from '../constants/copy'
-import { PERMISSION_ITEMS, shouldRenderPermissionMessage } from '../constants/permissions'
-import { useOpenAccessibilitySettingsMutation } from '../queries/permissions/use-open-accessibility-settings-mutation'
-import { useOpenMicrophoneSettingsMutation } from '../queries/permissions/use-open-microphone-settings-mutation'
-import { usePermissionsStatusQuery } from '../queries/permissions/use-permissions-status-query'
-import { useRequestAccessibilityMutation } from '../queries/permissions/use-request-accessibility-mutation'
-import { useRequestMicrophoneMutation } from '../queries/permissions/use-request-microphone-mutation'
+import { useOpenAccessibilitySettingsMutation } from '@renderer/queries/permissions/use-open-accessibility-settings-mutation'
+import { useOpenMicrophoneSettingsMutation } from '@renderer/queries/permissions/use-open-microphone-settings-mutation'
+import { usePermissionsStatusQuery } from '@renderer/queries/permissions/use-permissions-status-query'
+import { useRequestAccessibilityMutation } from '@renderer/queries/permissions/use-request-accessibility-mutation'
+import { useRequestMicrophoneMutation } from '@renderer/queries/permissions/use-request-microphone-mutation'
 import type {
   PermissionState,
   PermissionsStatusResponse
-} from '../queries/permissions/permissions.types'
+} from '@renderer/queries/permissions/permissions.types'
+import { SETTINGS_COPY } from '../constants/copy'
+import { PERMISSION_ITEMS, shouldRenderPermissionMessage } from '../constants/permissions'
 
 type PermissionConfig = Record<
   (typeof PERMISSION_ITEMS)[number]['key'],

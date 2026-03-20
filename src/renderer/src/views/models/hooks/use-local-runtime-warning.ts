@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { supportsLocalRuntimeActions } from '../constants/local-provider-capabilities'
-import { useLocalRuntimeStatusQuery } from '../queries/transcription/use-local-runtime-status-query'
+import { useLocalRuntimeStatusQuery } from '@renderer/queries/transcription/use-local-runtime-status-query'
 
 type UseLocalRuntimeWarningResult = {
   warning: string | null

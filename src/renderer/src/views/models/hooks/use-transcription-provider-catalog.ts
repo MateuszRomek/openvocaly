@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { useTranscriptionPreferencesQuery } from '../queries/transcription/use-transcription-preferences-query'
+import { useTranscriptionPreferencesQuery } from '@renderer/queries/transcription/use-transcription-preferences-query'
 
 type TranscriptionPreferencesData = NonNullable<
   ReturnType<typeof useTranscriptionPreferencesQuery>['data']

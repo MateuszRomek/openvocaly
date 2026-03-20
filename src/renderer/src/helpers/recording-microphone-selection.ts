@@ -1,6 +1,6 @@
 import type { UseQueryResult } from '@tanstack/react-query'
 import type { MicrophoneDeviceOption } from '@renderer/capture/microphone-devices'
-import { SETTINGS_COPY } from '../constants/copy'
+import { RECORDING_COPY } from '@renderer/constants/recording'
 
 const EMPTY_MICROPHONE_OPTIONS: MicrophoneDeviceOption[] = []
 
@@ -16,5 +16,5 @@ export const resolveDevicesErrorMessage = (
     return null
   }
 
-  return SETTINGS_COPY.errors.loadMicrophones
+  return RECORDING_COPY.errors.loadMicrophones
 }

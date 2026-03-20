@@ -45,6 +45,14 @@ export const createShortcutsIpcModule = (shortcutService: ShortcutService): Shor
        */
       async (): Promise<ShortcutRuntimeStatusResponse> => await shortcutService.getRuntimeStatus()
     )
+
+    ipcMain.handle('shortcuts:startCaptureSession', async () => {
+      await shortcutService.startShortcutCaptureSession()
+    })
+
+    ipcMain.handle('shortcuts:stopCaptureSession', async () => {
+      await shortcutService.stopShortcutCaptureSession()
+    })
   })
 
   return {

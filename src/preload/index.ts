@@ -61,6 +61,7 @@ import type {
   OpenSystemSettingsResponse,
   PermissionsStatusResponse
 } from '../shared/permissions'
+import type { OnboardingMarkCompletedResponse, OnboardingStateResponse } from '../shared/onboarding'
 
 type DesktopPlatform = 'darwin' | 'win32' | 'linux'
 
@@ -126,6 +127,8 @@ const api = {
     getConfig: (): Promise<ShortcutConfigResponse> => ipcRenderer.invoke('shortcuts:getConfig'),
     getRuntimeStatus: (): Promise<ShortcutRuntimeStatusResponse> =>
       ipcRenderer.invoke('shortcuts:getRuntimeStatus'),
+    startCaptureSession: (): Promise<void> => ipcRenderer.invoke('shortcuts:startCaptureSession'),
+    stopCaptureSession: (): Promise<void> => ipcRenderer.invoke('shortcuts:stopCaptureSession'),
     update: (input: ShortcutUpdateInput): Promise<ShortcutMutationResponse> =>
       ipcRenderer.invoke('shortcuts:update', input),
     reset: (input?: ShortcutResetInput): Promise<ShortcutMutationResponse> =>
@@ -195,6 +198,11 @@ const api = {
       ipcRenderer.invoke('permissions:openAccessibilitySettings'),
     openMicrophoneSettings: (): Promise<OpenSystemSettingsResponse> =>
       ipcRenderer.invoke('permissions:openMicrophoneSettings')
+  },
+  onboarding: {
+    getState: (): Promise<OnboardingStateResponse> => ipcRenderer.invoke('onboarding:getState'),
+    markCompleted: (): Promise<OnboardingMarkCompletedResponse> =>
+      ipcRenderer.invoke('onboarding:markCompleted')
   }
 }
 

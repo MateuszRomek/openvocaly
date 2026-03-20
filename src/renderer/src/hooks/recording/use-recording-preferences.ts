@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
-import { SETTINGS_COPY } from '../constants/copy'
-import { useRecordingPreferencesQuery } from '../queries/recording/use-recording-preferences-query'
-import { useUpdateRecordingPreferencesMutation } from '../queries/recording/use-update-recording-preferences-mutation'
+import { RECORDING_COPY } from '@renderer/constants/recording'
+import { useRecordingPreferencesQuery } from '@renderer/queries/recording/use-recording-preferences-query'
+import { useUpdateRecordingPreferencesMutation } from '@renderer/queries/recording/use-update-recording-preferences-mutation'
 
 type UseRecordingPreferencesResult = {
   isLoading: boolean
@@ -22,11 +22,11 @@ export function useRecordingPreferences(): UseRecordingPreferencesResult {
 
   const requestError = useMemo(() => {
     if (preferencesQuery.isError) {
-      return SETTINGS_COPY.errors.loadRecordingSettings
+      return RECORDING_COPY.errors.loadRecordingSettings
     }
 
     if (updatePreferencesMutation.isError) {
-      return SETTINGS_COPY.errors.saveRecordingSettings
+      return RECORDING_COPY.errors.saveRecordingSettings
     }
 
     return null

@@ -1,8 +1,8 @@
 import { AlertTriangleIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/ui/alert'
+import { useRecordingPreferences } from '@renderer/hooks/recording/use-recording-preferences'
 import { SectionCard } from '@renderer/components/section-card'
 import { SectionRow } from '@renderer/components/section-row'
-import { useRecordingPreferences } from '../hooks/use-recording-preferences'
 import { SettingsRecordingAudioSkeleton } from './settings-recording-audio-skeleton'
 
 export function RecordingAudioSection(): React.JSX.Element {

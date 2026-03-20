@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
-import { useSetProviderApiKeyMutation } from '../queries/transcription/use-set-provider-api-key-mutation'
-import type { TranscriptionProviderApiKeyMutationResponse } from '../queries/transcription/transcription.types'
+import { useSetProviderApiKeyMutation } from '@renderer/queries/transcription/use-set-provider-api-key-mutation'
+import type { TranscriptionProviderApiKeyMutationResponse } from '@renderer/queries/transcription/transcription.types'
 import type { TranscriptionProviderId } from './use-transcription-provider-catalog'
 
 type UseSaveTranscriptionProviderApiKeyResult = {

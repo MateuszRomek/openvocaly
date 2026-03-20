@@ -1,6 +1,7 @@
 import { Badge } from '@renderer/ui/badge'
 import { Alert, AlertDescription } from '@renderer/ui/alert'
 import { Button } from '@renderer/ui/button'
+import type { PermissionState } from '@renderer/queries/permissions/permissions.types'
 import { AlertCircleIcon } from 'lucide-react'
 import {
   PERMISSION_STATUS_BADGE,
@@ -8,7 +9,6 @@ import {
   canRequestPermission
 } from '../constants/permissions'
 import { SectionRow } from '@renderer/components/section-row'
-import type { PermissionState } from '../queries/permissions/permissions.types'
 
 type PermissionRowProps = {
   isLast: boolean

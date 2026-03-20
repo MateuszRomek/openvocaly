@@ -1,4 +1,4 @@
-import type { PermissionState } from '../queries/permissions/permissions.types'
+import type { PermissionState } from '@renderer/queries/permissions/permissions.types'
 
 export const PERMISSION_ITEMS = [
   {

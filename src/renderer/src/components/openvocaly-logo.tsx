@@ -3,6 +3,7 @@ import { cn } from '@renderer/lib/utils'
 
 type OpenVocalyLogoSharpness = 'exact' | 'pixel-snapped'
 type OpenVocalyLogoBarPattern = 'five' | 'three'
+type OpenVocalyLogoBarAnimation = 'speaking' | 'static-reveal'
 
 type OpenVocalyLogoTuning = {
   sharpness?: OpenVocalyLogoSharpness
@@ -22,6 +23,9 @@ type OpenVocalyLogoProps = {
   animate?: boolean
   animateOnce?: boolean
   animationKey?: string
+  animationSpeed?: number
+  barAnimation?: OpenVocalyLogoBarAnimation
+  onAnimationComplete?: () => void
   tuning?: OpenVocalyLogoTuning
 }
 
@@ -113,10 +117,13 @@ function OpenVocalyLogo({
   animate = true,
   animateOnce = true,
   animationKey,
+  animationSpeed = 1,
+  barAnimation = 'speaking',
+  onAnimationComplete,
   tuning
 }: OpenVocalyLogoProps): React.JSX.Element {
+  const svgRef = useRef<SVGSVGElement | null>(null)
   const circleRef = useRef<SVGCircleElement | null>(null)
-  const barRefs = useRef<Array<SVGRectElement | null>>([])
 
   const geometry = useMemo<LogoGeometry>(() => {
     const sharpness = tuning?.sharpness ?? 'pixel-snapped'
@@ -182,7 +189,9 @@ function OpenVocalyLogo({
 
   useEffect(() => {
     const circle = circleRef.current
-    const bars = barRefs.current.filter((bar): bar is SVGRectElement => bar !== null)
+    const bars = Array.from(
+      svgRef.current?.querySelectorAll<SVGRectElement>('[data-logo-bar]') ?? []
+    )
 
     if (!circle || bars.length !== geometry.finalBars.length) {
       return
@@ -201,6 +210,7 @@ function OpenVocalyLogo({
         const shape = geometry.finalBars[index]
         bar.setAttribute('y', toSvg(shape.y))
         bar.setAttribute('height', toSvg(shape.h))
+        bar.style.opacity = '1'
       })
     }
 
@@ -210,15 +220,13 @@ function OpenVocalyLogo({
 
     if (!animate || prefersReducedMotion || (animateOnce && hasPlayedByKey)) {
       applyStaticState()
+      onAnimationComplete?.()
       return
     }
 
-    const voiceStart = 1200
-    const voiceFullDuration = 2800
-    const windDownDuration = 1600
-    const settleDuration = 1200
-    const totalDuration = voiceFullDuration + windDownDuration + settleDuration
-
+    const speed = Number.isFinite(animationSpeed) && animationSpeed > 0 ? animationSpeed : 1
+    const ringDrawDuration = 3600 * speed
+    let rafId = 0
     const barsState = bars.map(() => ({
       current: 0,
       velocity: 0,
@@ -226,101 +234,152 @@ function OpenVocalyLogo({
       nextChange: 0
     }))
 
-    let rafId = 0
-
     circle.style.transition = 'none'
     circle.style.strokeDasharray = `0 ${geometry.circleLength}`
     circle.style.transform = 'rotate(-45deg)'
     circle.style.transformOrigin = '60px 60px'
 
     bars.forEach((bar) => {
+      bar.style.opacity = '1'
+      if (barAnimation === 'static-reveal') {
+        return
+      }
+
       bar.setAttribute('y', toSvg(geometry.barCenter))
       bar.setAttribute('height', '0')
     })
 
+    if (barAnimation === 'static-reveal') {
+      bars.forEach((bar, index) => {
+        const finalShape = geometry.finalBars[index]
+        bar.setAttribute('y', toSvg(finalShape.y))
+        bar.setAttribute('height', toSvg(finalShape.h))
+        bar.style.opacity = '0'
+      })
+    }
+
     requestAnimationFrame(() => {
-      circle.style.transition = 'stroke-dasharray 1.4s cubic-bezier(0.25, 0.1, 0.25, 1)'
+      circle.style.transition = `stroke-dasharray ${ringDrawDuration / 1000}s cubic-bezier(0.2, 0.75, 0.2, 1)`
       circle.style.strokeDasharray = `${geometry.circleDash} ${geometry.circleGap}`
     })
 
     const start = performance.now()
 
-    const tick = (now: number): void => {
-      const elapsed = now - start
-      if (elapsed < voiceStart) {
-        rafId = requestAnimationFrame(tick)
-        return
-      }
+    const tick =
+      barAnimation === 'speaking'
+        ? (now: number): void => {
+            const t = now - start
+            const barAttackDuration = 220 * speed
+            const barPulseDuration = 2600 * speed
+            const barWindDownDuration = 950 * speed
+            const barSettleDuration = 1200 * speed
+            const barTotalDuration =
+              barAttackDuration + barPulseDuration + barWindDownDuration + barSettleDuration
+            const totalDuration = Math.max(barTotalDuration, ringDrawDuration + 180 * speed)
 
-      const t = elapsed - voiceStart
+            let energy: number
+            if (t < barAttackDuration) {
+              energy = easeOutCubic(t / barAttackDuration)
+            } else if (t < barAttackDuration + barPulseDuration) {
+              energy = 1
+            } else if (t < barAttackDuration + barPulseDuration + barWindDownDuration) {
+              const progress = (t - (barAttackDuration + barPulseDuration)) / barWindDownDuration
+              energy = 1 - easeInOutQuad(progress)
+            } else {
+              energy = 0
+            }
 
-      let energy: number
-      if (t < 300) {
-        energy = easeOutCubic(t / 300)
-      } else if (t < voiceFullDuration) {
-        energy = 1
-      } else if (t < voiceFullDuration + windDownDuration) {
-        const progress = (t - voiceFullDuration) / windDownDuration
-        energy = 1 - easeInOutQuad(progress)
-      } else {
-        energy = 0
-      }
+            const settleStart = barAttackDuration + barPulseDuration + barWindDownDuration * 0.35
+            let settle = 0
+            if (t > settleStart) {
+              settle = Math.min(1, (t - settleStart) / barSettleDuration)
+              settle = easeInOutQuad(settle)
+            }
 
-      const settleStart = voiceFullDuration + windDownDuration * 0.4
-      let settle = 0
-      if (t > settleStart) {
-        settle = Math.min(1, (t - settleStart) / settleDuration)
-        settle = easeInOutQuad(settle)
-      }
+            barsState.forEach((state, index) => {
+              const interval = 150 + (1 - energy) * 230
+              if (energy > 0.01 && t > state.nextChange) {
+                const range =
+                  geometry.barMinHeight + energy * (geometry.barMaxHeight - geometry.barMinHeight)
+                state.target =
+                  geometry.barMinHeight + Math.random() * (range - geometry.barMinHeight)
+                state.nextChange = t + interval + Math.random() * interval * 0.6
+              }
 
-      barsState.forEach((state, index) => {
-        const interval = 220 + (1 - energy) * 300
-        if (energy > 0.01 && t > state.nextChange) {
-          const range =
-            geometry.barMinHeight + energy * (geometry.barMaxHeight - geometry.barMinHeight)
-          state.target = geometry.barMinHeight + Math.random() * (range - geometry.barMinHeight)
-          state.nextChange = t + interval + Math.random() * interval * 0.6
-        }
+              const stiffness = 0.045 + energy * 0.04
+              const damping = 0.8
+              const force = (state.target - state.current) * stiffness
+              state.velocity = (state.velocity + force) * damping
+              state.current += state.velocity
 
-        const stiffness = 0.04 + energy * 0.03
-        const damping = 0.82
-        const force = (state.target - state.current) * stiffness
-        state.velocity = (state.velocity + force) * damping
-        state.current += state.velocity
+              const finalShape = geometry.finalBars[index]
+              const voiceHeight = Math.max(geometry.barMinHeight, state.current)
+              const voiceY = geometry.barCenter - voiceHeight / 2
 
-        const finalShape = geometry.finalBars[index]
-        const voiceHeight = Math.max(geometry.barMinHeight, state.current)
-        const voiceY = geometry.barCenter - voiceHeight / 2
+              const h = voiceHeight * (1 - settle) + finalShape.h * settle
+              const y = voiceY * (1 - settle) + finalShape.y * settle
 
-        const h = voiceHeight * (1 - settle) + finalShape.h * settle
-        const y = voiceY * (1 - settle) + finalShape.y * settle
+              const bar = bars[index]
+              bar.setAttribute('y', toSvg(y))
+              bar.setAttribute('height', toSvg(Math.max(0, h)))
+            })
 
-        const bar = bars[index]
-        bar.setAttribute('y', toSvg(y))
-        bar.setAttribute('height', toSvg(Math.max(0, h)))
-      })
+            if (t < totalDuration) {
+              rafId = requestAnimationFrame(tick)
+              return
+            }
 
-      if (t < totalDuration) {
-        rafId = requestAnimationFrame(tick)
-        return
-      }
+            applyStaticState()
+            if (animateOnce && animationKey) {
+              playedAnimationKeys.add(animationKey)
+            }
+            onAnimationComplete?.()
+          }
+        : (now: number): void => {
+            const t = now - start
+            const revealStart = ringDrawDuration * 0.78
+            const revealDuration = Math.max(220 * speed, ringDrawDuration * 0.2)
+            const totalDuration = ringDrawDuration + 80 * speed
+            const revealProgress = Math.max(0, Math.min(1, (t - revealStart) / revealDuration))
+            const easedRevealProgress = easeInOutQuad(revealProgress)
 
-      applyStaticState()
-      if (animateOnce && animationKey) {
-        playedAnimationKeys.add(animationKey)
-      }
-    }
+            bars.forEach((bar, index) => {
+              const finalShape = geometry.finalBars[index]
+              bar.setAttribute('y', toSvg(finalShape.y))
+              bar.setAttribute('height', toSvg(finalShape.h))
+              bar.style.opacity = easedRevealProgress.toFixed(3)
+            })
+
+            if (t < totalDuration) {
+              rafId = requestAnimationFrame(tick)
+              return
+            }
+
+            applyStaticState()
+            if (animateOnce && animationKey) {
+              playedAnimationKeys.add(animationKey)
+            }
+            onAnimationComplete?.()
+          }
 
     rafId = requestAnimationFrame(tick)
 
     return () => {
       cancelAnimationFrame(rafId)
-      applyStaticState()
     }
-  }, [animate, animateOnce, animationKey, geometry])
+  }, [
+    animate,
+    animateOnce,
+    animationKey,
+    animationSpeed,
+    barAnimation,
+    geometry,
+    onAnimationComplete
+  ])
 
   return (
     <svg
+      ref={svgRef}
       width={size}
       height={size}
       viewBox={`0 0 ${VIEWBOX_SIZE} ${VIEWBOX_SIZE}`}
@@ -343,9 +402,7 @@ function OpenVocalyLogo({
       {geometry.finalBars.map((shape, index) => (
         <rect
           key={index}
-          ref={(node) => {
-            barRefs.current[index] = node
-          }}
+          data-logo-bar
           x={shape.x}
           y={shape.y}
           width={shape.w}
@@ -358,5 +415,10 @@ function OpenVocalyLogo({
   )
 }
 
-export type { OpenVocalyLogoTuning, OpenVocalyLogoSharpness, OpenVocalyLogoBarPattern }
+export type {
+  OpenVocalyLogoTuning,
+  OpenVocalyLogoSharpness,
+  OpenVocalyLogoBarPattern,
+  OpenVocalyLogoBarAnimation
+}
 export default OpenVocalyLogo

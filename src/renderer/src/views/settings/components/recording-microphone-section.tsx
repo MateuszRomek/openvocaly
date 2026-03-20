@@ -1,9 +1,9 @@
 import { AlertTriangleIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/ui/alert'
+import { useRecordingMicrophoneSelection } from '@renderer/hooks/recording/use-recording-microphone-selection'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger } from '@renderer/ui/select'
 import { SectionCard } from '@renderer/components/section-card'
 import { SectionRow } from '@renderer/components/section-row'
-import { useRecordingMicrophoneSelection } from '../hooks/use-recording-microphone-selection'
 import { SettingsRecordingMicrophoneSkeleton } from './settings-recording-microphone-skeleton'
 
 export function RecordingMicrophoneSection(): React.JSX.Element {
