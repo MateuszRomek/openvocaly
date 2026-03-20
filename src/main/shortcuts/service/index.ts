@@ -46,14 +46,16 @@ import {
 export class ShortcutService {
   private readonly logger = createLogger('shortcuts.service')
   private static readonly SUPPORTED_SHORTCUT_HEALTH_CHECK_INTERVAL_MS = 30_000
-  private static readonly CAPTURE_SESSION_BLOCKED_ACTION: SupportedGlobalShortcutAction =
-    'recording.cancel'
+  private static readonly CAPTURE_SESSION_BLOCKED_ACTIONS: readonly SupportedGlobalShortcutAction[] =
+    ['recording.toggle', 'recording.cancel']
   private initialized = false
   private startupFailure = false
   private supportedShortcutHealthCheckTimer: NodeJS.Timeout | null = null
   private repairingSupportedShortcuts = false
   private isShortcutCaptureSessionActive = false
-  private pausedCaptureSessionAccelerator: string | null = null
+  private pausedCaptureSessionAccelerators: Partial<
+    Record<SupportedGlobalShortcutAction, string | null>
+  > = {}
   private shortcutState: ShortcutActionStateMap =
     createInitialShortcutState(createDefaultBindings())
 
@@ -113,7 +115,7 @@ export class ShortcutService {
   shutdown(): void {
     this.stopSupportedShortcutHealthCheck()
     this.isShortcutCaptureSessionActive = false
-    this.pausedCaptureSessionAccelerator = null
+    this.pausedCaptureSessionAccelerators = {}
     this.pttRuntime.shutdown()
     globalShortcut.unregisterAll()
     this.initialized = false
@@ -142,36 +144,39 @@ export class ShortcutService {
   }
 
   private pauseCaptureSessionConflictingShortcut(): void {
-    const action = ShortcutService.CAPTURE_SESSION_BLOCKED_ACTION
-    const state = this.shortcutState[action]
-    const accelerator = state.effectiveAccelerator ?? state.storedBinding.accelerator
+    for (const action of ShortcutService.CAPTURE_SESSION_BLOCKED_ACTIONS) {
+      const state = this.shortcutState[action]
+      const accelerator = state.effectiveAccelerator ?? state.storedBinding.accelerator
 
-    if (!accelerator) {
-      return
+      if (!accelerator) {
+        this.pausedCaptureSessionAccelerators[action] = null
+        continue
+      }
+
+      if (globalShortcut.isRegistered(accelerator)) {
+        globalShortcut.unregister(accelerator)
+      }
+
+      this.pausedCaptureSessionAccelerators[action] = accelerator
     }
-
-    if (globalShortcut.isRegistered(accelerator)) {
-      globalShortcut.unregister(accelerator)
-    }
-
-    this.pausedCaptureSessionAccelerator = accelerator
   }
 
   private restoreCaptureSessionConflictingShortcut(): void {
-    const action = ShortcutService.CAPTURE_SESSION_BLOCKED_ACTION
-    const state = this.shortcutState[action]
-    const acceleratorToRestore =
-      this.pausedCaptureSessionAccelerator ??
-      state.effectiveAccelerator ??
-      state.storedBinding.accelerator
+    for (const action of ShortcutService.CAPTURE_SESSION_BLOCKED_ACTIONS) {
+      const state = this.shortcutState[action]
+      const acceleratorToRestore =
+        this.pausedCaptureSessionAccelerators[action] ??
+        state.effectiveAccelerator ??
+        state.storedBinding.accelerator
 
-    this.pausedCaptureSessionAccelerator = null
+      this.pausedCaptureSessionAccelerators[action] = null
 
-    if (!acceleratorToRestore) {
-      return
+      if (!acceleratorToRestore) {
+        continue
+      }
+
+      this.restoreSupportedGlobalShortcutWithFallback(action, acceleratorToRestore)
     }
-
-    this.restoreSupportedGlobalShortcutWithFallback(action, acceleratorToRestore)
   }
 
   private restoreSupportedGlobalShortcutWithFallback(
@@ -253,7 +258,7 @@ export class ShortcutService {
       for (const action of supportedActions) {
         if (
           this.isShortcutCaptureSessionActive &&
-          action === ShortcutService.CAPTURE_SESSION_BLOCKED_ACTION
+          ShortcutService.CAPTURE_SESSION_BLOCKED_ACTIONS.includes(action)
         ) {
           continue
         }
@@ -461,7 +466,7 @@ export class ShortcutService {
   private handleGlobalShortcutAction = (action: SupportedGlobalShortcutAction): void => {
     if (
       this.isShortcutCaptureSessionActive &&
-      action === ShortcutService.CAPTURE_SESSION_BLOCKED_ACTION
+      ShortcutService.CAPTURE_SESSION_BLOCKED_ACTIONS.includes(action)
     ) {
       return
     }

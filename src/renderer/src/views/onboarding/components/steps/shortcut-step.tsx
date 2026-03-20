@@ -18,10 +18,15 @@ export function ShortcutStep(): React.JSX.Element {
   } = useShortcutStep()
   const captureSurfaceRef = useRef<HTMLButtonElement>(null)
 
-  useOnboardingStepNavigation({
-    canContinue: true,
-    isBusy: false
-  })
+  const navigationState = useMemo(
+    () => ({
+      canContinue: true,
+      isBusy: false
+    }),
+    []
+  )
+
+  useOnboardingStepNavigation(navigationState)
 
   const displayTokens = useMemo(() => {
     return display

@@ -30,9 +30,8 @@ export type UseLocalEngineStepResult = {
 
 export function useLocalEngineStep(): UseLocalEngineStepResult {
   const queryClient = useQueryClient()
-  const [selectedLocalTarget, setSelectedLocalTarget] = useState<OnboardingLocalModelTarget>(
-    ONBOARDING_RECOMMENDED_LOCAL_TARGET
-  )
+  const [manuallySelectedLocalTarget, setManuallySelectedLocalTarget] =
+    useState<OnboardingLocalModelTarget | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<OnboardingLocalDownloadProgress>(null)
 
   const transcriptionPreferencesQuery = useTranscriptionPreferencesQuery()
@@ -82,6 +81,36 @@ export function useLocalEngineStep(): UseLocalEngineStepResult {
     whisperLocalModelsQuery.data?.models
   ])
 
+  const preferences = transcriptionPreferencesQuery.data?.preferences
+
+  const preferredLocalTargetFromPreferences = useMemo<OnboardingLocalModelTarget | null>(() => {
+    const isLocalProvider = (providerId: string): providerId is LocalTranscriptionProviderId =>
+      ONBOARDING_LOCAL_PROVIDER_IDS.includes(providerId as LocalTranscriptionProviderId)
+
+    if (!preferences || !isLocalProvider(preferences.providerId)) {
+      return null
+    }
+
+    const matchedOption = localModelOptions.find(
+      (option) =>
+        option.providerId === preferences.providerId && option.modelId === preferences.modelId
+    )
+
+    if (!matchedOption) {
+      return null
+    }
+
+    return {
+      providerId: matchedOption.providerId,
+      modelId: matchedOption.modelId
+    }
+  }, [localModelOptions, preferences])
+
+  const selectedLocalTarget =
+    manuallySelectedLocalTarget ??
+    preferredLocalTargetFromPreferences ??
+    ONBOARDING_RECOMMENDED_LOCAL_TARGET
+
   const selectedLocalModel = useMemo(() => {
     return (
       localModelOptions.find(
@@ -124,7 +153,7 @@ export function useLocalEngineStep(): UseLocalEngineStepResult {
 
   const selectLocalModel = useCallback(
     async (target: OnboardingLocalModelTarget): Promise<void> => {
-      setSelectedLocalTarget(target)
+      setManuallySelectedLocalTarget(target)
       setDownloadProgress(null)
 
       await updateTranscriptionPreferencesMutation.mutateAsync({
@@ -137,7 +166,7 @@ export function useLocalEngineStep(): UseLocalEngineStepResult {
 
   const downloadLocalModelTarget = useCallback(
     async (target: OnboardingLocalModelTarget): Promise<void> => {
-      setSelectedLocalTarget(target)
+      setManuallySelectedLocalTarget(target)
       setDownloadProgress(null)
 
       await updateTranscriptionPreferencesMutation.mutateAsync({
