@@ -11,7 +11,7 @@ import type {
   ReportingRange
 } from '../../shared/reporting'
 import { buildAppAggregates } from './core/apps'
-import { summarizeMetrics, toDeltaPct } from './core/metrics'
+import { hasSufficientDeltaBaseline, summarizeMetrics, toDeltaPct } from './core/metrics'
 import {
   isReportingRange,
   normalizeAsOfMs,
@@ -45,6 +45,7 @@ export class ReportingService {
 
     const summary = summarizeMetrics(currentMetrics)
     const previous = summarizeMetrics(previousMetrics)
+    const shouldShowDeltas = hasSufficientDeltaBaseline(previous)
 
     return {
       range,
@@ -52,10 +53,14 @@ export class ReportingService {
       asOfMs: base.asOfMs,
       summary,
       deltas: {
-        averageWpmPct: toDeltaPct(summary.averageWpm, previous.averageWpm),
-        wordsPct: toDeltaPct(summary.words, previous.words),
-        totalMinutesPct: toDeltaPct(summary.totalMinutes, previous.totalMinutes),
-        sessionsPct: toDeltaPct(summary.sessions, previous.sessions)
+        averageWpmPct: shouldShowDeltas
+          ? toDeltaPct(summary.averageWpm, previous.averageWpm)
+          : null,
+        wordsPct: shouldShowDeltas ? toDeltaPct(summary.words, previous.words) : null,
+        totalMinutesPct: shouldShowDeltas
+          ? toDeltaPct(summary.totalMinutes, previous.totalMinutes)
+          : null,
+        sessionsPct: shouldShowDeltas ? toDeltaPct(summary.sessions, previous.sessions) : null
       },
       lifetime
     }
