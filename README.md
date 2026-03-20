@@ -1,24 +1,15 @@
 # OpenVocaly
 
-OpenVocaly turns your voice into ready-to-use text anywhere you work.
-Press a shortcut, speak naturally, and insert transcription into your current app without breaking flow.
+OpenVocaly is a desktop dictation app and my personal alternative to WisprFlow.
+It is designed for system-wide dictation on macOS, so you can dictate and insert text across apps, not just inside one editor.
 
-> OpenVocaly currently targets macOS.
-> Windows and Linux support is planned after the core experience is stable on one platform.
+Built with AI-assisted engineering (Codex), it's still evolving, but it already gets the job done in day-to-day work.
+If you are interested in the idea, open an issue or discussion on GitHub and we can talk through features, tradeoffs, and roadmap ideas.
 
-## How You Can Help Right Now
+## Project Status
 
-We are currently feedback-first.
-
-- report bugs with clear reproduction steps
-- share onboarding/setup friction
-- propose workflow improvements and use cases
-- suggest docs improvements and clarifications
-
-For non-trivial code changes, open an issue first so scope and direction can be aligned before implementation.
-Large unsolicited refactors are usually not accepted at this stage.
-
-See `CONTRIBUTING.md` for full contribution guidance.
+- macOS only
+- Windows and Linux are not planned right now
 
 ## Getting Started (Local Development)
 
@@ -29,14 +20,14 @@ See `CONTRIBUTING.md` for full contribution guidance.
 - Git
 - internet connection for first runtime download
 
-### macOS requirements
+### macOS Requirements
 
 - Xcode Command Line Tools (`xcode-select -p`)
 - Homebrew (recommended)
 
 Notes:
 
-- `npm run dev` runs runtime preparation automatically (`predev`).
+- `npm run dev` runs runtime preparation automatically (`predev`)
 - if local Whisper runtime binaries are already present in `resources/bin`, you do not need `cmake`
 - if Whisper runtime must be rebuilt, the script will try to install missing `git`/`cmake` via Homebrew
 - if Xcode Command Line Tools are missing, macOS prompts install and you need to finish it before rerunning
@@ -55,7 +46,7 @@ npm install
 npm run setup:dev
 ```
 
-This command creates `.env` from `.env.example` if needed and applies local database migrations.
+This creates `.env` from `.env.example` if needed and applies local database migrations.
 
 3. Start local development:
 
@@ -63,8 +54,8 @@ This command creates `.env` from `.env.example` if needed and applies local data
 npm run dev
 ```
 
-This runs the Electron main process and renderer dev server together.
-On first run, startup can take longer because local runtimes are prepared/downloaded.
+This runs Electron main process + renderer dev server together.
+On first run, startup may take longer while local runtimes are prepared/downloaded.
 
 ## Local Configuration
 
@@ -79,7 +70,7 @@ LOG_LEVEL=debug
 LOG_PRETTY=1
 ```
 
-Remove `RENDERER_DEV_SERVER_PORT` to fall back to Vite default port behavior.
+Remove `RENDERER_DEV_SERVER_PORT` to use Vite default port behavior.
 
 ## Useful Scripts
 
@@ -92,21 +83,9 @@ npm run lint
 npm run format
 npm run typecheck
 
-# Build app bundles
+# Build app bundle
 npm run build:mac
 ```
-
-## Project Structure
-
-- `src/main` - Electron main process, composition root, IPC modules, services, repositories
-- `src/preload` - secure bridge exposed to renderer
-- `src/renderer` - React UI and capture runtime
-- `src/shared` - IPC contracts and shared types
-- `docs` - architecture/flow/contract docs for main, dictation, recording, transcription, and paste
-
-## Documentation
-
-Start with `docs/README.md` for subsystem map and recommended reading order.
 
 ## Tech Stack
 

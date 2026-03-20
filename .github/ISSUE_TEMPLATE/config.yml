@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Contribution guidance
-    url: https://github.com/mateuszromek/openvocaly/blob/main/CONTRIBUTING.md
-    about: Read contribution expectations before opening a pull request.
+  - name: Project overview
+    url: https://github.com/mateuszromek/openvocaly/blob/main/README.md
+    about: Read the project status and setup notes before opening a pull request.
