@@ -3,15 +3,15 @@ import {
   canEnumerateMicrophoneDevices,
   type MicrophoneDeviceOption
 } from '@renderer/capture/microphone-devices'
-import { useRecordingPreferences } from './use-recording-preferences'
-import { usePermissions } from './use-permissions'
-import { usePersistResolvedMicrophoneSelection } from './use-persist-resolved-microphone-selection'
-import { isMicrophoneSelectionBlocked } from '../helpers/microphone-permission'
+import { isMicrophoneSelectionBlocked } from '@renderer/helpers/microphone-permission'
 import {
   resolveDevicesErrorMessage,
   toSelectableDeviceOptions
-} from '../helpers/recording-microphone-selection'
-import { useMicrophoneDevicesQuery } from '../queries/recording/use-microphone-devices-query'
+} from '@renderer/helpers/recording-microphone-selection'
+import { usePermissionsStatusQuery } from '@renderer/queries/permissions/use-permissions-status-query'
+import { useMicrophoneDevicesQuery } from '@renderer/queries/recording/use-microphone-devices-query'
+import { usePersistResolvedMicrophoneSelection } from './use-persist-resolved-microphone-selection'
+import { useRecordingPreferences } from './use-recording-preferences'
 
 type UseRecordingMicrophoneSelectionResult = {
   isLoading: boolean
@@ -36,9 +36,10 @@ export function useRecordingMicrophoneSelection(): UseRecordingMicrophoneSelecti
     selectedMicrophoneDeviceId,
     setSelectedMicrophoneDeviceId
   } = useRecordingPreferences()
-  const { permissionConfig, isLoading: isPermissionStatusLoading } = usePermissions()
+  const permissionsStatusQuery = usePermissionsStatusQuery()
+  const isPermissionStatusLoading = permissionsStatusQuery.isPending
 
-  const microphonePermissionState = permissionConfig.microphone.state
+  const microphonePermissionState = permissionsStatusQuery.data?.microphone.state ?? 'unknown'
   const isPermissionBlocked = isMicrophoneSelectionBlocked(microphonePermissionState)
   const isDeviceEnumerationAvailable = canEnumerateMicrophoneDevices()
 
@@ -97,7 +98,7 @@ export function useRecordingMicrophoneSelection(): UseRecordingMicrophoneSelecti
     devicesError: resolveDevicesErrorMessage(devicesQuery),
     isDeviceEnumerationAvailable,
     isPermissionBlocked,
-    permissionMessage: permissionConfig.microphone.message,
+    permissionMessage: permissionsStatusQuery.data?.microphone.message,
     hasNoDevices: !devicesQuery.isPending && selectableDeviceOptions.length === 0,
     deviceOptions: selectableDeviceOptions,
     selectedOptionId: selectedOption?.optionId ?? null,

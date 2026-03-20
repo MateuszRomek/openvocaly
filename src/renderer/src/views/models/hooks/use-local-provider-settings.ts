@@ -13,7 +13,7 @@ import {
   type TranscriptionProviderId,
   type TranscriptionProviderSettingsProvider
 } from './use-transcription-provider-catalog'
-import { useLocalModelsQuery } from '../queries/transcription/use-local-models-query'
+import { useLocalModelsQuery } from '@renderer/queries/transcription/use-local-models-query'
 import { useLocalRuntimeWarning } from './use-local-runtime-warning'
 import type {
   LocalModelCardItem,

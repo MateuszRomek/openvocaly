@@ -56,6 +56,7 @@ import type {
   OpenSystemSettingsResponse,
   PermissionsStatusResponse
 } from '../shared/permissions'
+import type { OnboardingMarkCompletedResponse, OnboardingStateResponse } from '../shared/onboarding'
 
 declare global {
   interface Window {
@@ -88,6 +89,8 @@ declare global {
       shortcuts: {
         getConfig: () => Promise<ShortcutConfigResponse>
         getRuntimeStatus: () => Promise<ShortcutRuntimeStatusResponse>
+        startCaptureSession: () => Promise<void>
+        stopCaptureSession: () => Promise<void>
         update: (input: ShortcutUpdateInput) => Promise<ShortcutMutationResponse>
         reset: (input?: ShortcutResetInput) => Promise<ShortcutMutationResponse>
       }
@@ -134,6 +137,10 @@ declare global {
         requestMicrophone: () => Promise<MicrophoneRequestResponse>
         openAccessibilitySettings: () => Promise<OpenSystemSettingsResponse>
         openMicrophoneSettings: () => Promise<OpenSystemSettingsResponse>
+      }
+      onboarding: {
+        getState: () => Promise<OnboardingStateResponse>
+        markCompleted: () => Promise<OnboardingMarkCompletedResponse>
       }
     }
   }

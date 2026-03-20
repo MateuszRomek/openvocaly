@@ -46,10 +46,16 @@ import {
 export class ShortcutService {
   private readonly logger = createLogger('shortcuts.service')
   private static readonly SUPPORTED_SHORTCUT_HEALTH_CHECK_INTERVAL_MS = 30_000
+  private static readonly CAPTURE_SESSION_BLOCKED_ACTIONS: readonly SupportedGlobalShortcutAction[] =
+    ['recording.toggle', 'recording.cancel']
   private initialized = false
   private startupFailure = false
   private supportedShortcutHealthCheckTimer: NodeJS.Timeout | null = null
   private repairingSupportedShortcuts = false
+  private isShortcutCaptureSessionActive = false
+  private pausedCaptureSessionAccelerators: Partial<
+    Record<SupportedGlobalShortcutAction, string | null>
+  > = {}
   private shortcutState: ShortcutActionStateMap =
     createInitialShortcutState(createDefaultBindings())
 
@@ -108,9 +114,100 @@ export class ShortcutService {
 
   shutdown(): void {
     this.stopSupportedShortcutHealthCheck()
+    this.isShortcutCaptureSessionActive = false
+    this.pausedCaptureSessionAccelerators = {}
     this.pttRuntime.shutdown()
     globalShortcut.unregisterAll()
     this.initialized = false
+  }
+
+  async startShortcutCaptureSession(): Promise<void> {
+    await this.ensureInitialized()
+
+    if (this.isShortcutCaptureSessionActive) {
+      return
+    }
+
+    this.isShortcutCaptureSessionActive = true
+    this.pauseCaptureSessionConflictingShortcut()
+  }
+
+  async stopShortcutCaptureSession(): Promise<void> {
+    await this.ensureInitialized()
+
+    if (!this.isShortcutCaptureSessionActive) {
+      return
+    }
+
+    this.isShortcutCaptureSessionActive = false
+    this.restoreCaptureSessionConflictingShortcut()
+  }
+
+  private pauseCaptureSessionConflictingShortcut(): void {
+    for (const action of ShortcutService.CAPTURE_SESSION_BLOCKED_ACTIONS) {
+      const state = this.shortcutState[action]
+      const accelerator = state.effectiveAccelerator ?? state.storedBinding.accelerator
+
+      if (!accelerator) {
+        this.pausedCaptureSessionAccelerators[action] = null
+        continue
+      }
+
+      if (globalShortcut.isRegistered(accelerator)) {
+        globalShortcut.unregister(accelerator)
+      }
+
+      this.pausedCaptureSessionAccelerators[action] = accelerator
+    }
+  }
+
+  private restoreCaptureSessionConflictingShortcut(): void {
+    for (const action of ShortcutService.CAPTURE_SESSION_BLOCKED_ACTIONS) {
+      const state = this.shortcutState[action]
+      const acceleratorToRestore =
+        this.pausedCaptureSessionAccelerators[action] ??
+        state.effectiveAccelerator ??
+        state.storedBinding.accelerator
+
+      this.pausedCaptureSessionAccelerators[action] = null
+
+      if (!acceleratorToRestore) {
+        continue
+      }
+
+      this.restoreSupportedGlobalShortcutWithFallback(action, acceleratorToRestore)
+    }
+  }
+
+  private restoreSupportedGlobalShortcutWithFallback(
+    action: SupportedGlobalShortcutAction,
+    preferredAccelerator: string
+  ): void {
+    const state = this.shortcutState[action]
+    const registrationResult = this.registerSupportedGlobalAction(action, preferredAccelerator)
+
+    if (registrationResult === 'ok') {
+      state.effectiveAccelerator = preferredAccelerator
+      state.registrationError = null
+      return
+    }
+
+    const defaultAccelerator = defaultBindingForAction(action).accelerator
+    if (
+      preferredAccelerator !== defaultAccelerator &&
+      this.registerSupportedGlobalAction(action, defaultAccelerator) === 'ok'
+    ) {
+      state.effectiveAccelerator = defaultAccelerator
+      state.registrationError =
+        registrationResult === 'invalid' ? 'invalid_accelerator' : 'registration_conflict'
+      this.startupFailure = true
+      return
+    }
+
+    state.effectiveAccelerator = null
+    state.registrationError =
+      registrationResult === 'invalid' ? 'invalid_accelerator' : 'registration_conflict'
+    this.startupFailure = true
   }
 
   async getConfig(): Promise<ShortcutConfigResponse> {
@@ -159,6 +256,13 @@ export class ShortcutService {
       }> = []
 
       for (const action of supportedActions) {
+        if (
+          this.isShortcutCaptureSessionActive &&
+          ShortcutService.CAPTURE_SESSION_BLOCKED_ACTIONS.includes(action)
+        ) {
+          continue
+        }
+
         const state = this.shortcutState[action]
         const accelerator = state.effectiveAccelerator ?? state.storedBinding.accelerator
 
@@ -360,6 +464,13 @@ export class ShortcutService {
   }
 
   private handleGlobalShortcutAction = (action: SupportedGlobalShortcutAction): void => {
+    if (
+      this.isShortcutCaptureSessionActive &&
+      ShortcutService.CAPTURE_SESSION_BLOCKED_ACTIONS.includes(action)
+    ) {
+      return
+    }
+
     this.logger.debug({
       action,
       event: 'global_shortcut_triggered'

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { useUpdateTranscriptionPreferencesMutation } from '../queries/transcription/use-update-transcription-preferences-mutation'
+import { useUpdateTranscriptionPreferencesMutation } from '@renderer/queries/transcription/use-update-transcription-preferences-mutation'
 import type {
   TranscriptionProviderId,
   TranscriptionProviderSettingsProvider
