@@ -31,3 +31,10 @@ export const toDeltaPct = (current: number, previous: number): number | null => 
 
   return roundTo(((current - previous) / Math.abs(previous)) * 100, 2)
 }
+
+const MIN_DELTA_BASELINE_SESSIONS = 5
+const MIN_DELTA_BASELINE_TOTAL_MINUTES = 10
+
+export const hasSufficientDeltaBaseline = (summary: ReportingSummary): boolean =>
+  summary.sessions >= MIN_DELTA_BASELINE_SESSIONS &&
+  summary.totalMinutes >= MIN_DELTA_BASELINE_TOTAL_MINUTES

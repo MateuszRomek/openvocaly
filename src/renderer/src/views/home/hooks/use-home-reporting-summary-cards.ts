@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { HomeReportingRange } from '../constants/reporting-range'
 import {
+  formatAverageSessionDuration,
   formatReportingMinutes,
   formatReportingNumber
 } from '../helpers/reporting-summary-formatters'
@@ -63,7 +64,7 @@ export function useHomeReportingSummaryCards(
         id: 'totalDictationTime',
         title: 'Total dictation time',
         value: formatReportingMinutes(summary.totalMinutes),
-        description: `Average ${Math.round(summary.totalMinutes / Math.max(summary.sessions, 1))} min per session`,
+        description: `Average ${formatAverageSessionDuration(summary.totalMinutes, summary.sessions)}`,
         percentage: deltas.totalMinutesPct
       }
     ] as const
