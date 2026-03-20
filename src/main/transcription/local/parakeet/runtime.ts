@@ -20,17 +20,19 @@ import {
   safeCleanupPaths,
   wavFileToFloat32Buffer
 } from '../ffmpeg-utils'
+import { buildOverlappingWindows, mergeTranscriptChunkText } from '../chunking'
 import { LocalParakeetError } from './errors'
 import { parakeetModelManager } from './model-manager'
 import type { ParakeetModelId } from './model-catalog'
 import { ParakeetWsClient } from './ws-client'
 
 const PARAKEET_SAMPLE_RATE = 16000
-const CHUNK_DURATION_SECONDS = 15
-const CHUNK_OVERLAP_MS = 500
+const CHUNK_DURATION_SECONDS = 12
+const CHUNK_OVERLAP_MS = 2000
 const CHUNK_RETRY_ATTEMPTS = 2
-const CHUNK_DEDUPE_MAX_TOKENS = 16
-const CHUNK_DEDUPE_MIN_TOKENS = 2
+const FAILED_CHUNK_RESCUE_CONTEXT_MS = 2000
+const TAIL_RESCUE_WINDOW_SECONDS = 20
+const TAIL_COVERAGE_GAP_MS = 400
 
 type TranscribeArtifactOptions = {
   sessionId?: string
@@ -227,8 +229,11 @@ export class ParakeetRuntime {
 
       await this.wsClient.start(resolvedModelId)
       let mergedText = ''
-      const failedChunkIndexes: number[] = []
+      let failedChunkIndexes: number[] = []
+      const failedSegments: ParakeetChunkSegment[] = []
       const chunkDiagnostics: TranscriptionChunkDiagnostics[] = []
+      const sampleCount = Math.floor(float32Samples.length / 4)
+      let maxCoveredEndSample = 0
 
       for (const segment of segments) {
         const segmentResult = await this.transcribeChunkWithRetry(
@@ -240,10 +245,86 @@ export class ParakeetRuntime {
 
         if (!segmentResult.text) {
           failedChunkIndexes.push(segment.chunkIndex)
+          failedSegments.push(segment)
           continue
         }
 
-        mergedText = this.mergeChunkText(mergedText, segmentResult.text)
+        mergedText = mergeTranscriptChunkText(mergedText, segmentResult.text)
+        maxCoveredEndSample = Math.max(maxCoveredEndSample, segment.endSample)
+      }
+
+      if (failedSegments.length > 0) {
+        this.logger.debug({
+          event: 'parakeet_failed_chunk_rescue_started',
+          sessionId: options.sessionId ?? null,
+          modelId: resolvedModelId,
+          failedChunkIndexes
+        })
+
+        const rescuedChunkIndexes = new Set<number>()
+        for (const failedSegment of failedSegments) {
+          const rescueSegment = this.expandSegmentContext(failedSegment, float32Samples)
+          const rescueResult = await this.transcribeChunkWithRetry(
+            rescueSegment,
+            resolvedModelId,
+            options.sessionId
+          )
+          chunkDiagnostics.push(...rescueResult.attempts)
+
+          if (!rescueResult.text.trim()) {
+            continue
+          }
+
+          rescuedChunkIndexes.add(failedSegment.chunkIndex)
+          mergedText = mergeTranscriptChunkText(mergedText, rescueResult.text)
+          maxCoveredEndSample = Math.max(maxCoveredEndSample, failedSegment.endSample)
+        }
+
+        if (rescuedChunkIndexes.size > 0) {
+          failedChunkIndexes = failedChunkIndexes.filter((index) => !rescuedChunkIndexes.has(index))
+          this.logger.debug({
+            event: 'parakeet_failed_chunk_rescue_completed',
+            sessionId: options.sessionId ?? null,
+            modelId: resolvedModelId,
+            rescuedChunkIndexes: Array.from(rescuedChunkIndexes).sort((a, b) => a - b),
+            remainingFailedChunkIndexes: failedChunkIndexes
+          })
+        }
+      }
+
+      const tailCoverageGapSamples = Math.max(0, sampleCount - maxCoveredEndSample)
+      const tailCoverageGapMs = Math.round((tailCoverageGapSamples * 1000) / PARAKEET_SAMPLE_RATE)
+      if (tailCoverageGapMs >= TAIL_COVERAGE_GAP_MS && sampleCount > 0) {
+        this.logger.debug({
+          event: 'parakeet_tail_rescue_started',
+          sessionId: options.sessionId ?? null,
+          modelId: resolvedModelId,
+          tailCoverageGapMs
+        })
+
+        const tailRescueSegment = this.buildTailRescueSegment(float32Samples, segments.length)
+        const tailRescueResult = await this.transcribeChunkWithRetry(
+          tailRescueSegment,
+          resolvedModelId,
+          options.sessionId
+        )
+        chunkDiagnostics.push(...tailRescueResult.attempts)
+
+        if (tailRescueResult.text.trim()) {
+          mergedText = mergeTranscriptChunkText(mergedText, tailRescueResult.text)
+          maxCoveredEndSample = sampleCount
+          failedChunkIndexes = failedChunkIndexes.filter(
+            (index) => index !== tailRescueSegment.chunkIndex
+          )
+        }
+
+        this.logger.debug({
+          event: 'parakeet_tail_rescue_completed',
+          sessionId: options.sessionId ?? null,
+          modelId: resolvedModelId,
+          rescued: Boolean(tailRescueResult.text.trim()),
+          remainingFailedChunkIndexes: failedChunkIndexes
+        })
       }
 
       if (
@@ -277,6 +358,7 @@ export class ParakeetRuntime {
         if (fullAudioResult.text.trim()) {
           mergedText = fullAudioResult.text.trim()
           failedChunkIndexes.length = 0
+          maxCoveredEndSample = sampleCount
         }
       }
 
@@ -517,105 +599,74 @@ export class ParakeetRuntime {
 
   private splitIntoSegments(float32Samples: Buffer): ParakeetChunkSegment[] {
     const sampleCount = Math.floor(float32Samples.length / 4)
-    if (sampleCount <= 0) {
-      return [
-        {
-          chunkIndex: 1,
-          chunkCount: 1,
-          startSample: 0,
-          endSample: 0,
-          durationMs: 0,
-          samples: Buffer.alloc(0)
-        }
-      ]
-    }
-
     const chunkSamples = CHUNK_DURATION_SECONDS * PARAKEET_SAMPLE_RATE
     const overlapSamples = Math.floor((CHUNK_OVERLAP_MS * PARAKEET_SAMPLE_RATE) / 1000)
-    const segments: Array<Omit<ParakeetChunkSegment, 'chunkCount'>> = []
+    const windows = buildOverlappingWindows(sampleCount, chunkSamples, overlapSamples)
 
-    let startSample = 0
-    while (startSample < sampleCount) {
-      const endSample = Math.min(sampleCount, startSample + chunkSamples)
-      const startByte = startSample * 4
-      const endByte = endSample * 4
-
-      segments.push({
-        chunkIndex: segments.length + 1,
-        startSample,
-        endSample,
-        durationMs: Math.round(((endSample - startSample) * 1000) / PARAKEET_SAMPLE_RATE),
-        samples: float32Samples.subarray(startByte, endByte)
+    return windows.map((window) =>
+      this.toSegmentFromWindow(float32Samples, {
+        chunkIndex: window.windowIndex,
+        chunkCount: window.windowCount,
+        startSample: window.startUnit,
+        endSample: window.endUnit
       })
-
-      if (endSample >= sampleCount) {
-        break
-      }
-
-      const nextStart = Math.max(0, endSample - overlapSamples)
-      if (nextStart <= startSample) {
-        break
-      }
-      startSample = nextStart
-    }
-
-    return segments.map((segment) => ({
-      ...segment,
-      chunkCount: segments.length
-    }))
+    )
   }
 
-  private mergeChunkText(currentText: string, nextText: string): string {
-    const current = currentText.trim()
-    const next = nextText.trim()
-
-    if (!current) {
-      return next
+  private toSegmentFromWindow(
+    float32Samples: Buffer,
+    window: {
+      chunkIndex: number
+      chunkCount: number
+      startSample: number
+      endSample: number
     }
+  ): ParakeetChunkSegment {
+    const clampedStart = Math.max(0, window.startSample)
+    const clampedEnd = Math.max(clampedStart, window.endSample)
+    const startByte = clampedStart * 4
+    const endByte = clampedEnd * 4
 
-    if (!next) {
-      return current
+    return {
+      chunkIndex: window.chunkIndex,
+      chunkCount: window.chunkCount,
+      startSample: clampedStart,
+      endSample: clampedEnd,
+      durationMs: Math.round(((clampedEnd - clampedStart) * 1000) / PARAKEET_SAMPLE_RATE),
+      samples: float32Samples.subarray(startByte, endByte)
     }
-
-    const dedupedNext = this.dedupeChunkBoundary(current, next)
-    return dedupedNext ? `${current} ${dedupedNext}`.replace(/\s+/g, ' ').trim() : current
   }
 
-  private dedupeChunkBoundary(previousText: string, nextText: string): string {
-    const previousTokens = previousText.trim().split(/\s+/).filter(Boolean)
-    const nextTokens = nextText.trim().split(/\s+/).filter(Boolean)
+  private expandSegmentContext(
+    segment: ParakeetChunkSegment,
+    float32Samples: Buffer
+  ): ParakeetChunkSegment {
+    const totalSampleCount = Math.floor(float32Samples.length / 4)
+    const contextSamples = Math.floor(
+      (FAILED_CHUNK_RESCUE_CONTEXT_MS * PARAKEET_SAMPLE_RATE) / 1000
+    )
+    const startSample = Math.max(0, segment.startSample - contextSamples)
+    const endSample = Math.min(totalSampleCount, segment.endSample + contextSamples)
 
-    if (!previousTokens.length || !nextTokens.length) {
-      return nextText.trim()
-    }
+    return this.toSegmentFromWindow(float32Samples, {
+      chunkIndex: segment.chunkIndex,
+      chunkCount: segment.chunkCount,
+      startSample,
+      endSample
+    })
+  }
 
-    const normalizeToken = (value: string): string =>
-      value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+  private buildTailRescueSegment(float32Samples: Buffer, chunkCount: number): ParakeetChunkSegment {
+    const totalSampleCount = Math.floor(float32Samples.length / 4)
+    const tailWindowSamples = TAIL_RESCUE_WINDOW_SECONDS * PARAKEET_SAMPLE_RATE
+    const startSample = Math.max(0, totalSampleCount - tailWindowSamples)
 
-    const maxOverlap = Math.min(CHUNK_DEDUPE_MAX_TOKENS, previousTokens.length, nextTokens.length)
-
-    for (let overlap = maxOverlap; overlap >= CHUNK_DEDUPE_MIN_TOKENS; overlap -= 1) {
-      const previousSlice = previousTokens
-        .slice(previousTokens.length - overlap)
-        .map(normalizeToken)
-      const nextSlice = nextTokens.slice(0, overlap).map(normalizeToken)
-
-      if (
-        previousSlice.some((token) => token.length === 0) ||
-        nextSlice.some((token) => token.length === 0)
-      ) {
-        continue
-      }
-
-      const isMatch = previousSlice.every((token, index) => token === nextSlice[index])
-      if (!isMatch) {
-        continue
-      }
-
-      return nextTokens.slice(overlap).join(' ').trim()
-    }
-
-    return nextText.trim()
+    return this.toSegmentFromWindow(float32Samples, {
+      chunkIndex: chunkCount,
+      chunkCount,
+      startSample,
+      endSample: totalSampleCount
+    })
   }
 
   private computeRms(float32Samples: Buffer): number {

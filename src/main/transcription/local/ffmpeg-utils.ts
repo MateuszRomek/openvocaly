@@ -9,6 +9,21 @@ const FLOAT32_BYTES_PER_SAMPLE = 4
 const INT16_MAX = 32768
 const PCM16_BYTES_PER_SAMPLE = 2
 
+type Pcm16WavChunkMetadata = {
+  dataOffset: number
+  dataSize: number
+  sampleRate: number
+  channels: number
+  bitsPerSample: number
+  audioFormat: number
+}
+
+export type Pcm16WavData = {
+  sampleRate: number
+  channels: number
+  sampleBytes: Buffer
+}
+
 let cachedFfmpegPath: string | null = null
 const MACOS_FFMPEG_CANDIDATES = [
   '/opt/homebrew/bin/ffmpeg',
@@ -249,26 +264,112 @@ export const splitWavFileIntoChunks = async (
   }
 }
 
-const parseWavDataChunk = (wavBuffer: Buffer): { dataOffset: number; dataSize: number } => {
+const parsePcm16WavChunkMetadata = (wavBuffer: Buffer): Pcm16WavChunkMetadata => {
   if (wavBuffer.length < 44) {
     throw new Error('Invalid WAV buffer.')
   }
+
+  const riffHeader = wavBuffer.toString('ascii', 0, 4)
+  const waveHeader = wavBuffer.toString('ascii', 8, 12)
+  if (riffHeader !== 'RIFF' || waveHeader !== 'WAVE') {
+    throw new Error('Invalid WAV header.')
+  }
+
+  let sampleRate: number | null = null
+  let channels: number | null = null
+  let bitsPerSample: number | null = null
+  let audioFormat: number | null = null
+  let dataOffset: number | null = null
+  let dataSize = 0
 
   let offset = 12
   while (offset + 8 <= wavBuffer.length) {
     const chunkId = wavBuffer.toString('ascii', offset, offset + 4)
     const chunkSize = wavBuffer.readUInt32LE(offset + 4)
+    const chunkDataOffset = offset + 8
+    const availableChunkBytes = Math.max(0, wavBuffer.length - chunkDataOffset)
+    const boundedChunkSize = Math.min(chunkSize, availableChunkBytes)
+
+    if (chunkId === 'fmt ' && boundedChunkSize >= 16) {
+      audioFormat = wavBuffer.readUInt16LE(chunkDataOffset)
+      channels = wavBuffer.readUInt16LE(chunkDataOffset + 2)
+      sampleRate = wavBuffer.readUInt32LE(chunkDataOffset + 4)
+      bitsPerSample = wavBuffer.readUInt16LE(chunkDataOffset + 14)
+    }
+
     if (chunkId === 'data') {
-      const dataOffset = offset + 8
-      const availableBytes = Math.max(0, wavBuffer.length - dataOffset)
-      return { dataOffset, dataSize: Math.min(chunkSize, availableBytes) }
+      dataOffset = chunkDataOffset
+      dataSize = boundedChunkSize
     }
 
     // WAV chunks are word-aligned; odd-sized chunks include one padding byte.
     offset += 8 + chunkSize + (chunkSize % 2)
   }
 
-  throw new Error('WAV data chunk not found.')
+  if (dataOffset === null) {
+    throw new Error('WAV data chunk not found.')
+  }
+
+  if (sampleRate === null || channels === null || bitsPerSample === null || audioFormat === null) {
+    throw new Error('WAV fmt chunk not found.')
+  }
+
+  if (audioFormat !== 1 || bitsPerSample !== 16) {
+    throw new Error(
+      `Unsupported WAV format. Expected PCM16 (audioFormat=1,bits=16), received audioFormat=${audioFormat}, bits=${bitsPerSample}.`
+    )
+  }
+
+  return {
+    dataOffset,
+    dataSize,
+    sampleRate,
+    channels,
+    bitsPerSample,
+    audioFormat
+  }
+}
+
+export const readPcm16WavData = async (wavPath: string): Promise<Pcm16WavData> => {
+  const wavBuffer = await readFile(wavPath)
+  const metadata = parsePcm16WavChunkMetadata(wavBuffer)
+  const start = metadata.dataOffset
+  const end = start + metadata.dataSize
+
+  return {
+    sampleRate: metadata.sampleRate,
+    channels: metadata.channels,
+    sampleBytes: wavBuffer.subarray(start, end)
+  }
+}
+
+export const buildPcm16WavBuffer = (
+  sampleBytes: Uint8Array,
+  options: { sampleRate: number; channels: number }
+): Buffer => {
+  const sampleRate = Math.max(1, Math.floor(options.sampleRate))
+  const channels = Math.max(1, Math.floor(options.channels))
+  const bytesPerSample = PCM16_BYTES_PER_SAMPLE
+  const blockAlign = channels * bytesPerSample
+  const byteRate = sampleRate * blockAlign
+  const dataSize = sampleBytes.byteLength
+  const header = Buffer.alloc(44)
+
+  header.write('RIFF', 0, 'ascii')
+  header.writeUInt32LE(36 + dataSize, 4)
+  header.write('WAVE', 8, 'ascii')
+  header.write('fmt ', 12, 'ascii')
+  header.writeUInt32LE(16, 16)
+  header.writeUInt16LE(1, 20)
+  header.writeUInt16LE(channels, 22)
+  header.writeUInt32LE(sampleRate, 24)
+  header.writeUInt32LE(byteRate, 28)
+  header.writeUInt16LE(blockAlign, 32)
+  header.writeUInt16LE(16, 34)
+  header.write('data', 36, 'ascii')
+  header.writeUInt32LE(dataSize, 40)
+
+  return Buffer.concat([header, Buffer.from(sampleBytes)])
 }
 
 /**
@@ -276,8 +377,10 @@ const parseWavDataChunk = (wavBuffer: Buffer): { dataOffset: number; dataSize: n
  * expected by the local Parakeet websocket runtime.
  */
 export const wavFileToFloat32Buffer = async (wavPath: string): Promise<Buffer> => {
-  const wavBuffer = await readFile(wavPath)
-  const { dataOffset, dataSize } = parseWavDataChunk(wavBuffer)
+  const pcm16 = await readPcm16WavData(wavPath)
+  const wavBuffer = pcm16.sampleBytes
+  const dataOffset = 0
+  const dataSize = wavBuffer.length
   const samplesCount = Math.floor(dataSize / 2)
   if (samplesCount <= 0) {
     return Buffer.alloc(0)

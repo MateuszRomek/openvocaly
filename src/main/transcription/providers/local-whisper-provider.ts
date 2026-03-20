@@ -38,12 +38,18 @@ export const localWhisperProvider: TranscriptionProviderDefinition = {
     try {
       const result = await whisperRuntime.transcribeArtifact(artifact.filePath, context.modelId)
       const text = result.text.trim()
+      const diagnostics = {
+        ...result.diagnostics,
+        providerId: 'local-whisper' as const,
+        modelId: context.modelId
+      }
 
       if (!text.length) {
         return {
           ok: false,
           code: 'empty_transcription',
-          message: 'No speech detected in local Whisper result.'
+          message: 'No speech detected in local Whisper result.',
+          diagnostics
         }
       }
 
@@ -52,7 +58,8 @@ export const localWhisperProvider: TranscriptionProviderDefinition = {
         transcript: {
           text,
           language: result.language
-        }
+        },
+        diagnostics
       }
     } catch (error) {
       if (error instanceof LocalWhisperError) {

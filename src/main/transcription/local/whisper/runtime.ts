@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
@@ -8,24 +7,58 @@ import type {
   LocalModelDownloadProgress,
   LocalRuntimeStatusResponse
 } from '../../../../shared/local-transcription'
+import type {
+  TranscriptionChunkDiagnostics,
+  TranscriptionDiagnostics,
+  TranscriptionDiagnosticsResultType
+} from '../../../../shared/transcription'
+import { createLogger } from '../../../helpers/logger'
 import {
+  buildPcm16WavBuffer,
   convertFileToWav,
   estimatePcm16WavDurationMs,
   getFfmpegPath,
-  safeCleanupPaths,
-  splitWavFileIntoChunks
+  type Pcm16WavData,
+  readPcm16WavData,
+  safeCleanupPaths
 } from '../ffmpeg-utils'
+import { buildOverlappingWindows, mergeTranscriptChunkText } from '../chunking'
 import { LocalWhisperError } from './errors'
 import { whisperModelManager } from './model-manager'
+import type { WhisperModelId } from './model-catalog'
 import { WhisperServerClient } from './server-client'
 
 const WHISPER_SAMPLE_RATE = 16000
-const LONG_AUDIO_SEGMENT_SECONDS = 45
-const LONG_AUDIO_SEGMENT_THRESHOLD_MS = LONG_AUDIO_SEGMENT_SECONDS * 1000
+const LONG_AUDIO_SEGMENT_THRESHOLD_SECONDS = 45
+const LONG_AUDIO_SEGMENT_THRESHOLD_MS = LONG_AUDIO_SEGMENT_THRESHOLD_SECONDS * 1000
+const LONG_AUDIO_WINDOW_SECONDS = 30
+const LONG_AUDIO_WINDOW_OVERLAP_MS = 2000
+const WINDOW_TRANSCRIBE_ATTEMPTS = 2
+const TAIL_RESCUE_WINDOW_SECONDS = 20
+const TAIL_COVERAGE_GAP_MS = 400
 
 const normalizeWhisperText = (text: string): string => text.replace(/\s+/g, ' ').trim()
 
+type WhisperChunkSegment = {
+  chunkIndex: number
+  chunkCount: number
+  startMs: number
+  endMs: number
+}
+
+type WhisperWindowTranscriptionResult = {
+  text: string
+  attempts: TranscriptionChunkDiagnostics[]
+}
+
+export type WhisperTranscriptionRuntimeResult = {
+  text: string
+  language?: string
+  diagnostics: TranscriptionDiagnostics
+}
+
 export class WhisperRuntime {
+  private readonly logger = createLogger('transcription.local.whisper.runtime')
   private readonly serverClient = new WhisperServerClient()
 
   private isPlatformSupported(): boolean {
@@ -128,7 +161,9 @@ export class WhisperRuntime {
   async transcribeArtifact(
     artifactPath: string,
     modelId: string
-  ): Promise<{ text: string; language?: string }> {
+  ): Promise<WhisperTranscriptionRuntimeResult> {
+    const startedAt = Date.now()
+
     if (!this.isPlatformSupported()) {
       throw new LocalWhisperError(
         'local_runtime_unavailable',
@@ -139,6 +174,7 @@ export class WhisperRuntime {
     if (!whisperModelManager.ensureSupportedModel(modelId)) {
       throw new LocalWhisperError('local_transcription_failed', 'Unsupported local model.')
     }
+    const resolvedModelId: WhisperModelId = modelId
 
     if (!this.serverClient.isAvailable()) {
       throw new LocalWhisperError(
@@ -162,8 +198,6 @@ export class WhisperRuntime {
     }
 
     const wavPath = join(tmpdir(), `openvocaly-whisper-${randomUUID()}.wav`)
-    let chunksDir: string | null = null
-    let chunkPaths: string[] = [wavPath]
 
     try {
       await convertFileToWav(artifactPath, wavPath, {
@@ -176,41 +210,344 @@ export class WhisperRuntime {
         channels: 1
       })
 
-      if (durationMs > LONG_AUDIO_SEGMENT_THRESHOLD_MS) {
-        const split = await splitWavFileIntoChunks(wavPath, {
-          chunkDurationSeconds: LONG_AUDIO_SEGMENT_SECONDS,
-          chunkFilePrefix: 'openvocaly-whisper-chunks'
-        })
-        chunksDir = split.chunksDir
-        chunkPaths = split.chunkPaths
-      }
+      const segments = this.buildSegments(durationMs)
+      const pcm16Wav = await readPcm16WavData(wavPath)
 
       await this.serverClient.start(modelId)
-      const transcriptChunks: string[] = []
+      this.logger.debug({
+        event: 'whisper_transcription_started',
+        modelId: resolvedModelId,
+        durationMs,
+        chunkCount: segments.length,
+        chunkDurationSeconds: LONG_AUDIO_WINDOW_SECONDS,
+        chunkOverlapMs: LONG_AUDIO_WINDOW_OVERLAP_MS
+      })
 
-      for (const chunkPath of chunkPaths) {
-        const wavBuffer = await readFile(chunkPath)
-        const chunkText = await this.serverClient.transcribe(wavBuffer)
-        const trimmedChunk = normalizeWhisperText(chunkText)
+      let mergedText = ''
+      let failedChunkIndexes: number[] = []
+      const chunkDiagnostics: TranscriptionChunkDiagnostics[] = []
+      let maxCoveredEndMs = 0
 
-        if (trimmedChunk.length > 0) {
-          transcriptChunks.push(trimmedChunk)
+      for (const segment of segments) {
+        const segmentWavBuffer = this.buildSegmentWavBuffer(segment, pcm16Wav)
+        const segmentResult = await this.transcribeWindowWithRetry(
+          segment,
+          segmentWavBuffer,
+          resolvedModelId
+        )
+        chunkDiagnostics.push(...segmentResult.attempts)
+
+        if (!segmentResult.text) {
+          failedChunkIndexes.push(segment.chunkIndex)
+          continue
         }
+
+        mergedText = mergeTranscriptChunkText(mergedText, segmentResult.text)
+        maxCoveredEndMs = Math.max(maxCoveredEndMs, segment.endMs)
       }
 
-      const text = transcriptChunks.join(' ').trim()
-      return { text, language: 'auto' }
+      const tailCoverageGapMs = Math.max(0, durationMs - maxCoveredEndMs)
+      if (tailCoverageGapMs >= TAIL_COVERAGE_GAP_MS && durationMs > 0) {
+        this.logger.debug({
+          event: 'whisper_tail_rescue_started',
+          modelId: resolvedModelId,
+          tailCoverageGapMs
+        })
+
+        const tailRescueSegment = this.buildTailRescueSegment(durationMs, segments.length)
+        const tailWavBuffer = this.buildSegmentWavBuffer(tailRescueSegment, pcm16Wav)
+        const tailRescueResult = await this.transcribeWindowWithRetry(
+          tailRescueSegment,
+          tailWavBuffer,
+          resolvedModelId
+        )
+        chunkDiagnostics.push(...tailRescueResult.attempts)
+
+        if (tailRescueResult.text.trim()) {
+          mergedText = mergeTranscriptChunkText(mergedText, tailRescueResult.text)
+          maxCoveredEndMs = durationMs
+          failedChunkIndexes = failedChunkIndexes.filter(
+            (index) => index !== tailRescueSegment.chunkIndex
+          )
+        }
+
+        this.logger.debug({
+          event: 'whisper_tail_rescue_completed',
+          modelId: resolvedModelId,
+          rescued: Boolean(tailRescueResult.text.trim()),
+          remainingFailedChunkIndexes: failedChunkIndexes
+        })
+      }
+
+      const text = normalizeWhisperText(mergedText)
+      const partial = text.length > 0 && failedChunkIndexes.length > 0
+      const resultType = this.resolveOverallResultType({
+        text,
+        failedChunkIndexes,
+        chunkDiagnostics
+      })
+      const diagnostics: TranscriptionDiagnostics = {
+        providerId: 'local-whisper',
+        modelId: resolvedModelId,
+        partial,
+        resultType,
+        durationMs,
+        chunkCount: segments.length,
+        chunkDurationSeconds: LONG_AUDIO_WINDOW_SECONDS,
+        chunkOverlapMs: LONG_AUDIO_WINDOW_OVERLAP_MS,
+        failedChunkIndexes,
+        chunks: chunkDiagnostics
+      }
+
+      this.logger.debug({
+        event: 'whisper_transcription_completed',
+        modelId: resolvedModelId,
+        durationMs,
+        totalElapsedMs: Date.now() - startedAt,
+        textLength: text.length,
+        partial,
+        resultType,
+        chunkCount: segments.length,
+        failedChunkIndexes
+      })
+
+      return {
+        text,
+        language: 'auto',
+        diagnostics
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Local Whisper transcription failed.'
       throw new LocalWhisperError('local_transcription_failed', message)
     } finally {
-      const cleanupTargets = [wavPath]
-      if (chunksDir) {
-        cleanupTargets.push(chunksDir)
+      await safeCleanupPaths([wavPath])
+    }
+  }
+
+  private buildSegments(durationMs: number): WhisperChunkSegment[] {
+    const totalMs = Math.max(0, Math.floor(durationMs))
+    if (totalMs <= LONG_AUDIO_SEGMENT_THRESHOLD_MS) {
+      return [
+        {
+          chunkIndex: 1,
+          chunkCount: 1,
+          startMs: 0,
+          endMs: totalMs
+        }
+      ]
+    }
+
+    const windows = buildOverlappingWindows(
+      totalMs,
+      LONG_AUDIO_WINDOW_SECONDS * 1000,
+      LONG_AUDIO_WINDOW_OVERLAP_MS
+    )
+
+    return windows.map((window) => ({
+      chunkIndex: window.windowIndex,
+      chunkCount: window.windowCount,
+      startMs: window.startUnit,
+      endMs: window.endUnit
+    }))
+  }
+
+  private buildSegmentWavBuffer(segment: WhisperChunkSegment, wavData: Pcm16WavData): Buffer {
+    const frameSize = wavData.channels * 2
+    const totalFrames = Math.floor(wavData.sampleBytes.length / frameSize)
+    const startFrame = Math.max(0, Math.floor((segment.startMs * wavData.sampleRate) / 1000))
+    const endFrame = Math.max(startFrame, Math.floor((segment.endMs * wavData.sampleRate) / 1000))
+    const boundedStartFrame = Math.min(totalFrames, startFrame)
+    const boundedEndFrame = Math.min(totalFrames, endFrame)
+    const startByte = boundedStartFrame * frameSize
+    const endByte = boundedEndFrame * frameSize
+    const sampleBytes = wavData.sampleBytes.subarray(startByte, endByte)
+
+    return buildPcm16WavBuffer(sampleBytes, {
+      sampleRate: wavData.sampleRate,
+      channels: wavData.channels
+    })
+  }
+
+  private buildTailRescueSegment(durationMs: number, chunkCount: number): WhisperChunkSegment {
+    const startMs = Math.max(0, durationMs - TAIL_RESCUE_WINDOW_SECONDS * 1000)
+
+    return {
+      chunkIndex: chunkCount,
+      chunkCount,
+      startMs,
+      endMs: durationMs
+    }
+  }
+
+  private async transcribeWindowWithRetry(
+    segment: WhisperChunkSegment,
+    wavBuffer: Buffer,
+    modelId: WhisperModelId
+  ): Promise<WhisperWindowTranscriptionResult> {
+    const attempts: TranscriptionChunkDiagnostics[] = []
+
+    for (let attempt = 1; attempt <= WINDOW_TRANSCRIBE_ATTEMPTS; attempt += 1) {
+      const restarted = attempt > 1
+
+      if (restarted) {
+        try {
+          await this.serverClient.stop()
+          await this.serverClient.start(modelId)
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Failed to restart local Whisper runtime.'
+          attempts.push({
+            chunkIndex: segment.chunkIndex,
+            chunkCount: segment.chunkCount,
+            attempt,
+            restarted,
+            resultType: 'failed_runtime',
+            elapsedMs: 0,
+            message
+          })
+
+          this.logger.warn({
+            event: 'whisper_chunk_restart_failed',
+            modelId,
+            chunkIndex: segment.chunkIndex,
+            chunkCount: segment.chunkCount,
+            attempt,
+            message
+          })
+          break
+        }
       }
 
-      await safeCleanupPaths(cleanupTargets)
+      const attemptStartedAt = Date.now()
+
+      try {
+        const text = await this.serverClient.transcribe(wavBuffer)
+        const elapsedMs = Date.now() - attemptStartedAt
+        const normalized = normalizeWhisperText(text)
+
+        if (normalized.length > 0) {
+          attempts.push({
+            chunkIndex: segment.chunkIndex,
+            chunkCount: segment.chunkCount,
+            attempt,
+            restarted,
+            resultType: 'success_full',
+            elapsedMs
+          })
+
+          this.logger.debug({
+            event: 'whisper_chunk_success',
+            modelId,
+            chunkIndex: segment.chunkIndex,
+            chunkCount: segment.chunkCount,
+            attempt,
+            restarted,
+            elapsedMs,
+            textLength: normalized.length
+          })
+
+          return { text: normalized, attempts }
+        }
+
+        attempts.push({
+          chunkIndex: segment.chunkIndex,
+          chunkCount: segment.chunkCount,
+          attempt,
+          restarted,
+          resultType: 'failed_empty',
+          elapsedMs
+        })
+
+        this.logger.warn({
+          event: 'whisper_chunk_empty',
+          modelId,
+          chunkIndex: segment.chunkIndex,
+          chunkCount: segment.chunkCount,
+          attempt,
+          restarted,
+          elapsedMs
+        })
+      } catch (error) {
+        const elapsedMs = Date.now() - attemptStartedAt
+        const message = error instanceof Error ? error.message : 'Unknown local runtime error.'
+        const resultType = this.classifyChunkFailure(error)
+
+        attempts.push({
+          chunkIndex: segment.chunkIndex,
+          chunkCount: segment.chunkCount,
+          attempt,
+          restarted,
+          resultType,
+          elapsedMs,
+          message
+        })
+
+        this.logger.warn({
+          event: 'whisper_chunk_failed',
+          modelId,
+          chunkIndex: segment.chunkIndex,
+          chunkCount: segment.chunkCount,
+          attempt,
+          restarted,
+          elapsedMs,
+          resultType,
+          message
+        })
+      }
     }
+
+    return { text: '', attempts }
+  }
+
+  private classifyChunkFailure(
+    error: unknown
+  ): Exclude<
+    TranscriptionDiagnosticsResultType,
+    'success_full' | 'success_partial' | 'failed_empty'
+  > {
+    const message = error instanceof Error ? error.message.toLowerCase() : ''
+
+    if (message.includes('timed out') || message.includes('timeout')) {
+      return 'failed_timeout'
+    }
+
+    if (message.includes('protocol') || message.includes('parse')) {
+      return 'failed_protocol'
+    }
+
+    return 'failed_runtime'
+  }
+
+  private resolveOverallResultType(params: {
+    text: string
+    failedChunkIndexes: number[]
+    chunkDiagnostics: TranscriptionChunkDiagnostics[]
+  }): TranscriptionDiagnosticsResultType {
+    if (params.text.length > 0 && params.failedChunkIndexes.length === 0) {
+      return 'success_full'
+    }
+
+    if (params.text.length > 0 && params.failedChunkIndexes.length > 0) {
+      return 'success_partial'
+    }
+
+    const failureTypes = params.chunkDiagnostics
+      .map((chunk) => chunk.resultType)
+      .filter((type): type is TranscriptionDiagnosticsResultType => type.startsWith('failed_'))
+
+    if (failureTypes.includes('failed_timeout')) {
+      return 'failed_timeout'
+    }
+
+    if (failureTypes.includes('failed_protocol')) {
+      return 'failed_protocol'
+    }
+
+    if (failureTypes.includes('failed_runtime')) {
+      return 'failed_runtime'
+    }
+
+    return 'failed_empty'
   }
 }
 
