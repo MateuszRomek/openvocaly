@@ -62,6 +62,14 @@ import type {
   PermissionsStatusResponse
 } from '../shared/permissions'
 import type { OnboardingMarkCompletedResponse, OnboardingStateResponse } from '../shared/onboarding'
+import type {
+  GetMeetingInput,
+  GetMeetingResponse,
+  ImportMeetingResponse,
+  ListMeetingsResponse,
+  MeetingActionInput,
+  MeetingActionResponse
+} from '../shared/meetings'
 
 type DesktopPlatform = 'darwin' | 'win32' | 'linux'
 
@@ -122,6 +130,19 @@ const api = {
       ipcRenderer.invoke('reporting:getHomeMonthlyOutput', params),
     getHomeApps: (params: GetHomeAppsParams): Promise<GetHomeAppsResponse> =>
       ipcRenderer.invoke('reporting:getHomeApps', params)
+  },
+  meetings: {
+    list: (): Promise<ListMeetingsResponse> => ipcRenderer.invoke('meetings:list'),
+    get: (input: GetMeetingInput): Promise<GetMeetingResponse> =>
+      ipcRenderer.invoke('meetings:get', input),
+    selectAndImport: (): Promise<ImportMeetingResponse> =>
+      ipcRenderer.invoke('meetings:selectAndImport'),
+    cancel: (input: MeetingActionInput): Promise<MeetingActionResponse> =>
+      ipcRenderer.invoke('meetings:cancel', input),
+    resume: (input: MeetingActionInput): Promise<MeetingActionResponse> =>
+      ipcRenderer.invoke('meetings:resume', input),
+    delete: (input: MeetingActionInput): Promise<MeetingActionResponse> =>
+      ipcRenderer.invoke('meetings:delete', input)
   },
   shortcuts: {
     getConfig: (): Promise<ShortcutConfigResponse> => ipcRenderer.invoke('shortcuts:getConfig'),

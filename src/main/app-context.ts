@@ -3,6 +3,8 @@ import { createOnboardingIpcModule } from './onboarding/ipc'
 import { OnboardingService } from './onboarding/service'
 import { createPermissionsIpcModule } from './permissions/ipc'
 import { PermissionsService } from './permissions/service'
+import { createMeetingsIpcModule } from './meetings/ipc'
+import { MeetingsService } from './meetings/service'
 import { DictationPipelineOrchestrator } from './pipeline/dictation-pipeline-orchestrator'
 import { DictationIdleResetController } from './pipeline/idle-reset-controller'
 import { DictationOverlayPublisher } from './pipeline/overlay-publisher'
@@ -39,6 +41,7 @@ export type MainAppContext = {
     shortcutService: ShortcutService
     pipelineOrchestrator: DictationPipelineOrchestrator
     pasteService: DictationPasteService
+    meetingsService: MeetingsService
   }
   buses: {
     recordingCommandBus: RecordingCommandBus
@@ -54,6 +57,7 @@ export type MainAppContext = {
     transcriptionIpc: ReturnType<typeof createTranscriptionIpcModule>
     reportingIpc: ReturnType<typeof createReportingIpcModule>
     pipelineIpc: ReturnType<typeof createPipelineIpcModule>
+    meetingsIpc: ReturnType<typeof createMeetingsIpcModule>
   }
   repositories: {
     databaseLifecycle: DatabaseLifecycle
@@ -89,6 +93,7 @@ export const createMainAppContext = (): MainAppContext => {
     settingsRepository,
     storageRepository
   })
+  const meetingsService = new MeetingsService(transcriptionService)
   const reportingService = new ReportingService()
   const pasteService = new DictationPasteService(permissionsService)
 
@@ -131,6 +136,7 @@ export const createMainAppContext = (): MainAppContext => {
   const transcriptionIpc = createTranscriptionIpcModule(transcriptionService)
   const reportingIpc = createReportingIpcModule(reportingService)
   const pipelineIpc = createPipelineIpcModule(pipelineOrchestrator)
+  const meetingsIpc = createMeetingsIpcModule(meetingsService)
 
   return {
     services: {
@@ -141,7 +147,8 @@ export const createMainAppContext = (): MainAppContext => {
       reportingService,
       shortcutService,
       pipelineOrchestrator,
-      pasteService
+      pasteService,
+      meetingsService
     },
     buses: {
       recordingCommandBus,
@@ -156,7 +163,8 @@ export const createMainAppContext = (): MainAppContext => {
       recordingIpc,
       transcriptionIpc,
       reportingIpc,
-      pipelineIpc
+      pipelineIpc,
+      meetingsIpc
     },
     repositories: {
       databaseLifecycle,

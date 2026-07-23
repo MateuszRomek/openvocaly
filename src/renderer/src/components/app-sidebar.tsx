@@ -3,6 +3,7 @@ import {
   BlocksIcon,
   FileTextIcon,
   HomeIcon,
+  AudioLinesIcon,
   PanelLeftIcon,
   SettingsIcon,
   type LucideIcon
@@ -25,11 +26,12 @@ import {
 type NavigationItem = {
   icon: LucideIcon
   label: string
-  to: '/' | '/models' | '/settings' | '/transcripts'
+  to: '/' | '/meetings' | '/models' | '/settings' | '/transcripts'
 }
 
 const navigation: NavigationItem[] = [
   { icon: HomeIcon, label: 'Home', to: '/' },
+  { icon: AudioLinesIcon, label: 'Meetings', to: '/meetings' },
   { icon: FileTextIcon, label: 'Transcripts', to: '/transcripts' },
   { icon: BlocksIcon, label: 'Models', to: '/models' }
 ]

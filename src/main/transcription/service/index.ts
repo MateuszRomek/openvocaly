@@ -19,6 +19,7 @@ import type {
 } from '../../../shared/transcription'
 import { SettingsRepository } from '../../repositories/settings-repository'
 import { StorageRepository } from '../../repositories/storage-repository'
+import { AsyncSerialScheduler } from '../../helpers/async-serial-scheduler'
 import { InitializableComponent } from '../../helpers/initializable-component'
 import { emitTranscriptAddedEvent } from '../../storage/transcript-events'
 import { parakeetRuntime } from '../local/parakeet/runtime'
@@ -28,6 +29,7 @@ import {
   resolveDefaultTranscriptionProviderId
 } from '../provider-helpers'
 import { TranscriptionProviderFactory } from '../provider-factory'
+import type { TranscriptionArtifact } from '../providers/types'
 import { TranscriptionPreferencesManager } from './preferences-manager'
 import { TranscriptionProviderCredentialsManager } from './provider-credentials-manager'
 
@@ -84,6 +86,7 @@ export class TranscriptionService extends InitializableComponent {
   private readonly credentialsManager: TranscriptionProviderCredentialsManager
   private readonly storageRepository: StorageRepository
   private readonly providerFactory: TranscriptionProviderFactory
+  private readonly localTranscriptionScheduler = new AsyncSerialScheduler()
   private activeDownloadProviderId: LocalTranscriptionProviderId | null = null
 
   constructor(
@@ -116,7 +119,7 @@ export class TranscriptionService extends InitializableComponent {
   }
 
   async shutdown(): Promise<void> {
-    await this.stopAllLocalRuntimes()
+    await this.stopAllLocalRuntimesNow()
 
     this.initialized = false
   }
@@ -139,7 +142,7 @@ export class TranscriptionService extends InitializableComponent {
     const preferences = await this.preferencesManager.update(params)
 
     if (this.shouldStopLocalRuntime(previousPreferences, preferences)) {
-      await this.stopAllLocalRuntimes()
+      await this.localTranscriptionScheduler.run(() => this.stopAllLocalRuntimesNow())
     }
 
     return {
@@ -162,7 +165,7 @@ export class TranscriptionService extends InitializableComponent {
     return switchedAwayFromLocal || switchedLocalModel
   }
 
-  private async stopAllLocalRuntimes(): Promise<void> {
+  private async stopAllLocalRuntimesNow(): Promise<void> {
     const stopResults = await Promise.allSettled([
       parakeetRuntime.stopRuntime(),
       whisperRuntime.stopRuntime()
@@ -230,7 +233,9 @@ export class TranscriptionService extends InitializableComponent {
   }
 
   async deleteLocalModel(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
-    const response = await this.getLocalRuntime(params.providerId).deleteModel(params.modelId)
+    const response = await this.localTranscriptionScheduler.run(() =>
+      this.getLocalRuntime(params.providerId).deleteModel(params.modelId)
+    )
     if (!response.ok) {
       return response
     }
@@ -277,17 +282,21 @@ export class TranscriptionService extends InitializableComponent {
   }
 
   async startLocalRuntime(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
-    return this.getLocalRuntime(params.providerId).startRuntime(params.modelId)
+    return this.localTranscriptionScheduler.run(() =>
+      this.getLocalRuntime(params.providerId).startRuntime(params.modelId)
+    )
   }
 
   async stopLocalRuntime(params: LocalProviderActionInput): Promise<LocalModelActionResponse> {
-    return this.getLocalRuntime(params.providerId).stopRuntime()
+    return this.localTranscriptionScheduler.run(() =>
+      this.getLocalRuntime(params.providerId).stopRuntime()
+    )
   }
 
   async transcribeArtifact(artifact: RecordingArtifact): Promise<TranscriptionResult> {
     this.assertInitialized()
 
-    const result = await this.providerFactory.transcribe(artifact, this.preferencesManager.get())
+    const result = await this.transcribeWithPreferences(artifact, this.preferencesManager.get())
 
     if (!result.ok) {
       return result
@@ -328,5 +337,41 @@ export class TranscriptionService extends InitializableComponent {
         message
       }
     }
+  }
+
+  async transcribeLocalFile(
+    filePath: string,
+    sessionId: string,
+    preferences: TranscriptionPreferences
+  ): Promise<TranscriptionResult> {
+    this.assertInitialized()
+
+    if (!isLocalProviderId(preferences.providerId)) {
+      return {
+        ok: false,
+        code: 'provider_not_supported',
+        message: 'Meetings require an active local transcription model.'
+      }
+    }
+
+    return await this.transcribeWithPreferences(
+      {
+        sessionId,
+        filePath
+      },
+      preferences
+    )
+  }
+
+  private transcribeWithPreferences(
+    artifact: TranscriptionArtifact,
+    preferences: TranscriptionPreferences
+  ): Promise<TranscriptionResult> {
+    const transcribe = (): Promise<TranscriptionResult> =>
+      this.providerFactory.transcribe(artifact, preferences)
+
+    return isLocalProviderId(preferences.providerId)
+      ? this.localTranscriptionScheduler.run(transcribe)
+      : transcribe()
   }
 }

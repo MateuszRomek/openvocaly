@@ -57,6 +57,14 @@ import type {
   PermissionsStatusResponse
 } from '../shared/permissions'
 import type { OnboardingMarkCompletedResponse, OnboardingStateResponse } from '../shared/onboarding'
+import type {
+  GetMeetingInput,
+  GetMeetingResponse,
+  ImportMeetingResponse,
+  ListMeetingsResponse,
+  MeetingActionInput,
+  MeetingActionResponse
+} from '../shared/meetings'
 
 declare global {
   interface Window {
@@ -85,6 +93,14 @@ declare global {
           params: GetHomeMonthlyOutputParams
         ) => Promise<GetHomeMonthlyOutputResponse>
         getHomeApps: (params: GetHomeAppsParams) => Promise<GetHomeAppsResponse>
+      }
+      meetings: {
+        list: () => Promise<ListMeetingsResponse>
+        get: (input: GetMeetingInput) => Promise<GetMeetingResponse>
+        selectAndImport: () => Promise<ImportMeetingResponse>
+        cancel: (input: MeetingActionInput) => Promise<MeetingActionResponse>
+        resume: (input: MeetingActionInput) => Promise<MeetingActionResponse>
+        delete: (input: MeetingActionInput) => Promise<MeetingActionResponse>
       }
       shortcuts: {
         getConfig: () => Promise<ShortcutConfigResponse>
