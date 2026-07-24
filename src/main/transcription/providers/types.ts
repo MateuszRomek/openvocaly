@@ -1,4 +1,3 @@
-import type { RecordingArtifact } from '../../../shared/recording'
 import type {
   TranscriptionFailureCode,
   TranscriptionProviderAvailability,
@@ -6,6 +5,11 @@ import type {
   TranscriptionProviderModel,
   TranscriptionResult
 } from '../../../shared/transcription'
+
+export type TranscriptionArtifact = {
+  sessionId: string
+  filePath: string
+}
 
 export type CloudProviderTranscriptionContext = {
   apiKey: string
@@ -34,7 +38,7 @@ type BaseTranscriptionProviderDefinition = {
 export type CloudProviderDefinition = BaseTranscriptionProviderDefinition & {
   kind: 'cloud'
   transcribe?: (
-    artifact: RecordingArtifact,
+    artifact: TranscriptionArtifact,
     context: CloudProviderTranscriptionContext
   ) => Promise<TranscriptionResult>
 }
@@ -43,7 +47,7 @@ export type LocalProviderDefinition = BaseTranscriptionProviderDefinition & {
   kind: 'local'
   isModelDownloaded: (modelId: string) => boolean
   transcribe?: (
-    artifact: RecordingArtifact,
+    artifact: TranscriptionArtifact,
     context: LocalProviderTranscriptionContext
   ) => Promise<TranscriptionResult>
 }

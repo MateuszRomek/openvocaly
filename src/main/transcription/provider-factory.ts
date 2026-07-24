@@ -1,4 +1,3 @@
-import type { RecordingArtifact } from '../../shared/recording'
 import type {
   TranscriptionConfig,
   TranscriptionFailureCode,
@@ -9,7 +8,7 @@ import type {
 } from '../../shared/transcription'
 import { resolveTranscriptionModelId } from './provider-helpers'
 import { transcriptionProviders, transcriptionProvidersById } from './providers'
-import type { TranscriptionProviderDefinition } from './providers/types'
+import type { TranscriptionArtifact, TranscriptionProviderDefinition } from './providers/types'
 
 export interface TranscriptionProviderCredentialsAccess {
   isSecureStorageAvailable(): boolean
@@ -160,7 +159,7 @@ export class TranscriptionProviderFactory {
   }
 
   async transcribe(
-    artifact: RecordingArtifact,
+    artifact: TranscriptionArtifact,
     preferences: TranscriptionPreferences
   ): Promise<TranscriptionResult> {
     if (process.env['OPENVOCALY_RECORDING_FORCE_TRANSCRIPTION_FAILURE'] === '1') {

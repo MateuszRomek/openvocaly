@@ -214,6 +214,9 @@ const performShutdownSequence = (): Promise<void> => {
     await runStep('recording teardown failed', () =>
       withShutdownTimeout(() => mainContext.ipc.recordingIpc.shutdown(), GRACEFUL_QUIT_TIMEOUT_MS)
     )
+    await runStep('meetings teardown failed', () =>
+      withShutdownTimeout(() => mainContext.ipc.meetingsIpc.shutdown(), GRACEFUL_QUIT_TIMEOUT_MS)
+    )
     await runStep('transcription teardown failed', () =>
       mainContext.ipc.transcriptionIpc.shutdown()
     )
@@ -330,6 +333,7 @@ app.whenReady().then(async () => {
   mainContext.ipc.transcriptionIpc.registerIpcHandlers()
   mainContext.ipc.reportingIpc.registerIpcHandlers()
   mainContext.ipc.pipelineIpc.registerIpcHandlers()
+  mainContext.ipc.meetingsIpc.registerIpcHandlers()
   await runStep('onboarding failed to initialize onboarding subsystem', () =>
     mainContext.ipc.onboardingIpc.initialize()
   )
@@ -339,6 +343,9 @@ app.whenReady().then(async () => {
 
   await runStep('transcription failed to initialize transcription subsystem', () =>
     mainContext.ipc.transcriptionIpc.initialize()
+  )
+  await runStep('meetings failed to initialize meetings subsystem', () =>
+    mainContext.ipc.meetingsIpc.initialize()
   )
   await runStep('recording failed to initialize recording subsystem', () =>
     mainContext.ipc.recordingIpc.initialize()

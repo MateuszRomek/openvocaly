@@ -37,6 +37,48 @@ export const transcripts = sqliteTable(
   ]
 )
 
+export const meetings = sqliteTable(
+  'meetings',
+  {
+    id: text('id').primaryKey(),
+    title: text('title').notNull(),
+    sourceFileName: text('source_file_name').notNull(),
+    sourceFilePath: text('source_file_path').notNull(),
+    status: text('status').notNull(),
+    providerId: text('provider_id').notNull(),
+    modelId: text('model_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    durationMs: integer('duration_ms'),
+    completedChunks: integer('completed_chunks').notNull().default(0),
+    totalChunks: integer('total_chunks').notNull().default(0),
+    errorMessage: text('error_message')
+  },
+  (table) => [
+    index('meetings_created_at_idx').on(table.createdAt),
+    index('meetings_status_idx').on(table.status)
+  ]
+)
+
+export const meetingSegments = sqliteTable(
+  'meeting_segments',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    meetingId: text('meeting_id')
+      .notNull()
+      .references(() => meetings.id, { onDelete: 'cascade' }),
+    chunkIndex: integer('chunk_index').notNull(),
+    startMs: integer('start_ms').notNull(),
+    endMs: integer('end_ms').notNull(),
+    text: text('text').notNull(),
+    createdAt: integer('created_at').notNull()
+  },
+  (table) => [
+    uniqueIndex('meeting_segments_meeting_chunk_unique').on(table.meetingId, table.chunkIndex),
+    index('meeting_segments_meeting_id_idx').on(table.meetingId)
+  ]
+)
+
 export const sessionMetrics = sqliteTable(
   'session_metrics',
   {
