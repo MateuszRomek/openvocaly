@@ -11,11 +11,6 @@ export type TranscriptionArtifact = {
   filePath: string
 }
 
-export type CloudProviderTranscriptionContext = {
-  apiKey: string
-  modelId: string
-}
-
 export type LocalProviderTranscriptionContext = {
   modelId: string
 }
@@ -24,26 +19,14 @@ export type ProviderReadinessContext = {
   modelId: string
 }
 
-type BaseTranscriptionProviderDefinition = {
+export type TranscriptionProviderDefinition = {
   id: TranscriptionProviderId
   label: string
   availability: TranscriptionProviderAvailability
   models: TranscriptionProviderModel[]
-  isConfigured?: (context: ProviderReadinessContext) => boolean
   validateBeforeTranscribe?: (
     context: ProviderReadinessContext
   ) => Promise<TranscriptionFailureCode | null> | TranscriptionFailureCode | null
-}
-
-export type CloudProviderDefinition = BaseTranscriptionProviderDefinition & {
-  kind: 'cloud'
-  transcribe?: (
-    artifact: TranscriptionArtifact,
-    context: CloudProviderTranscriptionContext
-  ) => Promise<TranscriptionResult>
-}
-
-export type LocalProviderDefinition = BaseTranscriptionProviderDefinition & {
   kind: 'local'
   isModelDownloaded: (modelId: string) => boolean
   transcribe?: (
@@ -51,5 +34,3 @@ export type LocalProviderDefinition = BaseTranscriptionProviderDefinition & {
     context: LocalProviderTranscriptionContext
   ) => Promise<TranscriptionResult>
 }
-
-export type TranscriptionProviderDefinition = CloudProviderDefinition | LocalProviderDefinition

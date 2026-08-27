@@ -1,15 +1,9 @@
-export const DEFAULT_TRANSCRIPTION_PROVIDER_ID = 'groq' as const
-export const DEFAULT_TRANSCRIPTION_MODEL_ID = 'whisper-large-v3-turbo' as const
+export const DEFAULT_TRANSCRIPTION_PROVIDER_ID = 'local-parakeet' as const
+export const DEFAULT_TRANSCRIPTION_MODEL_ID = 'parakeet-tdt-0.6b-v3' as const
 
-export type TranscriptionProviderId =
-  | 'groq'
-  | 'openai'
-  | 'elevenlabs'
-  | 'gemini'
-  | 'local-parakeet'
-  | 'local-whisper'
+export type TranscriptionProviderId = 'local-parakeet' | 'local-whisper'
 export type TranscriptionProviderAvailability = 'available' | 'coming_soon'
-export type TranscriptionProviderKind = 'cloud' | 'local'
+export type TranscriptionProviderKind = 'local'
 
 export type TranscriptionProviderModel = {
   id: string
@@ -20,28 +14,14 @@ export type TranscriptionProviderModel = {
   language?: string
 }
 
-type BaseTranscriptionProviderOption = {
+export type TranscriptionProviderOption = {
   id: TranscriptionProviderId
   label: string
-  kind: TranscriptionProviderKind
   models: TranscriptionProviderModel[]
   isConfigured: boolean
   availability: TranscriptionProviderAvailability
-}
-
-export type CloudTranscriptionProviderOption = BaseTranscriptionProviderOption & {
-  kind: 'cloud'
-  apiKeyPreview: string | null
-}
-
-export type LocalTranscriptionProviderOption = BaseTranscriptionProviderOption & {
   kind: 'local'
-  apiKeyPreview: null
 }
-
-export type TranscriptionProviderOption =
-  | CloudTranscriptionProviderOption
-  | LocalTranscriptionProviderOption
 
 export type TranscriptionPreferences = {
   providerId: TranscriptionProviderId
@@ -49,7 +29,6 @@ export type TranscriptionPreferences = {
 }
 
 export type TranscriptionConfig = {
-  secureStorageAvailable: boolean
   providers: TranscriptionProviderOption[]
 }
 
@@ -59,20 +38,6 @@ export type TranscriptionPreferencesResponse = {
 }
 
 export type TranscriptionPreferencesUpdateInput = Partial<TranscriptionPreferences>
-
-export type TranscriptionProviderApiKeyUpdateInput = {
-  providerId: TranscriptionProviderId
-  apiKey: string
-}
-
-export type TranscriptionProviderApiKeyClearInput = {
-  providerId: TranscriptionProviderId
-}
-
-export type TranscriptionProviderApiKeyMutationResponse = {
-  ok: boolean
-  message?: string
-}
 
 export type TranscriptionSuccessResult = {
   ok: true
@@ -121,9 +86,6 @@ export type TranscriptionFailureCode =
   | 'provider_not_supported'
   | 'provider_unavailable'
   | 'provider_not_configured'
-  | 'missing_api_key'
-  | 'invalid_api_key'
-  | 'provider_request_failed'
   | 'local_runtime_unavailable'
   | 'local_model_not_downloaded'
   | 'local_model_download_failed'

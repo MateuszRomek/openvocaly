@@ -16,7 +16,6 @@ import { Route as ModelsRouteRouteImport } from './routes/models/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ModelsIndexRouteImport } from './routes/models/index'
 import { Route as ModelsLocalRouteImport } from './routes/models/local'
-import { Route as ModelsCloudRouteImport } from './routes/models/cloud'
 
 const TranscriptsRoute = TranscriptsRouteImport.update({
   id: '/transcripts',
@@ -53,11 +52,6 @@ const ModelsLocalRoute = ModelsLocalRouteImport.update({
   path: '/local',
   getParentRoute: () => ModelsRouteRoute,
 } as any)
-const ModelsCloudRoute = ModelsCloudRouteImport.update({
-  id: '/cloud',
-  path: '/cloud',
-  getParentRoute: () => ModelsRouteRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -65,7 +59,6 @@ export interface FileRoutesByFullPath {
   '/meetings': typeof MeetingsRoute
   '/settings': typeof SettingsRoute
   '/transcripts': typeof TranscriptsRoute
-  '/models/cloud': typeof ModelsCloudRoute
   '/models/local': typeof ModelsLocalRoute
   '/models/': typeof ModelsIndexRoute
 }
@@ -74,7 +67,6 @@ export interface FileRoutesByTo {
   '/meetings': typeof MeetingsRoute
   '/settings': typeof SettingsRoute
   '/transcripts': typeof TranscriptsRoute
-  '/models/cloud': typeof ModelsCloudRoute
   '/models/local': typeof ModelsLocalRoute
   '/models': typeof ModelsIndexRoute
 }
@@ -85,7 +77,6 @@ export interface FileRoutesById {
   '/meetings': typeof MeetingsRoute
   '/settings': typeof SettingsRoute
   '/transcripts': typeof TranscriptsRoute
-  '/models/cloud': typeof ModelsCloudRoute
   '/models/local': typeof ModelsLocalRoute
   '/models/': typeof ModelsIndexRoute
 }
@@ -97,7 +88,6 @@ export interface FileRouteTypes {
     | '/meetings'
     | '/settings'
     | '/transcripts'
-    | '/models/cloud'
     | '/models/local'
     | '/models/'
   fileRoutesByTo: FileRoutesByTo
@@ -106,7 +96,6 @@ export interface FileRouteTypes {
     | '/meetings'
     | '/settings'
     | '/transcripts'
-    | '/models/cloud'
     | '/models/local'
     | '/models'
   id:
@@ -116,7 +105,6 @@ export interface FileRouteTypes {
     | '/meetings'
     | '/settings'
     | '/transcripts'
-    | '/models/cloud'
     | '/models/local'
     | '/models/'
   fileRoutesById: FileRoutesById
@@ -180,24 +168,15 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModelsLocalRouteImport
       parentRoute: typeof ModelsRouteRoute
     }
-    '/models/cloud': {
-      id: '/models/cloud'
-      path: '/cloud'
-      fullPath: '/models/cloud'
-      preLoaderRoute: typeof ModelsCloudRouteImport
-      parentRoute: typeof ModelsRouteRoute
-    }
   }
 }
 
 interface ModelsRouteRouteChildren {
-  ModelsCloudRoute: typeof ModelsCloudRoute
   ModelsLocalRoute: typeof ModelsLocalRoute
   ModelsIndexRoute: typeof ModelsIndexRoute
 }
 
 const ModelsRouteRouteChildren: ModelsRouteRouteChildren = {
-  ModelsCloudRoute: ModelsCloudRoute,
   ModelsLocalRoute: ModelsLocalRoute,
   ModelsIndexRoute: ModelsIndexRoute,
 }

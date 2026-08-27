@@ -37,10 +37,7 @@ import type {
 import type { DictationRuntimeStateResponse } from '../shared/dictation'
 import type {
   TranscriptionPreferencesResponse,
-  TranscriptionPreferencesUpdateInput,
-  TranscriptionProviderApiKeyClearInput,
-  TranscriptionProviderApiKeyMutationResponse,
-  TranscriptionProviderApiKeyUpdateInput
+  TranscriptionPreferencesUpdateInput
 } from '../shared/transcription'
 import type {
   ListLocalModelsResponse,
@@ -121,14 +118,6 @@ declare global {
           update: (
             input: TranscriptionPreferencesUpdateInput
           ) => Promise<TranscriptionPreferencesResponse>
-        }
-        cloud: {
-          setProviderApiKey: (
-            input: TranscriptionProviderApiKeyUpdateInput
-          ) => Promise<TranscriptionProviderApiKeyMutationResponse>
-          clearProviderApiKey: (
-            input: TranscriptionProviderApiKeyClearInput
-          ) => Promise<TranscriptionProviderApiKeyMutationResponse>
         }
         local: {
           listModels: (input: LocalProviderActionInput) => Promise<ListLocalModelsResponse>

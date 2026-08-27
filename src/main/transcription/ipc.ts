@@ -9,10 +9,7 @@ import type {
 } from '../../shared/local-transcription'
 import type {
   TranscriptionPreferencesResponse,
-  TranscriptionPreferencesUpdateInput,
-  TranscriptionProviderApiKeyClearInput,
-  TranscriptionProviderApiKeyMutationResponse,
-  TranscriptionProviderApiKeyUpdateInput
+  TranscriptionPreferencesUpdateInput
 } from '../../shared/transcription'
 import { createLocalDownloadProgressEmitter } from './ipc-helpers/local-model-download-progress-emitter'
 import type { TranscriptionService } from './service'
@@ -38,24 +35,6 @@ export const createTranscriptionIpcModule = (
         _event,
         params: TranscriptionPreferencesUpdateInput
       ): Promise<TranscriptionPreferencesResponse> => transcriptionService.updatePreferences(params)
-    )
-
-    ipcMain.handle(
-      'transcription:setProviderApiKey',
-      (
-        _event,
-        params: TranscriptionProviderApiKeyUpdateInput
-      ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
-        transcriptionService.setProviderApiKey(params)
-    )
-
-    ipcMain.handle(
-      'transcription:clearProviderApiKey',
-      (
-        _event,
-        params: TranscriptionProviderApiKeyClearInput
-      ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
-        transcriptionService.clearProviderApiKey(params.providerId)
     )
 
     ipcMain.handle(
