@@ -28,6 +28,7 @@
     "deps:electron": "electron-builder install-app-deps",
     "build:macos-asr-host": "node scripts/build-macos-asr-host.js",
     "build:whisper-cpp-runtime": "node scripts/build-whisper-cpp-runtime.js",
+    "benchmark:whisper": "node scripts/benchmark-whisper-runtime.js",
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",

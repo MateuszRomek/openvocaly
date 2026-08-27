@@ -100,6 +100,9 @@ npm test
 # Rebuild the native Parakeet host after changing its Swift sources
 npm run build:macos-asr-host -- --force
 
+# Compare local Whisper runtime policies without printing transcription text
+npm run benchmark:whisper -- --audio /absolute/path/to/audio.webm --model /absolute/path/to/ggml-large-v3-turbo-q5_0.bin --threads 2
+
 # Build app bundle
 npm run build:mac
 ```
