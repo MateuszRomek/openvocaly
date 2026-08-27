@@ -9,6 +9,8 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import { requiresPermissionsSetup } from '@renderer/queries/permissions/permissions.types'
+import { usePermissionsStatusQuery } from '@renderer/queries/permissions/use-permissions-status-query'
 import { OpenVocalyStaticLogo } from './openvocaly-static-logo'
 import {
   Sidebar,
@@ -18,6 +20,7 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar
@@ -51,6 +54,9 @@ function AppSidebar(): React.JSX.Element {
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { toggleSidebar } = useSidebar()
+  const permissionsStatusQuery = usePermissionsStatusQuery()
+  const needsPermissionsSetup =
+    permissionsStatusQuery.data && requiresPermissionsSetup(permissionsStatusQuery.data)
 
   return (
     <Sidebar collapsible="icon" className="group/sidebar">
@@ -123,6 +129,11 @@ function AppSidebar(): React.JSX.Element {
               <SettingsIcon className="size-4" />
               <span className="group-data-[collapsible=icon]:hidden">{settingsItem.label}</span>
             </SidebarMenuButton>
+            {needsPermissionsSetup && (
+              <SidebarMenuBadge className="bg-amber-500/15 text-amber-700 dark:bg-amber-400/20 dark:text-amber-300">
+                Setup
+              </SidebarMenuBadge>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

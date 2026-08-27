@@ -81,6 +81,7 @@ export class RecordingOverlayController {
     this.applyOverlayLayout({ state, animate: wasVisible })
 
     if (!wasVisible) {
+      this.macosVisibility.applyFullScreenVisibility()
       this.overlayWindow.showInactive()
       this.overlayWindow.moveTop()
       this.macosVisibility.reassert(true)
@@ -162,7 +163,6 @@ export class RecordingOverlayController {
 
     this.overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1)
     this.overlayWindow.setIgnoreMouseEvents(true, { forward: true })
-    this.macosVisibility.applyFullScreenVisibility()
 
     this.overlayWindow.on('show', () => {
       this.applyOverlayPerformanceMode(false)

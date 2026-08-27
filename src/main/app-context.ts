@@ -1,6 +1,4 @@
 import { DictationPasteService } from './paste/service'
-import { createOnboardingIpcModule } from './onboarding/ipc'
-import { OnboardingService } from './onboarding/service'
 import { createPermissionsIpcModule } from './permissions/ipc'
 import { PermissionsService } from './permissions/service'
 import { createMeetingsIpcModule } from './meetings/ipc'
@@ -34,7 +32,6 @@ import { TranscriptionService } from './transcription/service'
 export type MainAppContext = {
   services: {
     permissionsService: PermissionsService
-    onboardingService: OnboardingService
     recordingService: RecordingServiceOrchestrator
     transcriptionService: TranscriptionService
     reportingService: ReportingService
@@ -50,7 +47,6 @@ export type MainAppContext = {
   }
   ipc: {
     storageIpc: ReturnType<typeof createStorageIpcModule>
-    onboardingIpc: ReturnType<typeof createOnboardingIpcModule>
     permissionsIpc: ReturnType<typeof createPermissionsIpcModule>
     shortcutsIpc: ReturnType<typeof createShortcutsIpcModule>
     recordingIpc: ReturnType<typeof createRecordingIpcModule>
@@ -74,7 +70,6 @@ export const createMainAppContext = (): MainAppContext => {
   const storageRepository = new StorageRepository()
 
   const permissionsService = new PermissionsService()
-  const onboardingService = new OnboardingService(settingsRepository)
   const recordingCommandBus = new RecordingCommandBus()
   const recordingArtifactBus = new RecordingArtifactBus()
   const recordingSessionBus = new RecordingSessionBus()
@@ -129,7 +124,6 @@ export const createMainAppContext = (): MainAppContext => {
   })
 
   const storageIpc = createStorageIpcModule(storageRepository)
-  const onboardingIpc = createOnboardingIpcModule(onboardingService)
   const permissionsIpc = createPermissionsIpcModule(permissionsService)
   const shortcutsIpc = createShortcutsIpcModule(shortcutService)
   const recordingIpc = createRecordingIpcModule(recordingService)
@@ -141,7 +135,6 @@ export const createMainAppContext = (): MainAppContext => {
   return {
     services: {
       permissionsService,
-      onboardingService,
       recordingService,
       transcriptionService,
       reportingService,
@@ -157,7 +150,6 @@ export const createMainAppContext = (): MainAppContext => {
     },
     ipc: {
       storageIpc,
-      onboardingIpc,
       permissionsIpc,
       shortcutsIpc,
       recordingIpc,
