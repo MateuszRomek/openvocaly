@@ -1,22 +1,21 @@
 import { app } from 'electron'
 import { join } from 'node:path'
 
-const PARAKEET_MODELS_DIR_NAME = 'parakeet-models'
-const WHISPER_MODELS_DIR_NAME = 'whisper-models'
-type ElectronPathName = Parameters<typeof app.getPath>[0] | 'cache'
-const getElectronPath = (name: ElectronPathName): string =>
-  app.getPath(name as Parameters<typeof app.getPath>[0])
+const LOCAL_MODELS_DIR_NAME = 'local-models'
+const PARAKEET_MODELS_DIR_NAME = 'parakeet'
+const WHISPER_MODELS_DIR_NAME = 'whisper'
 
 /**
- * Resolve an OS-native cache directory for model storage.
+ * Resolve durable app-owned storage. Models must survive cache eviction and
+ * remain controllable through the Models screen.
  */
-const resolveCacheDir = (): string => getElectronPath('cache')
+const resolveLocalModelsDir = (): string => join(app.getPath('userData'), LOCAL_MODELS_DIR_NAME)
 
 /**
- * Returns `${app.getPath('cache')}/parakeet-models`.
+ * Returns the durable root for Parakeet CoreML installations.
  */
 export const getParakeetModelsRootDir = (): string =>
-  join(resolveCacheDir(), PARAKEET_MODELS_DIR_NAME)
+  join(resolveLocalModelsDir(), PARAKEET_MODELS_DIR_NAME)
 
 /**
  * Returns model-specific storage directory under the local Parakeet cache root.
@@ -25,10 +24,10 @@ export const getParakeetModelDir = (modelId: string): string =>
   join(getParakeetModelsRootDir(), modelId)
 
 /**
- * Returns `${app.getPath('cache')}/whisper-models`.
+ * Returns the durable root for Whisper model files.
  */
 export const getWhisperModelsRootDir = (): string =>
-  join(resolveCacheDir(), WHISPER_MODELS_DIR_NAME)
+  join(resolveLocalModelsDir(), WHISPER_MODELS_DIR_NAME)
 
 /**
  * Returns model file path under the Whisper models root directory.

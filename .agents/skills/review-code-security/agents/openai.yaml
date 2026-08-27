@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Code Security"
+  short_description: "Review security around a code change"
+  default_prompt: "Use $review-code-security with gpt-5.6-luna at max reasoning effort to review the security affected by this change."

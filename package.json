@@ -12,7 +12,7 @@
     "lint": "eslint --cache .",
     "routes:generate": "tsr generate",
     "routes:watch": "tsr watch",
-    "prepare:local-runtime": "npm run download:sherpa-onnx && npm run build:whisper-cpp-runtime",
+    "prepare:local-runtime": "npm run build:macos-asr-host && npm run build:whisper-cpp-runtime",
     "prepare:macos-fast-paste": "node scripts/build-macos-fast-paste.js",
     "setup:dev": "node scripts/setup-local-dev.js && npm run db:migrate",
     "predev": "npm run routes:generate && npm run prepare:local-runtime && npm run prepare:macos-fast-paste && npm run deps:electron",
@@ -21,11 +21,12 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio --config drizzle.app.config.ts",
     "deps:electron": "electron-builder install-app-deps",
-    "download:sherpa-onnx": "node scripts/download-sherpa-onnx.js",
+    "build:macos-asr-host": "node scripts/build-macos-asr-host.js",
     "build:whisper-cpp-runtime": "node scripts/build-whisper-cpp-runtime.js",
     "start": "electron-vite preview",
     "dev": "electron-vite dev",
@@ -93,6 +94,7 @@
     "react-dom": "^19.2.1",
     "tailwindcss": "4.1.18",
     "typescript": "^5.9.3",
-    "vite": "^7.2.6"
+    "vite": "^7.2.6",
+    "vitest": "^4.1.11"
   }
 }

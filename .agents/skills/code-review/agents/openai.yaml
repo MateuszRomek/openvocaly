@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Review"
+  short_description: "Review standards, spec, architecture, security"
+  default_prompt: "Use $code-review to review this change; dispatch every reviewer with gpt-5.6-luna at max reasoning effort."

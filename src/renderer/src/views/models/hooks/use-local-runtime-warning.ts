@@ -17,7 +17,7 @@ type LocalProviderId = Parameters<
 
 const RUNTIME_UNAVAILABLE_MESSAGE_BY_PROVIDER: Record<LocalProviderId, string> = {
   'local-parakeet':
-    'Local runtime binary not found. It should be prepared automatically on npm run dev/build. If still missing, run npm run download:sherpa-onnx and restart app.',
+    'The macOS Parakeet host is unavailable. It should be prepared automatically on npm run dev/build. If it remains unavailable, reinstall the app.',
   'local-whisper':
     'Local runtime binary not found. It should be prepared automatically on npm run dev/build. If still missing, run npm run build:whisper-cpp-runtime and restart app.'
 }
@@ -50,7 +50,9 @@ export const useLocalRuntimeWarning = (
     }
 
     if (!runtimeStatus.platformSupported) {
-      return `${getProviderLabel(providerId)} is currently supported on macOS only in this release.`
+      return providerId === 'local-parakeet'
+        ? 'Local Parakeet currently requires Apple Silicon and macOS 14 or newer.'
+        : `${getProviderLabel(providerId)} is currently supported on macOS only in this release.`
     }
 
     return RUNTIME_UNAVAILABLE_MESSAGE_BY_PROVIDER[providerId]

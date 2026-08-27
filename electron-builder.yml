@@ -23,6 +23,8 @@ win:
     - '!resources/bin/*.so'
     - '!resources/bin/*.so.*'
     - '!resources/bin/macos-fast-paste'
+    - '!resources/bin/macos-asr-host'
+    - '!resources/bin/FluidAudio_FluidAudio.bundle/**'
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -58,6 +60,8 @@ linux:
     - '!resources/bin/*.dylib'
     - '!resources/bin/*.dll'
     - '!resources/bin/macos-fast-paste'
+    - '!resources/bin/macos-asr-host'
+    - '!resources/bin/FluidAudio_FluidAudio.bundle/**'
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Codebase Architecture"
+  short_description: "Review architecture around a change"
+  default_prompt: "Use $review-codebase-architecture with gpt-5.6-luna at max reasoning effort to review the architecture affected by this change."

@@ -1,5 +1,7 @@
+import { LOCAL_MODELS } from './local-model-catalog'
+
 export const DEFAULT_TRANSCRIPTION_PROVIDER_ID = 'local-parakeet' as const
-export const DEFAULT_TRANSCRIPTION_MODEL_ID = 'parakeet-tdt-0.6b-v3' as const
+export const DEFAULT_TRANSCRIPTION_MODEL_ID = LOCAL_MODELS.parakeet.id
 
 export type TranscriptionProviderId = 'local-parakeet' | 'local-whisper'
 export type TranscriptionProviderAvailability = 'available' | 'coming_soon'

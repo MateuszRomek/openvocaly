@@ -20,7 +20,7 @@ import { StorageRepository } from '../../repositories/storage-repository'
 import { AsyncSerialScheduler } from '../../helpers/async-serial-scheduler'
 import { InitializableComponent } from '../../helpers/initializable-component'
 import { emitTranscriptAddedEvent } from '../../storage/transcript-events'
-import { parakeetRuntime } from '../local/parakeet/runtime'
+import { macOSParakeetRuntime } from '../local/macos-asr-host/runtime'
 import { whisperRuntime } from '../local/whisper/runtime'
 import {
   resolveDefaultTranscriptionModelId,
@@ -50,13 +50,13 @@ const LOCAL_PROVIDER_IDS = new Set<LocalTranscriptionProviderId>([
 
 const LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeController> = {
   'local-parakeet': {
-    listModels: () => parakeetRuntime.listModels(),
-    downloadModel: (modelId, onProgress) => parakeetRuntime.downloadModel(modelId, onProgress),
-    cancelDownload: () => parakeetRuntime.cancelDownload(),
-    deleteModel: (modelId) => parakeetRuntime.deleteModel(modelId),
-    getRuntimeStatus: () => parakeetRuntime.getRuntimeStatus(),
-    startRuntime: (modelId) => parakeetRuntime.startRuntime(modelId),
-    stopRuntime: () => parakeetRuntime.stopRuntime()
+    listModels: () => macOSParakeetRuntime.listModels(),
+    downloadModel: (modelId, onProgress) => macOSParakeetRuntime.downloadModel(modelId, onProgress),
+    cancelDownload: () => macOSParakeetRuntime.cancelDownload(),
+    deleteModel: (modelId) => macOSParakeetRuntime.deleteModel(modelId),
+    getRuntimeStatus: () => macOSParakeetRuntime.getRuntimeStatus(),
+    startRuntime: (modelId) => macOSParakeetRuntime.startRuntime(modelId),
+    stopRuntime: () => macOSParakeetRuntime.stopRuntime()
   },
   'local-whisper': {
     listModels: () => whisperRuntime.listModels(),
@@ -84,6 +84,7 @@ export class TranscriptionService extends InitializableComponent {
   private readonly providerFactory: TranscriptionProviderFactory
   private readonly localTranscriptionScheduler = new AsyncSerialScheduler()
   private activeDownloadProviderId: LocalTranscriptionProviderId | null = null
+  private isShuttingDown = false
 
   constructor(
     options: {
@@ -107,11 +108,14 @@ export class TranscriptionService extends InitializableComponent {
     }
 
     await this.preferencesManager.initialize()
+    this.isShuttingDown = false
     this.initialized = true
+    this.warmPreferencesInBackground(this.preferencesManager.get())
   }
 
   async shutdown(): Promise<void> {
-    await this.stopAllLocalRuntimesNow()
+    this.isShuttingDown = true
+    await this.localTranscriptionScheduler.run(() => this.stopAllLocalRuntimesNow())
 
     this.initialized = false
   }
@@ -137,6 +141,8 @@ export class TranscriptionService extends InitializableComponent {
       await this.localTranscriptionScheduler.run(() => this.stopAllLocalRuntimesNow())
     }
 
+    this.warmPreferencesInBackground(preferences)
+
     return {
       preferences,
       config: this.providerFactory.buildConfig(preferences)
@@ -159,7 +165,7 @@ export class TranscriptionService extends InitializableComponent {
 
   private async stopAllLocalRuntimesNow(): Promise<void> {
     const stopResults = await Promise.allSettled([
-      parakeetRuntime.stopRuntime(),
+      macOSParakeetRuntime.stopRuntime(),
       whisperRuntime.stopRuntime()
     ])
 
@@ -190,7 +196,7 @@ export class TranscriptionService extends InitializableComponent {
     this.activeDownloadProviderId = params.providerId
 
     try {
-      return await this.getLocalRuntime(params.providerId).downloadModel(
+      const response = await this.getLocalRuntime(params.providerId).downloadModel(
         params.modelId,
         onProgress
           ? (progress) => {
@@ -201,6 +207,16 @@ export class TranscriptionService extends InitializableComponent {
             }
           : undefined
       )
+      if (response.ok) {
+        const preferences = this.preferencesManager.get()
+        if (
+          preferences.providerId === params.providerId &&
+          preferences.modelId === params.modelId
+        ) {
+          this.warmPreferencesInBackground(preferences)
+        }
+      }
+      return response
     } finally {
       this.activeDownloadProviderId = null
     }
@@ -351,5 +367,27 @@ export class TranscriptionService extends InitializableComponent {
     return isLocalProviderId(preferences.providerId)
       ? this.localTranscriptionScheduler.run(transcribe)
       : transcribe()
+  }
+
+  /** Warm a downloaded selected model without delaying settings updates or startup. */
+  private warmPreferencesInBackground(preferences: TranscriptionPreferences): void {
+    if (this.isShuttingDown || !isLocalProviderId(preferences.providerId)) {
+      return
+    }
+
+    const runtime = this.getLocalRuntime(preferences.providerId)
+    void this.localTranscriptionScheduler
+      .run(async () => {
+        if (this.isShuttingDown) {
+          return
+        }
+        const result = await runtime.startRuntime(preferences.modelId)
+        if (!result.ok) {
+          console.debug('[transcription] selected local model was not warmed', result.message)
+        }
+      })
+      .catch((error) => {
+        console.debug('[transcription] failed to warm selected local model', error)
+      })
   }
 }

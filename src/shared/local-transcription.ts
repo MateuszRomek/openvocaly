@@ -1,6 +1,7 @@
 import type { TranscriptionProviderId } from './transcription'
+import { LOCAL_MODELS } from './local-model-catalog'
 
-export const LOCAL_PARAKEET_MODEL_ID = 'parakeet-tdt-0.6b-v3' as const
+export const LOCAL_PARAKEET_MODEL_ID = LOCAL_MODELS.parakeet.id
 
 export type LocalTranscriptionProviderId = Extract<
   TranscriptionProviderId,

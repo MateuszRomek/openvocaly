@@ -25,6 +25,26 @@
       "presentation": {
         "hidden": true
       }
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:openvocaly}/native/macos-asr-host",
+      "name": "Debug OpenVocalyAsrHost (native/macos-asr-host)",
+      "target": "OpenVocalyAsrHost",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug OpenVocalyAsrHost (native/macos-asr-host)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:openvocaly}/native/macos-asr-host",
+      "name": "Release OpenVocalyAsrHost (native/macos-asr-host)",
+      "target": "OpenVocalyAsrHost",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release OpenVocalyAsrHost (native/macos-asr-host)"
     }
   ],
   "compounds": [
