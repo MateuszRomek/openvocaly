@@ -2,7 +2,6 @@ import type {
   TranscriptionConfig,
   TranscriptionFailureCode,
   TranscriptionPreferences,
-  TranscriptionProviderId,
   TranscriptionProviderOption,
   TranscriptionResult
 } from '../../shared/transcription'
@@ -10,16 +9,7 @@ import { resolveTranscriptionModelId } from './provider-helpers'
 import { transcriptionProviders, transcriptionProvidersById } from './providers'
 import type { TranscriptionArtifact, TranscriptionProviderDefinition } from './providers/types'
 
-export interface TranscriptionProviderCredentialsAccess {
-  isSecureStorageAvailable(): boolean
-  hasApiKey(providerId: TranscriptionProviderId): boolean
-  getApiKeyPreview(providerId: TranscriptionProviderId): string | null
-  getApiKey(providerId: TranscriptionProviderId): string | null
-}
-
 export class TranscriptionProviderFactory {
-  constructor(private readonly credentialsAccess: TranscriptionProviderCredentialsAccess) {}
-
   private resolveProviderModelId(
     provider: TranscriptionProviderDefinition,
     preferences?: TranscriptionPreferences
@@ -35,28 +25,12 @@ export class TranscriptionProviderFactory {
     preferences?: TranscriptionPreferences
   ): boolean {
     const modelId = this.resolveProviderModelId(provider, preferences)
-    if (provider.isConfigured) {
-      return provider.isConfigured({ modelId })
-    }
-
-    if (provider.kind === 'cloud') {
-      return this.credentialsAccess.hasApiKey(provider.id)
-    }
-
     const isActiveProvider = preferences?.providerId === provider.id
     if (isActiveProvider) {
       return provider.isModelDownloaded(modelId)
     }
 
     return provider.models.some((model) => provider.isModelDownloaded(model.id))
-  }
-
-  private getProviderApiKeyPreview(provider: TranscriptionProviderDefinition): string | null {
-    if (provider.kind !== 'cloud') {
-      return null
-    }
-
-    return this.credentialsAccess.getApiKeyPreview(provider.id)
   }
 
   private toMissingRequirementResult(
@@ -79,36 +53,11 @@ export class TranscriptionProviderFactory {
       }
     }
 
-    if (code === 'missing_api_key') {
-      return {
-        ok: false,
-        code,
-        message: `${providerLabel} is not configured. Add an API key in Settings > Transcription.`
-      }
-    }
-
     return {
       ok: false,
       code,
       message: `${providerLabel} is not configured.`
     }
-  }
-
-  private isLikelyInvalidApiKeyError(error: unknown): boolean {
-    if (!(error instanceof Error)) {
-      return false
-    }
-
-    const normalizedMessage = error.message.toLowerCase()
-
-    return (
-      normalizedMessage.includes('401') ||
-      normalizedMessage.includes('unauthorized') ||
-      normalizedMessage.includes('forbidden') ||
-      normalizedMessage.includes('invalid api key') ||
-      normalizedMessage.includes('invalid_api_key') ||
-      normalizedMessage.includes('authentication')
-    )
   }
 
   private toProviderFailureMessage(
@@ -131,29 +80,19 @@ export class TranscriptionProviderFactory {
         kind: provider.kind,
         models: provider.models.map((model) => ({
           ...model,
-          downloaded: provider.kind === 'local' ? provider.isModelDownloaded(model.id) : undefined
+          downloaded: provider.isModelDownloaded(model.id)
         })),
         isConfigured: this.isProviderConfigured(provider, preferences),
         availability: provider.availability
       } as const
 
-      if (provider.kind === 'cloud') {
-        return {
-          ...base,
-          kind: 'cloud',
-          apiKeyPreview: this.getProviderApiKeyPreview(provider)
-        }
-      }
-
       return {
         ...base,
-        kind: 'local',
-        apiKeyPreview: null
+        kind: 'local'
       }
     })
 
     return {
-      secureStorageAvailable: this.credentialsAccess.isSecureStorageAvailable(),
       providers: options
     }
   }
@@ -200,15 +139,6 @@ export class TranscriptionProviderFactory {
     }
 
     try {
-      if (provider.kind === 'cloud') {
-        const apiKey = this.credentialsAccess.getApiKey(provider.id)
-        if (!apiKey) {
-          return this.toMissingRequirementResult(provider.label, 'missing_api_key')
-        }
-
-        return await provider.transcribe(artifact, { apiKey, modelId })
-      }
-
       if (!provider.isModelDownloaded(modelId)) {
         return this.toMissingRequirementResult(provider.label, 'local_model_not_downloaded')
       }
@@ -216,14 +146,7 @@ export class TranscriptionProviderFactory {
       return await provider.transcribe(artifact, { modelId })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown provider error.'
-      const code =
-        provider.kind === 'local'
-          ? 'local_transcription_failed'
-          : this.isLikelyInvalidApiKeyError(error)
-            ? 'invalid_api_key'
-            : 'provider_request_failed'
-
-      return this.toProviderFailureMessage(provider.label, message, code)
+      return this.toProviderFailureMessage(provider.label, message, 'local_transcription_failed')
     }
   }
 }

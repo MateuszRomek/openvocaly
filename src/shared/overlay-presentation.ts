@@ -38,22 +38,6 @@ const hasAnyText = (value: string, patterns: string[]): boolean =>
 const resolveTranscriptionFailureMessage = (rawMessage: string): string => {
   const normalized = rawMessage.toLowerCase()
 
-  if (hasAnyText(normalized, ['not configured', 'add an api key', 'missing api key'])) {
-    return 'Missing API key'
-  }
-
-  if (
-    hasAnyText(normalized, [
-      'invalid api key',
-      'invalid_api_key',
-      'unauthorized',
-      'forbidden',
-      'authentication'
-    ])
-  ) {
-    return 'Invalid API key'
-  }
-
   if (hasAnyText(normalized, ['empty transcription', 'no speech'])) {
     return 'No speech detected'
   }

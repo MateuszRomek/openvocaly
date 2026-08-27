@@ -13,8 +13,6 @@ import type {
   TranscriptionPreferences,
   TranscriptionPreferencesResponse,
   TranscriptionPreferencesUpdateInput,
-  TranscriptionProviderApiKeyMutationResponse,
-  TranscriptionProviderApiKeyUpdateInput,
   TranscriptionResult
 } from '../../../shared/transcription'
 import { SettingsRepository } from '../../repositories/settings-repository'
@@ -31,7 +29,6 @@ import {
 import { TranscriptionProviderFactory } from '../provider-factory'
 import type { TranscriptionArtifact } from '../providers/types'
 import { TranscriptionPreferencesManager } from './preferences-manager'
-import { TranscriptionProviderCredentialsManager } from './provider-credentials-manager'
 
 type LocalRuntimeController = {
   listModels: () => Promise<ListLocalModelsResponse>
@@ -83,7 +80,6 @@ const isLocalProviderId = (
 
 export class TranscriptionService extends InitializableComponent {
   private readonly preferencesManager: TranscriptionPreferencesManager
-  private readonly credentialsManager: TranscriptionProviderCredentialsManager
   private readonly storageRepository: StorageRepository
   private readonly providerFactory: TranscriptionProviderFactory
   private readonly localTranscriptionScheduler = new AsyncSerialScheduler()
@@ -94,7 +90,6 @@ export class TranscriptionService extends InitializableComponent {
       settingsRepository?: SettingsRepository
       storageRepository?: StorageRepository
       preferencesManager?: TranscriptionPreferencesManager
-      credentialsManager?: TranscriptionProviderCredentialsManager
     } = {}
   ) {
     super('TranscriptionService')
@@ -103,9 +98,7 @@ export class TranscriptionService extends InitializableComponent {
 
     this.preferencesManager =
       options.preferencesManager ?? new TranscriptionPreferencesManager(settingsRepository)
-    this.credentialsManager =
-      options.credentialsManager ?? new TranscriptionProviderCredentialsManager(settingsRepository)
-    this.providerFactory = new TranscriptionProviderFactory(this.credentialsManager)
+    this.providerFactory = new TranscriptionProviderFactory()
   }
 
   async initialize(): Promise<void> {
@@ -114,7 +107,6 @@ export class TranscriptionService extends InitializableComponent {
     }
 
     await this.preferencesManager.initialize()
-    await this.credentialsManager.initialize()
     this.initialized = true
   }
 
@@ -176,20 +168,6 @@ export class TranscriptionService extends InitializableComponent {
         console.error('[transcription] failed to stop local runtime during shutdown', result.reason)
       }
     }
-  }
-
-  async setProviderApiKey(
-    params: TranscriptionProviderApiKeyUpdateInput
-  ): Promise<TranscriptionProviderApiKeyMutationResponse> {
-    this.assertInitialized()
-    return this.credentialsManager.setApiKey(params)
-  }
-
-  async clearProviderApiKey(
-    providerId: TranscriptionProviderApiKeyUpdateInput['providerId']
-  ): Promise<TranscriptionProviderApiKeyMutationResponse> {
-    this.assertInitialized()
-    return this.credentialsManager.clearApiKey(providerId)
   }
 
   private getLocalRuntime(providerId: LocalTranscriptionProviderId): LocalRuntimeController {

@@ -42,10 +42,7 @@ import type {
 import type { DictationRuntimeStateResponse } from '../shared/dictation'
 import type {
   TranscriptionPreferencesResponse,
-  TranscriptionPreferencesUpdateInput,
-  TranscriptionProviderApiKeyClearInput,
-  TranscriptionProviderApiKeyMutationResponse,
-  TranscriptionProviderApiKeyUpdateInput
+  TranscriptionPreferencesUpdateInput
 } from '../shared/transcription'
 import type {
   ListLocalModelsResponse,
@@ -170,16 +167,6 @@ const api = {
         input: TranscriptionPreferencesUpdateInput
       ): Promise<TranscriptionPreferencesResponse> =>
         ipcRenderer.invoke('transcription:updatePreferences', input)
-    },
-    cloud: {
-      setProviderApiKey: (
-        input: TranscriptionProviderApiKeyUpdateInput
-      ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
-        ipcRenderer.invoke('transcription:setProviderApiKey', input),
-      clearProviderApiKey: (
-        input: TranscriptionProviderApiKeyClearInput
-      ): Promise<TranscriptionProviderApiKeyMutationResponse> =>
-        ipcRenderer.invoke('transcription:clearProviderApiKey', input)
     },
     local: {
       listModels: (input: LocalProviderActionInput): Promise<ListLocalModelsResponse> =>
