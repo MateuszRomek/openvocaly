@@ -61,7 +61,6 @@ import type {
   OpenSystemSettingsResponse,
   PermissionsStatusResponse
 } from '../shared/permissions'
-import type { OnboardingMarkCompletedResponse, OnboardingStateResponse } from '../shared/onboarding'
 import type {
   GetMeetingInput,
   GetMeetingResponse,
@@ -219,11 +218,6 @@ const api = {
       ipcRenderer.invoke('permissions:openAccessibilitySettings'),
     openMicrophoneSettings: (): Promise<OpenSystemSettingsResponse> =>
       ipcRenderer.invoke('permissions:openMicrophoneSettings')
-  },
-  onboarding: {
-    getState: (): Promise<OnboardingStateResponse> => ipcRenderer.invoke('onboarding:getState'),
-    markCompleted: (): Promise<OnboardingMarkCompletedResponse> =>
-      ipcRenderer.invoke('onboarding:markCompleted')
   }
 }
 

@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TranscriptsRouteImport } from './routes/transcripts'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MeetingsRouteImport } from './routes/meetings'
 import { Route as ModelsRouteRouteImport } from './routes/models/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -27,11 +26,6 @@ const TranscriptsRoute = TranscriptsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MeetingsRoute = MeetingsRouteImport.update({
@@ -69,7 +63,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/models': typeof ModelsRouteRouteWithChildren
   '/meetings': typeof MeetingsRoute
-  '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/transcripts': typeof TranscriptsRoute
   '/models/cloud': typeof ModelsCloudRoute
@@ -79,7 +72,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/meetings': typeof MeetingsRoute
-  '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/transcripts': typeof TranscriptsRoute
   '/models/cloud': typeof ModelsCloudRoute
@@ -91,7 +83,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/models': typeof ModelsRouteRouteWithChildren
   '/meetings': typeof MeetingsRoute
-  '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/transcripts': typeof TranscriptsRoute
   '/models/cloud': typeof ModelsCloudRoute
@@ -104,7 +95,6 @@ export interface FileRouteTypes {
     | '/'
     | '/models'
     | '/meetings'
-    | '/onboarding'
     | '/settings'
     | '/transcripts'
     | '/models/cloud'
@@ -114,7 +104,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/meetings'
-    | '/onboarding'
     | '/settings'
     | '/transcripts'
     | '/models/cloud'
@@ -125,7 +114,6 @@ export interface FileRouteTypes {
     | '/'
     | '/models'
     | '/meetings'
-    | '/onboarding'
     | '/settings'
     | '/transcripts'
     | '/models/cloud'
@@ -137,7 +125,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ModelsRouteRoute: typeof ModelsRouteRouteWithChildren
   MeetingsRoute: typeof MeetingsRoute
-  OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRoute
   TranscriptsRoute: typeof TranscriptsRoute
 }
@@ -156,13 +143,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/meetings': {
@@ -230,7 +210,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ModelsRouteRoute: ModelsRouteRouteWithChildren,
   MeetingsRoute: MeetingsRoute,
-  OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRoute,
   TranscriptsRoute: TranscriptsRoute,
 }

@@ -56,7 +56,6 @@ import type {
   OpenSystemSettingsResponse,
   PermissionsStatusResponse
 } from '../shared/permissions'
-import type { OnboardingMarkCompletedResponse, OnboardingStateResponse } from '../shared/onboarding'
 import type {
   GetMeetingInput,
   GetMeetingResponse,
@@ -153,10 +152,6 @@ declare global {
         requestMicrophone: () => Promise<MicrophoneRequestResponse>
         openAccessibilitySettings: () => Promise<OpenSystemSettingsResponse>
         openMicrophoneSettings: () => Promise<OpenSystemSettingsResponse>
-      }
-      onboarding: {
-        getState: () => Promise<OnboardingStateResponse>
-        markCompleted: () => Promise<OnboardingMarkCompletedResponse>
       }
     }
   }

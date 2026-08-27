@@ -31,24 +31,6 @@ const createWhisperModel = (
 })
 
 export const WHISPER_MODEL_DEFINITIONS = {
-  tiny: createWhisperModel('tiny', {
-    label: 'Whisper Tiny',
-    description: 'Fastest local model with basic accuracy.',
-    sizeMb: 75,
-    minimumSizeBytes: 60 * 1024 * 1024
-  }),
-  base: createWhisperModel('base', {
-    label: 'Whisper Base',
-    description: 'Balanced speed and quality for general dictation.',
-    sizeMb: 142,
-    minimumSizeBytes: 110 * 1024 * 1024
-  }),
-  small: createWhisperModel('small', {
-    label: 'Whisper Small',
-    description: 'Higher quality with moderate latency.',
-    sizeMb: 466,
-    minimumSizeBytes: 350 * 1024 * 1024
-  }),
   medium: createWhisperModel('medium', {
     label: 'Whisper Medium',
     description: 'High accuracy for longer or noisy recordings.',

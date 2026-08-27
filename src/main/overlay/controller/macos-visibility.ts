@@ -19,6 +19,7 @@ export class MacosOverlayVisibilityController {
   private delayedReassertTimer: NodeJS.Timeout | null = null
   private spaceReassertTimers: NodeJS.Timeout[] = []
   private lastVisibilityReassertAt = 0
+  private hasConfiguredFullScreenVisibility = false
 
   constructor(private readonly getWindow: WindowGetter) {}
 
@@ -47,7 +48,7 @@ export class MacosOverlayVisibilityController {
   }
 
   applyFullScreenVisibility(): void {
-    if (!isMacOS()) {
+    if (!isMacOS() || this.hasConfiguredFullScreenVisibility) {
       return
     }
 
@@ -57,9 +58,9 @@ export class MacosOverlayVisibilityController {
     }
 
     overlayWindow.setVisibleOnAllWorkspaces(true, {
-      visibleOnFullScreen: true,
-      skipTransformProcessType: true
+      visibleOnFullScreen: true
     })
+    this.hasConfiguredFullScreenVisibility = true
   }
 
   /**
@@ -78,7 +79,6 @@ export class MacosOverlayVisibilityController {
       return
     }
 
-    this.applyFullScreenVisibility()
     if (!overlayWindow.isVisible()) {
       return
     }
@@ -108,8 +108,6 @@ export class MacosOverlayVisibilityController {
     if (!isMacOS()) {
       return
     }
-
-    this.applyFullScreenVisibility()
   }
 
   /**

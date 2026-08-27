@@ -326,7 +326,6 @@ app.whenReady().then(async () => {
   )
 
   mainContext.ipc.storageIpc.registerIpcHandlers()
-  mainContext.ipc.onboardingIpc.registerIpcHandlers()
   mainContext.ipc.permissionsIpc.registerIpcHandlers()
   mainContext.ipc.shortcutsIpc.registerIpcHandlers()
   mainContext.ipc.recordingIpc.registerIpcHandlers()
@@ -334,9 +333,6 @@ app.whenReady().then(async () => {
   mainContext.ipc.reportingIpc.registerIpcHandlers()
   mainContext.ipc.pipelineIpc.registerIpcHandlers()
   mainContext.ipc.meetingsIpc.registerIpcHandlers()
-  await runStep('onboarding failed to initialize onboarding subsystem', () =>
-    mainContext.ipc.onboardingIpc.initialize()
-  )
   await runStep('shortcuts failed to initialize shortcuts subsystem', () =>
     mainContext.ipc.shortcutsIpc.initialize()
   )

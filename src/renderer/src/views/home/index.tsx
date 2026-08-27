@@ -5,16 +5,15 @@ import { ErrorBoundary } from 'react-error-boundary'
 import { HomeReportingFallback } from './components/home-reporting-fallback'
 import { HomeDailyOutputCard } from './components/home-daily-output-card'
 import { HomeDailyOutputCardSkeleton } from './components/home-daily-output-card-skeleton'
-import { HomeFirstRunEmptyState } from './components/home-first-run-empty-state'
 import { HomeMonthlyOutputCard } from './components/home-monthly-output-card'
 import { HomeMonthlyOutputCardSkeleton } from './components/home-monthly-output-card-skeleton'
+import { HomePermissionsNotice } from './components/home-permissions-notice'
 import { HomeReportingRangeTabs } from './components/home-reporting-range-tabs'
 import { HomeReportingSummaryRow } from './components/home-reporting-summary-row'
 import { HomeReportingSummaryRowSkeleton } from './components/home-reporting-summary-row-skeleton'
 import { HomeTopAppsCard } from './components/home-top-apps-card'
 import { HomeTopAppsCardSkeleton } from './components/home-top-apps-card-skeleton'
 import { type HomeReportingRange } from './constants/reporting-range'
-import { useHomeSummarySuspenseQuery } from './queries/reporting/use-home-summary-suspense-query'
 
 export function HomeView(): React.JSX.Element {
   const search = useSearch({ from: '/' })
@@ -65,6 +64,8 @@ export function HomeView(): React.JSX.Element {
               </div>
             </header>
 
+            <HomePermissionsNotice />
+
             <Suspense fallback={<HomeDashboardSkeleton />}>
               <HomeDashboardContent range={selectedRange} />
             </Suspense>
@@ -80,13 +81,6 @@ type HomeDashboardContentProps = {
 }
 
 function HomeDashboardContent({ range }: HomeDashboardContentProps): React.JSX.Element {
-  const summaryQuery = useHomeSummarySuspenseQuery({ range })
-  const isFirstRun = summaryQuery.data.lifetime.sessions <= 0
-
-  if (isFirstRun) {
-    return <HomeFirstRunEmptyState />
-  }
-
   return (
     <>
       <HomeReportingSummaryRow range={range} />
