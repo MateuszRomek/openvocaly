@@ -37,6 +37,7 @@ export function OverlayVisualizer(): React.JSX.Element {
   const targetBarsRef = useRef<number[]>(createBars(0))
   const renderedBarsRef = useRef<number[]>(createBars(0.08))
   const barElementsRef = useRef<Array<HTMLSpanElement | null>>(createBars(0).map(() => null))
+  const reducedMotionRef = useRef(false)
   const mountedRef = useRef(false)
   const hasMessageRef = useRef(false)
   const { message, manualPasteState } = useOverlayIpcState({
@@ -62,6 +63,20 @@ export function OverlayVisualizer(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const updateReducedMotion = (): void => {
+      reducedMotionRef.current = mediaQuery.matches
+    }
+
+    updateReducedMotion()
+    mediaQuery.addEventListener('change', updateReducedMotion)
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateReducedMotion)
+    }
+  }, [])
+
+  useEffect(() => {
     let frameId: number | null = null
 
     // Single animation loop applies interpolated bar styles on each frame.
@@ -72,7 +87,8 @@ export function OverlayVisualizer(): React.JSX.Element {
       }
 
       const phase = currentPhaseRef.current
-      const now = performance.now() / 1000
+      const reducedMotion = reducedMotionRef.current
+      const now = reducedMotion ? 0 : performance.now() / 1000
 
       if (hasMessageRef.current) {
         frameId = window.requestAnimationFrame(renderFrame)
@@ -86,16 +102,22 @@ export function OverlayVisualizer(): React.JSX.Element {
           continue
         }
 
-        const nextValue = resolveBarTarget(phase, index, now, targetBarsRef.current[index] ?? 0)
+        const nextValue = resolveBarTarget(
+          phase,
+          index,
+          now,
+          targetBarsRef.current[index] ?? 0,
+          reducedMotion
+        )
 
         const previous = renderedBarsRef.current[index] ?? 0.08
-        const smoothing = getBarSmoothing(phase)
+        const smoothing = getBarSmoothing(phase, previous, nextValue, reducedMotion)
         const current = previous + (nextValue - previous) * smoothing
         renderedBarsRef.current[index] = current
 
         const { scale, opacity } = toBarVisuals(current)
 
-        element.style.transform = `scaleY(${scale.toFixed(3)})`
+        element.style.transform = `translateZ(0) scaleY(${scale.toFixed(3)})`
         element.style.opacity = `${opacity.toFixed(3)}`
       }
 
@@ -148,11 +170,11 @@ export function OverlayVisualizer(): React.JSX.Element {
   return (
     <div className="pointer-events-none flex h-full w-full items-center justify-center select-none">
       <div
-        className="relative h-full w-full overflow-hidden rounded-full border border-border/60 bg-background/95"
+        className="relative h-full w-full overflow-hidden rounded-full border border-border/60 bg-background/95 shadow-[0_8px_24px_-18px_black] backdrop-blur-sm"
         role="presentation"
       >
         <div
-          className={`absolute inset-0 px-5 py-2.5 transition-opacity duration-180 ease-out ${
+          className={`absolute inset-0 px-3.5 py-1.5 transition-opacity duration-180 ease-out ${
             showMessageLayer ? 'opacity-0' : 'opacity-100'
           }`}
         >
@@ -163,8 +185,11 @@ export function OverlayVisualizer(): React.JSX.Element {
                 ref={(element) => {
                   barElementsRef.current[index] = element
                 }}
-                className="h-full min-h-[2px] w-[4px] origin-center rounded-full bg-foreground will-change-transform"
-                style={{ transform: `scaleY(${IDLE_SCALE_FLOOR})`, opacity: IDLE_OPACITY_BASE }}
+                className="h-full min-h-[2px] w-[3px] origin-center rounded-full bg-foreground will-change-transform"
+                style={{
+                  transform: `translateZ(0) scaleY(${IDLE_SCALE_FLOOR})`,
+                  opacity: IDLE_OPACITY_BASE
+                }}
               />
             ))}
           </div>

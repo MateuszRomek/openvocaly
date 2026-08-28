@@ -1,5 +1,6 @@
 import {
   DEFAULT_RECORDING_SOUND_CUE_SETTINGS,
+  normalizeRecordingSoundCueVolume,
   type RecordingFailureReason,
   type RecordingSoundCueSettings
 } from '../../../shared/recording'
@@ -12,7 +13,11 @@ export type CaptureStartFailure = {
 export const resolveCaptureSoundCueSettings = (
   input: RecordingSoundCueSettings | undefined
 ): RecordingSoundCueSettings => ({
-  enabled: input?.enabled ?? DEFAULT_RECORDING_SOUND_CUE_SETTINGS.enabled
+  enabled: input?.enabled ?? DEFAULT_RECORDING_SOUND_CUE_SETTINGS.enabled,
+  volume: normalizeRecordingSoundCueVolume(
+    input?.volume,
+    DEFAULT_RECORDING_SOUND_CUE_SETTINGS.volume
+  )
 })
 
 export const resolveSupportedCaptureMimeType = (): string | null => {

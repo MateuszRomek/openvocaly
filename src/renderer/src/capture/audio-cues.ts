@@ -1,4 +1,8 @@
-import type { RecordingCueKind, RecordingSoundCueSettings } from '../../../shared/recording'
+import {
+  normalizeRecordingSoundCueVolume,
+  type RecordingCueKind,
+  type RecordingSoundCueSettings
+} from '../../../shared/recording'
 import startCueAssetUrl from '../assets/audio/rec-start.wav'
 import cancelCueAssetUrl from '../assets/audio/rec-cancel.wav'
 import errorCueAssetUrl from '../assets/audio/rec-error.wav'
@@ -144,7 +148,12 @@ const ensureCueBufferReady = async (
   }
 }
 
-const playCueBuffer = (context: AudioContext, cue: RecordingCueKind, startAt: number): boolean => {
+const playCueBuffer = (
+  context: AudioContext,
+  cue: RecordingCueKind,
+  volume: number,
+  startAt: number
+): boolean => {
   const cueBuffer = cueBuffers[cue]
   if (!cueBuffer) {
     console.error(`[recording] cue buffer is unavailable: ${cue}`)
@@ -154,7 +163,7 @@ const playCueBuffer = (context: AudioContext, cue: RecordingCueKind, startAt: nu
   const source = context.createBufferSource()
   const gain = context.createGain()
   source.buffer = cueBuffer
-  gain.gain.setValueAtTime(CUE_GAIN_SCALE[cue], startAt)
+  gain.gain.setValueAtTime(CUE_GAIN_SCALE[cue] * volume, startAt)
   source.connect(gain)
   gain.connect(context.destination)
   source.start(startAt)
@@ -177,7 +186,8 @@ const markCuePlayed = (cue: RecordingCueKind): void => {
 
 const playCueWithContext = async (
   cue: RecordingCueKind,
-  context: AudioContext
+  context: AudioContext,
+  volume: number
 ): Promise<boolean> => {
   const now = Date.now()
   const isLikelyWarm = hasWarmOutput && now - lastOutputPrimeAtMs <= OUTPUT_WARM_TTL_MS
@@ -192,7 +202,7 @@ const playCueWithContext = async (
 
   await ensureCueBufferReady(context, cue)
 
-  const didPlay = playCueBuffer(context, cue, at)
+  const didPlay = playCueBuffer(context, cue, volume, at)
   if (didPlay) {
     markCuePlayed(cue)
   }
@@ -235,6 +245,11 @@ export const playRecordingCue = async (
     return
   }
 
+  const volume = normalizeRecordingSoundCueVolume(soundCues.volume)
+  if (volume <= 0) {
+    return
+  }
+
   const now = Date.now()
   if (cue === 'start' && now - lastStartCueAtMs < START_CUE_COOLDOWN_MS) {
     return
@@ -250,7 +265,7 @@ export const playRecordingCue = async (
       const isRunning = await ensureContextRunning(context)
 
       if (isRunning) {
-        const didPlay = await playCueWithContext(cue, context)
+        const didPlay = await playCueWithContext(cue, context, volume)
         if (didPlay) {
           return
         }

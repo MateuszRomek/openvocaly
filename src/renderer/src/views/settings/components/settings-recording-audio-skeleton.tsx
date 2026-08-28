@@ -13,7 +13,8 @@ export function SettingsRecordingAudioSkeleton(): React.JSX.Element {
               <Skeleton className="h-5 w-[30rem] max-w-full" />
               <Skeleton className="h-5 w-[24rem] max-w-full" />
             </div>
-            <div className="flex w-full justify-start sm:w-auto sm:justify-end">
+            <div className="flex w-full items-center gap-4 sm:w-auto sm:justify-end">
+              <Skeleton className="h-3 w-44 sm:w-48" />
               <Skeleton className="h-7 w-12 rounded-full" />
             </div>
           </div>

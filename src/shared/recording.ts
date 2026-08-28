@@ -9,8 +9,24 @@ export const RECORDING_CAPTURE_EVENT_CHANNEL = 'recording:capture-event'
 export const RECORDING_CAPTURE_READY_CHANNEL = 'recording:capture-ready'
 
 export const DEFAULT_RECORDING_SOUND_CUE_SETTINGS = {
-  enabled: true
+  enabled: true,
+  volume: 1
 } as const
+
+export const RECORDING_SOUND_CUE_VOLUME_MIN = 0
+export const RECORDING_SOUND_CUE_VOLUME_MAX = 1
+export const RECORDING_SOUND_CUE_VOLUME_STEP = 0.05
+
+export const normalizeRecordingSoundCueVolume = (
+  value: unknown,
+  fallback: number = DEFAULT_RECORDING_SOUND_CUE_SETTINGS.volume
+): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return fallback
+  }
+
+  return Math.min(RECORDING_SOUND_CUE_VOLUME_MAX, Math.max(RECORDING_SOUND_CUE_VOLUME_MIN, value))
+}
 
 export const DEFAULT_RECORDING_MICROPHONE_SETTINGS = {
   selectedDeviceId: null
@@ -34,6 +50,7 @@ export type RecordingOutputFormat = 'webm_opus'
 
 export type RecordingSoundCueSettings = {
   enabled: boolean
+  volume: number
 }
 
 export type RecordingMicrophoneSettings = {
