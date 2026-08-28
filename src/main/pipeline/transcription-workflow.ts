@@ -2,10 +2,11 @@ import type { RecordingArtifact } from '../../shared/recording'
 import { RecordingArtifactManager } from '../recording/storage/artifact-manager'
 import { createLogger } from '../helpers/logger'
 import type { RecordingServiceOrchestrator } from '../recording/service/orchestrator'
-import type { TranscriptionService } from '../transcription/service'
+import type { TranscriptionArtifactOptions, TranscriptionService } from '../transcription/service'
 
 export type TranscriptionWorkflowResult =
   | { type: 'complete'; transcriptText: string }
+  | { type: 'cancelled' }
   | {
       type: 'failed'
       message?: string
@@ -30,9 +31,14 @@ export class DictationTranscriptionWorkflow {
     private readonly artifactManager: RecordingArtifactManager = new RecordingArtifactManager()
   ) {}
 
-  async processArtifact(artifact: RecordingArtifact): Promise<TranscriptionWorkflowResult> {
-    const transcriptionResult =
-      await this.dependencies.transcriptionService.transcribeArtifact(artifact)
+  async processArtifact(
+    artifact: RecordingArtifact,
+    options: TranscriptionArtifactOptions = {}
+  ): Promise<TranscriptionWorkflowResult> {
+    const transcriptionResult = await this.dependencies.transcriptionService.transcribeArtifact(
+      artifact,
+      options
+    )
 
     const diagnostics = transcriptionResult.diagnostics
     this.logger.debug({
@@ -46,6 +52,21 @@ export class DictationTranscriptionWorkflow {
       failedChunkIndexes: diagnostics?.failedChunkIndexes,
       event: 'transcription_result'
     })
+
+    if (!transcriptionResult.ok && transcriptionResult.code === 'cancelled') {
+      try {
+        await this.artifactManager.markFailure(
+          artifact,
+          'aborted',
+          'Transcription cancelled.',
+          transcriptionResult.diagnostics
+        )
+      } catch (error) {
+        console.error('[pipeline] failed to persist cancelled transcription artifact', error)
+      }
+
+      return { type: 'cancelled' }
+    }
 
     if (transcriptionResult.ok) {
       if (diagnostics?.partial) {
