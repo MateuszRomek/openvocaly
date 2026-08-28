@@ -22,6 +22,7 @@ import { InitializableComponent } from '../../helpers/initializable-component'
 import { emitTranscriptAddedEvent } from '../../storage/transcript-events'
 import { macOSParakeetRuntime } from '../local/macos-asr-host/runtime'
 import { whisperRuntime } from '../local/whisper/runtime'
+import { qwenRuntime } from '../local/qwen/runtime'
 import {
   resolveDefaultTranscriptionModelId,
   resolveDefaultTranscriptionProviderId
@@ -45,7 +46,8 @@ type LocalRuntimeController = {
 
 const LOCAL_PROVIDER_IDS = new Set<LocalTranscriptionProviderId>([
   'local-parakeet',
-  'local-whisper'
+  'local-whisper',
+  'local-qwen'
 ])
 
 const LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeController> = {
@@ -66,6 +68,15 @@ const LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeControlle
     getRuntimeStatus: () => whisperRuntime.getRuntimeStatus(),
     startRuntime: (modelId) => whisperRuntime.startRuntime(modelId),
     stopRuntime: () => whisperRuntime.stopRuntime()
+  },
+  'local-qwen': {
+    listModels: () => qwenRuntime.listModels(),
+    downloadModel: (modelId, onProgress) => qwenRuntime.downloadModel(modelId, onProgress),
+    cancelDownload: () => qwenRuntime.cancelDownload(),
+    deleteModel: (modelId) => qwenRuntime.deleteModel(modelId),
+    getRuntimeStatus: () => qwenRuntime.getRuntimeStatus(),
+    startRuntime: (modelId) => qwenRuntime.startRuntime(modelId),
+    stopRuntime: () => qwenRuntime.stopRuntime()
   }
 }
 
@@ -166,7 +177,8 @@ export class TranscriptionService extends InitializableComponent {
   private async stopAllLocalRuntimesNow(): Promise<void> {
     const stopResults = await Promise.allSettled([
       macOSParakeetRuntime.stopRuntime(),
-      whisperRuntime.stopRuntime()
+      whisperRuntime.stopRuntime(),
+      qwenRuntime.stopRuntime()
     ])
 
     for (const result of stopResults) {

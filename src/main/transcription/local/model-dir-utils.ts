@@ -4,6 +4,7 @@ import { join } from 'node:path'
 const LOCAL_MODELS_DIR_NAME = 'local-models'
 const PARAKEET_MODELS_DIR_NAME = 'parakeet'
 const WHISPER_MODELS_DIR_NAME = 'whisper'
+const QWEN_MODELS_DIR_NAME = 'qwen'
 
 /**
  * Resolve durable app-owned storage. Models must survive cache eviction and
@@ -34,3 +35,10 @@ export const getWhisperModelsRootDir = (): string =>
  */
 export const getWhisperModelFilePath = (modelId: string): string =>
   join(getWhisperModelsRootDir(), `ggml-${modelId}.bin`)
+
+/** Returns the durable root for Qwen MLX model installations. */
+export const getQwenModelsRootDir = (): string =>
+  join(resolveLocalModelsDir(), QWEN_MODELS_DIR_NAME)
+
+/** Returns the app-owned directory for one fully downloaded Qwen MLX model. */
+export const getQwenModelDir = (modelId: string): string => join(getQwenModelsRootDir(), modelId)

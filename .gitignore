@@ -9,8 +9,10 @@ out
 resources/db/dev.sqlite
 resources/bin/macos-fast-paste
 resources/bin/macos-asr-host
+resources/qwen-mlx-host/
 resources/bin/FluidAudio_FluidAudio.bundle/
 plans/
 native/ptt-hook-macos/build/
 native/ptt-hook-macos/bin/
 native/macos-asr-host/.build/
+__pycache__/

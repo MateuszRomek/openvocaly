@@ -1,11 +1,13 @@
 import type { TranscriptionProviderId } from '../../../shared/transcription'
 import { localParakeetProvider } from './local-parakeet-provider'
 import { localWhisperProvider } from './local-whisper-provider'
+import { localQwenProvider } from './local-qwen-provider'
 import type { TranscriptionProviderDefinition } from './types'
 
 export const transcriptionProviders: TranscriptionProviderDefinition[] = [
   localParakeetProvider,
-  localWhisperProvider
+  localWhisperProvider,
+  localQwenProvider
 ]
 
 export const transcriptionProvidersById = new Map<

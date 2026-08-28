@@ -5,7 +5,7 @@ export const LOCAL_PARAKEET_MODEL_ID = LOCAL_MODELS.parakeet.id
 
 export type LocalTranscriptionProviderId = Extract<
   TranscriptionProviderId,
-  'local-parakeet' | 'local-whisper'
+  'local-parakeet' | 'local-whisper' | 'local-qwen'
 >
 
 export type LocalTranscriptionModelId = string

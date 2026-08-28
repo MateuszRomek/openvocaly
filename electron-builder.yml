@@ -12,6 +12,7 @@ files:
 asarUnpack:
   - resources/bin/**
   - resources/**
+  - resources/qwen-mlx-host/**
   - node_modules/ffmpeg-static/**/*
   - node_modules/@openvocaly/ptt-hook-macos/build/**/*.node
 win:
@@ -24,6 +25,7 @@ win:
     - '!resources/bin/*.so.*'
     - '!resources/bin/macos-fast-paste'
     - '!resources/bin/macos-asr-host'
+    - '!resources/qwen-mlx-host/**'
     - '!resources/bin/FluidAudio_FluidAudio.bundle/**'
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
@@ -61,6 +63,7 @@ linux:
     - '!resources/bin/*.dll'
     - '!resources/bin/macos-fast-paste'
     - '!resources/bin/macos-asr-host'
+    - '!resources/qwen-mlx-host/**'
     - '!resources/bin/FluidAudio_FluidAudio.bundle/**'
 appImage:
   artifactName: ${name}-${version}.${ext}

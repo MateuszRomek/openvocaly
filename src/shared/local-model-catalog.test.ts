@@ -20,12 +20,18 @@ describe('local model catalog', () => {
   it('keeps only the supported model for each local engine', () => {
     expect(getLocalModelsForEngine('macos-parakeet-coreml')).toEqual([LOCAL_MODELS.parakeet])
     expect(getLocalModelsForEngine('whisper-cpp')).toEqual([LOCAL_MODELS.whisperTurboQ5])
+    expect(getLocalModelsForEngine('qwen3-asr-mlx')).toEqual([
+      LOCAL_MODELS.qwen3Asr06b,
+      LOCAL_MODELS.qwen3Asr17b
+    ])
   })
 
-  it('does not reintroduce the legacy Whisper picker models', () => {
+  it('offers the intentionally small local-model picker', () => {
     expect(getSelectableLocalModels().map((model) => model.id)).toEqual([
       'parakeet-tdt-0.6b-v3-coreml',
-      'large-v3-turbo-q5_0'
+      'large-v3-turbo-q5_0',
+      'qwen3-asr-0.6b-mlx-bf16',
+      'qwen3-asr-1.7b-mlx-bf16'
     ])
   })
 

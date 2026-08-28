@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { MODELS_COPY } from '../constants/copy'
 import {
   LOCAL_PARAKEET_PROVIDER_ID,
+  LOCAL_QWEN_PROVIDER_ID,
   LOCAL_WHISPER_PROVIDER_ID,
   supportsLocalRuntimeActions
 } from '../constants/local-provider-capabilities'
@@ -59,6 +60,9 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
   const hasWhisperProvider = providerCatalog.providers.some(
     (provider) => provider.id === LOCAL_WHISPER_PROVIDER_ID
   )
+  const hasQwenProvider = providerCatalog.providers.some(
+    (provider) => provider.id === LOCAL_QWEN_PROVIDER_ID
+  )
 
   const parakeetModelsQuery = useLocalModelsQuery(LOCAL_PARAKEET_PROVIDER_ID, {
     enabled: hasParakeetProvider
@@ -66,12 +70,18 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
   const whisperModelsQuery = useLocalModelsQuery(LOCAL_WHISPER_PROVIDER_ID, {
     enabled: hasWhisperProvider
   })
+  const qwenModelsQuery = useLocalModelsQuery(LOCAL_QWEN_PROVIDER_ID, {
+    enabled: hasQwenProvider
+  })
 
   const parakeetRuntimeWarning = useLocalRuntimeWarning(LOCAL_PARAKEET_PROVIDER_ID, {
     enabled: hasParakeetProvider
   })
   const whisperRuntimeWarning = useLocalRuntimeWarning(LOCAL_WHISPER_PROVIDER_ID, {
     enabled: hasWhisperProvider
+  })
+  const qwenRuntimeWarning = useLocalRuntimeWarning(LOCAL_QWEN_PROVIDER_ID, {
+    enabled: hasQwenProvider
   })
 
   const localProviderActions = useLocalProviderActions()
@@ -82,9 +92,14 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
   >(
     () => ({
       [LOCAL_PARAKEET_PROVIDER_ID]: parakeetModelsQuery.data?.models,
-      [LOCAL_WHISPER_PROVIDER_ID]: whisperModelsQuery.data?.models
+      [LOCAL_WHISPER_PROVIDER_ID]: whisperModelsQuery.data?.models,
+      [LOCAL_QWEN_PROVIDER_ID]: qwenModelsQuery.data?.models
     }),
-    [parakeetModelsQuery.data?.models, whisperModelsQuery.data?.models]
+    [
+      parakeetModelsQuery.data?.models,
+      qwenModelsQuery.data?.models,
+      whisperModelsQuery.data?.models
+    ]
   )
 
   const runtimeWarningsByProviderId = useMemo<
@@ -92,9 +107,10 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
   >(
     () => ({
       [LOCAL_PARAKEET_PROVIDER_ID]: parakeetRuntimeWarning.warning,
-      [LOCAL_WHISPER_PROVIDER_ID]: whisperRuntimeWarning.warning
+      [LOCAL_WHISPER_PROVIDER_ID]: whisperRuntimeWarning.warning,
+      [LOCAL_QWEN_PROVIDER_ID]: qwenRuntimeWarning.warning
     }),
-    [parakeetRuntimeWarning.warning, whisperRuntimeWarning.warning]
+    [parakeetRuntimeWarning.warning, qwenRuntimeWarning.warning, whisperRuntimeWarning.warning]
   )
 
   const requestError = useMemo(() => {
@@ -106,7 +122,11 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
       return MODELS_COPY.errors.loadSettings
     }
 
-    for (const queryError of [parakeetModelsQuery.error, whisperModelsQuery.error]) {
+    for (const queryError of [
+      parakeetModelsQuery.error,
+      whisperModelsQuery.error,
+      qwenModelsQuery.error
+    ]) {
       const modelsError = toErrorMessage(queryError)
       if (modelsError) {
         return modelsError
@@ -115,7 +135,8 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
 
     for (const runtimeError of [
       parakeetRuntimeWarning.runtimeError,
-      whisperRuntimeWarning.runtimeError
+      whisperRuntimeWarning.runtimeError,
+      qwenRuntimeWarning.runtimeError
     ]) {
       const warningError = toErrorMessage(runtimeError)
       if (warningError) {
@@ -129,6 +150,8 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
     parakeetModelsQuery.error,
     parakeetRuntimeWarning.runtimeError,
     providerCatalog.hasError,
+    qwenModelsQuery.error,
+    qwenRuntimeWarning.runtimeError,
     whisperModelsQuery.error,
     whisperRuntimeWarning.runtimeError
   ])

@@ -1,4 +1,4 @@
-export type LocalAsrEngineId = 'macos-parakeet-coreml' | 'whisper-cpp'
+export type LocalAsrEngineId = 'macos-parakeet-coreml' | 'whisper-cpp' | 'qwen3-asr-mlx'
 
 export type LocalModelDefinition = {
   id: string
@@ -33,6 +33,24 @@ export const LOCAL_MODELS = {
     description: 'Smaller, high-quality multilingual fallback for Apple Silicon.',
     language: 'multilingual',
     sizeMb: 574,
+    isDefault: false
+  },
+  qwen3Asr06b: {
+    id: 'qwen3-asr-0.6b-mlx-bf16',
+    engineId: 'qwen3-asr-mlx',
+    label: 'Qwen3-ASR 0.6B',
+    description: 'Fast Qwen dictation for Apple Silicon. Uses about 1.6 GB on disk.',
+    language: 'multilingual',
+    sizeMb: 1570,
+    isDefault: false
+  },
+  qwen3Asr17b: {
+    id: 'qwen3-asr-1.7b-mlx-bf16',
+    engineId: 'qwen3-asr-mlx',
+    label: 'Qwen3-ASR 1.7B',
+    description: 'Higher-accuracy Qwen dictation for Apple Silicon. Uses about 4.1 GB on disk.',
+    language: 'multilingual',
+    sizeMb: 4080,
     isDefault: false
   }
 } as const satisfies Record<string, LocalModelDefinition>

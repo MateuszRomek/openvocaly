@@ -14,7 +14,8 @@ type LocalProviderSectionProps = {
 
 const LOCAL_PROVIDER_DISPLAY_LABELS: Partial<Record<TranscriptionProviderId, string>> = {
   'local-parakeet': 'NVIDIA Parakeet',
-  'local-whisper': 'Whisper'
+  'local-whisper': 'Whisper',
+  'local-qwen': 'Qwen3-ASR'
 }
 
 export function LocalProviderSection({
