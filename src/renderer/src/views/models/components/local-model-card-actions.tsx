@@ -18,16 +18,14 @@ import {
   AlertDialogTitle
 } from '@renderer/ui/alert-dialog'
 import { Button } from '@renderer/ui/button'
+import { Badge } from '@renderer/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@renderer/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/ui/tooltip'
 import { useLocalProviderSectionContext } from '../contexts/local-provider-section-context'
-import { getLocalModelCardActionsCount } from '../helpers/local-model-card-actions'
-import { useMediaQuery } from '../hooks/use-media-query'
 import type { LocalModelId } from '../types/local-models'
 
 type LocalModelCardActionsProps = {
@@ -45,24 +43,14 @@ export function LocalModelCardActions({
 }: LocalModelCardActionsProps): JSX.Element {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const section = useLocalProviderSectionContext()
-  const compactActions = useMediaQuery('(max-width: 830px)')
   const isSelectionMutating = section.isSelectionMutating
+  const isThisModelSelectionMutating = section.isSelectionMutatingModel(modelId)
   const supportsRuntimeActions = section.supportsRuntimeActions
   const isDownloadLockedByAnotherModel = section.isAnyDownloadActive && !isDownloading
-
-  const actionsCount = getLocalModelCardActionsCount({
-    isDownloaded,
-    isSelected,
-    isDownloading
-  })
-  const showOverflowMenu = supportsRuntimeActions && compactActions && actionsCount > 1
+  const hasDownloadError = section.hasModelDownloadError(modelId)
 
   const handleSelect = (): void => {
     section.selectModel(modelId)
-  }
-
-  const handleDelete = (): void => {
-    setIsDeleteDialogOpen(true)
   }
 
   const handleConfirmDelete = (): void => {
@@ -82,125 +70,101 @@ export function LocalModelCardActions({
   }
 
   if (!supportsRuntimeActions) {
-    return (
-      <div className="self-center text-sm text-muted-foreground">
-        Provider support is coming soon.
-      </div>
-    )
+    return <span className="text-muted-foreground text-xs">Available soon</span>
   }
 
   return (
     <>
-      {showOverflowMenu ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button type="button" variant="secondary" size="icon" className="size-8" />}
-            disabled={isSelectionMutating}
+      <div className="flex shrink-0 items-center justify-end gap-1.5 self-start md:self-center">
+        {isSelected ? (
+          <Badge
+            variant="success"
+            size="md"
+            className="h-8 px-3 text-xs font-semibold"
+            aria-label="Active transcription model"
           >
-            <MoreHorizontalIcon className="size-4" />
-            <span className="sr-only">Model actions</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="bottom" className="w-44">
-            {isDownloaded ? (
-              <>
-                {!isSelected ? (
-                  <DropdownMenuItem onClick={handleSelect}>
-                    <CheckCircle2Icon className="size-4" />
-                    Set as active
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem variant="destructive" onClick={handleDelete}>
-                  <Trash2Icon className="size-4" />
-                  Delete
-                </DropdownMenuItem>
-              </>
-            ) : (
-              <>
-                {!isDownloading ? (
-                  <DropdownMenuItem
-                    onClick={handleDownload}
-                    disabled={isDownloadLockedByAnotherModel}
-                  >
-                    <DownloadIcon className="size-4" />
-                    Download
-                  </DropdownMenuItem>
-                ) : null}
-                {isDownloading ? (
-                  <DropdownMenuItem onClick={handleCancel}>Cancel</DropdownMenuItem>
-                ) : null}
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : isDownloaded ? (
-        <div className="flex items-center gap-2 self-center">
-          {!isSelected ? (
-            <Button
-              type="button"
-              variant="default"
-              disabled={isSelectionMutating}
-              onClick={handleSelect}
-            >
-              Set as active
-            </Button>
-          ) : null}
-          <Button type="button" variant="destructive" onClick={handleDelete}>
-            <Trash2Icon className="size-4" />
-            <span>Delete</span>
+            <CheckCircle2Icon aria-hidden="true" />
+            Active
+          </Badge>
+        ) : null}
+
+        {isDownloaded && !isSelected ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isSelectionMutating}
+            aria-busy={isThisModelSelectionMutating}
+            className={`min-w-24${
+              isSelectionMutating && !isThisModelSelectionMutating ? ' disabled:opacity-100' : ''
+            }`}
+            onClick={handleSelect}
+          >
+            {isThisModelSelectionMutating ? (
+              <Loader2Icon
+                className="size-3.5 animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+            ) : null}
+            {isThisModelSelectionMutating ? 'Setting…' : 'Set active'}
           </Button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 self-center">
-          {isDownloadLockedByAnotherModel ? (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span
-                    tabIndex={0}
-                    role="button"
-                    aria-disabled="true"
-                    aria-label="Download unavailable while another model download is active"
-                    className="inline-flex"
-                  />
-                }
-              >
-                <Button type="button" variant="secondary" disabled className="pointer-events-none">
-                  <DownloadIcon className="mr-1.5 size-4" />
-                  Download
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="center">
-                Another model is downloading. Finish or cancel it first.
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={isDownloading}
-              onClick={handleDownload}
+        ) : null}
+
+        {!isDownloaded && !isDownloading ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={isDownloadLockedByAnotherModel}
+            title={
+              isDownloadLockedByAnotherModel
+                ? 'Another model is downloading. Finish or cancel it first.'
+                : undefined
+            }
+            onClick={handleDownload}
+          >
+            <DownloadIcon className="size-3.5" aria-hidden="true" />
+            {hasDownloadError ? 'Retry' : 'Download'}
+          </Button>
+        ) : null}
+
+        {isDownloading ? (
+          <Button type="button" variant="outline" size="sm" onClick={handleCancel}>
+            Cancel
+          </Button>
+        ) : null}
+
+        {isDownloaded ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 disabled:opacity-100"
+                  aria-label={`More actions for ${modelId}`}
+                  disabled={isSelectionMutating}
+                />
+              }
             >
-              {isDownloading ? (
-                <Loader2Icon className="mr-1.5 size-4 animate-spin" />
-              ) : (
-                <DownloadIcon className="mr-1.5 size-4" />
-              )}
-              Download
-            </Button>
-          )}
-          {isDownloading ? (
-            <Button type="button" variant="secondary" onClick={handleCancel}>
-              Cancel
-            </Button>
-          ) : null}
-        </div>
-      )}
+              <MoreHorizontalIcon className="size-4" aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="bottom" className="w-36">
+              <DropdownMenuItem variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+                <Trash2Icon className="size-4" aria-hidden="true" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
             <AlertDialogMedia>
-              <Trash2Icon />
+              <Trash2Icon aria-hidden="true" />
             </AlertDialogMedia>
             <AlertDialogTitle>Delete local model?</AlertDialogTitle>
             <AlertDialogDescription>
