@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { TranscriptionProviderId } from '../hooks/use-transcription-provider-catalog'
+import type { LocalModelSelectionTarget } from '../helpers/local-model-selection'
 import type { LocalModelDownloadProgress } from '../types/local-models'
 
 export type LocalModelsControllerValue = {
@@ -10,6 +11,7 @@ export type LocalModelsControllerValue = {
   } | null
   downloadProgress: LocalModelDownloadProgress | null
   isSelectionMutating: boolean
+  selectionMutationTarget: LocalModelSelectionTarget | null
   selectModel: (providerId: TranscriptionProviderId, modelId: string) => void
   downloadModel: (providerId: TranscriptionProviderId, modelId: string) => Promise<void>
   cancelDownload: (providerId: TranscriptionProviderId) => Promise<void>

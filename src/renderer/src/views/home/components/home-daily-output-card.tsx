@@ -32,12 +32,17 @@ export function HomeDailyOutputCard({ range }: HomeDailyOutputCardProps): React.
   return (
     <Card className="bg-card/95 ring-foreground/8">
       <CardHeader className="border-border/50 border-b">
-        <CardTitle>Daily output</CardTitle>
+        <CardTitle>Daily Output</CardTitle>
         <CardDescription>Words dictated each day.</CardDescription>
       </CardHeader>
       <CardContent className="pt-4">
         {hasActivity ? (
-          <ChartContainer config={dailyOutputChartConfig} className="h-64 w-full aspect-auto">
+          <ChartContainer
+            config={dailyOutputChartConfig}
+            className="h-64 w-full aspect-auto"
+            role="img"
+            aria-label="Area chart showing words dictated each day in the selected range."
+          >
             <AreaChart data={points} margin={{ left: 12, right: 12, top: 8 }}>
               <CartesianGrid vertical={false} />
               <XAxis

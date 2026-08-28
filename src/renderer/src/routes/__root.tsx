@@ -38,10 +38,10 @@ const RootLayout = (): React.JSX.Element => {
   return (
     <SidebarProvider className="h-svh overflow-hidden">
       <AppSidebar />
-      <SidebarInset className="bg-background/80 min-h-0">
-        <main className="app-scroll-area min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex min-h-full w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-6">
-            <div className="flex w-full items-start justify-center">
+      <SidebarInset className="bg-background/80 min-h-0 min-w-0">
+        <main className="app-scroll-area min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="mx-auto flex min-h-full w-full min-w-0 max-w-5xl px-4 py-4 sm:px-6 sm:py-6">
+            <div className="flex min-w-0 w-full items-start justify-center">
               <Outlet />
             </div>
           </div>

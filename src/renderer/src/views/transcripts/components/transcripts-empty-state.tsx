@@ -25,7 +25,7 @@ export function TranscriptsEmptyState({
     : TRANSCRIPTS_COPY.empty.description
 
   return (
-    <Empty className="border-border/70 min-h-[16rem] rounded-2xl border bg-card/70">
+    <Empty className="border-border/70 min-h-[18rem] rounded-2xl border bg-card/70">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <InboxIcon className="size-4" />

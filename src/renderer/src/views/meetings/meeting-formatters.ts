@@ -2,7 +2,7 @@ import type { MeetingStatus } from '../../../../shared/meetings'
 
 export const formatMeetingDuration = (durationMs: number | null): string => {
   if (!durationMs) {
-    return 'Preparing audio'
+    return 'Preparing audio…'
   }
 
   if (durationMs < 60_000) {
@@ -36,6 +36,12 @@ export const formatMeetingDate = (timestamp: number): string =>
     minute: '2-digit'
   }).format(timestamp)
 
+export const formatMeetingListDate = (timestamp: number): string =>
+  new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric'
+  }).format(timestamp)
+
 export const meetingStatusLabel: Record<MeetingStatus, string> = {
   queued: 'Queued',
   processing: 'Transcribing',
@@ -43,5 +49,15 @@ export const meetingStatusLabel: Record<MeetingStatus, string> = {
   completed: 'Ready',
   partial: 'Partial',
   failed: 'Failed',
-  cancelled: 'Cancelled'
+  cancelled: 'Paused'
+}
+
+export const meetingStatusDescription: Record<MeetingStatus, string> = {
+  queued: 'Waiting for local transcription',
+  processing: 'Transcribing on this Mac',
+  cancelling: 'Finishing the current chunk',
+  completed: 'Transcript ready to read',
+  partial: 'Transcript saved with gaps',
+  failed: 'Transcription needs attention',
+  cancelled: 'Paused — resume anytime'
 }

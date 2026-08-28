@@ -6,10 +6,12 @@ import { useDownloadLocalModelMutation } from '@renderer/queries/transcription/u
 import type { TranscriptionProviderId } from './use-transcription-provider-catalog'
 import type { LocalModelId } from '../types/local-models'
 import { supportsLocalRuntimeActions } from '../constants/local-provider-capabilities'
+import type { LocalModelSelectionTarget } from '../helpers/local-model-selection'
 
 export type UseLocalProviderActionsResult = {
   actionError: string | null
   isSelectionMutating: boolean
+  selectionMutationTarget: LocalModelSelectionTarget | null
   selectModel: (providerId: TranscriptionProviderId, modelId: LocalModelId) => void
   downloadModel: (providerId: TranscriptionProviderId, modelId: LocalModelId) => Promise<void>
   cancelDownload: (providerId: TranscriptionProviderId) => Promise<void>
@@ -32,6 +34,16 @@ export function useLocalProviderActions(): UseLocalProviderActionsResult {
   const downloadMutation = useDownloadLocalModelMutation()
   const cancelDownloadMutation = useCancelLocalModelDownloadMutation()
   const deleteMutation = useDeleteLocalModelMutation()
+  const mutationVariables = updatePreferencesMutation.variables
+  const selectionMutationTarget: LocalModelSelectionTarget | null =
+    updatePreferencesMutation.isPending &&
+    typeof mutationVariables?.providerId === 'string' &&
+    typeof mutationVariables.modelId === 'string'
+      ? {
+          providerId: mutationVariables.providerId,
+          modelId: mutationVariables.modelId
+        }
+      : null
 
   const selectModel = useCallback(
     (providerId: TranscriptionProviderId, modelId: LocalModelId): void => {
@@ -124,6 +136,7 @@ export function useLocalProviderActions(): UseLocalProviderActionsResult {
   return {
     actionError,
     isSelectionMutating: updatePreferencesMutation.isPending,
+    selectionMutationTarget,
     selectModel,
     downloadModel,
     cancelDownload,

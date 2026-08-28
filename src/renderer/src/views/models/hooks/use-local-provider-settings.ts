@@ -7,6 +7,7 @@ import {
   supportsLocalRuntimeActions
 } from '../constants/local-provider-capabilities'
 import { getLocalProviderModels } from '../helpers/local-provider-models'
+import type { LocalModelSelectionTarget } from '../helpers/local-model-selection'
 import { useLocalModelDownloadProgress } from './use-local-model-download-progress'
 import { useLocalProviderActions } from './use-local-provider-actions'
 import {
@@ -31,6 +32,7 @@ export type LocalProviderSection = {
 }
 
 type UseLocalProviderSettingsResult = {
+  isLoading: boolean
   requestError: string | null
   selectedModelId: string
   activeDownload: {
@@ -39,6 +41,7 @@ type UseLocalProviderSettingsResult = {
   } | null
   downloadProgress: LocalModelDownloadProgress | null
   isSelectionMutating: boolean
+  selectionMutationTarget: LocalModelSelectionTarget | null
   providerSections: LocalProviderSection[]
   selectModel: (providerId: TranscriptionProviderId, modelId: string) => void
   downloadModel: (providerId: TranscriptionProviderId, modelId: string) => Promise<void>
@@ -86,6 +89,12 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
 
   const localProviderActions = useLocalProviderActions()
   const { activeDownload, downloadProgress } = useLocalModelDownloadProgress()
+
+  const isLoading =
+    providerCatalog.isLoading ||
+    (hasParakeetProvider && parakeetModelsQuery.isPending) ||
+    (hasWhisperProvider && whisperModelsQuery.isPending) ||
+    (hasQwenProvider && qwenModelsQuery.isPending)
 
   const managedModelsByProviderId = useMemo<
     Partial<Record<TranscriptionProviderId, LocalModelInfo[] | undefined>>
@@ -181,11 +190,13 @@ export function useLocalProviderSettings(): UseLocalProviderSettingsResult {
   ])
 
   return {
+    isLoading,
     requestError,
     selectedModelId: providerCatalog.preferredModelId,
     activeDownload,
     downloadProgress,
     isSelectionMutating: localProviderActions.isSelectionMutating,
+    selectionMutationTarget: localProviderActions.selectionMutationTarget,
     providerSections,
     selectModel: localProviderActions.selectModel,
     downloadModel: localProviderActions.downloadModel,

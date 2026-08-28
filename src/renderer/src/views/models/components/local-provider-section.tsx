@@ -1,8 +1,7 @@
 import type { JSX } from 'react'
-import { AlertTriangleIcon, Clock3Icon } from 'lucide-react'
+import { AlertTriangleIcon } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/ui/alert'
 import type { TranscriptionProviderId } from '../hooks/use-transcription-provider-catalog'
-import { Badge } from '@renderer/ui/badge'
 import { LocalProviderSectionProvider } from '../contexts/local-provider-section-provider'
 import type { LocalProviderSection as LocalProviderSectionData } from '../hooks/use-local-provider-settings'
 import { LocalModelCard } from './local-model-card'
@@ -25,25 +24,26 @@ export function LocalProviderSection({
   const { models, runtimeWarning, provider } = providerSection
   const isProviderAvailable = provider.availability === 'available'
   const providerLabel = LOCAL_PROVIDER_DISPLAY_LABELS[provider.id] ?? provider.label
+  const modelCountLabel = `${models.length} ${models.length === 1 ? 'model' : 'models'}`
 
   return (
     <section className={isLastSection ? '' : 'border-border border-b'}>
-      <header className="bg-muted/30 border-border/70 flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h4 className="text-sm font-semibold">{providerLabel}</h4>
-          {!isProviderAvailable ? (
-            <Badge variant="secondary" className="h-5 px-2 text-[11px]">
-              <Clock3Icon className="size-3.5" />
-              Coming soon
-            </Badge>
-          ) : null}
+      <header className="border-border/70 flex flex-wrap items-center justify-between gap-3 border-b bg-muted/30 px-5 py-3">
+        <div className="flex min-w-0 items-baseline gap-3">
+          <h4 className="truncate text-sm font-semibold">{providerLabel}</h4>
+          <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+            {modelCountLabel}
+          </span>
         </div>
+        {!isProviderAvailable ? (
+          <span className="text-muted-foreground text-xs">Available soon</span>
+        ) : null}
       </header>
 
       {runtimeWarning ? (
-        <div className="border-border/70 border-b px-5 py-4">
+        <div className="border-border/70 border-b px-5 py-3">
           <Alert variant="destructive">
-            <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
+            <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <AlertTitle>Runtime unavailable</AlertTitle>
             <AlertDescription>{runtimeWarning}</AlertDescription>
           </Alert>

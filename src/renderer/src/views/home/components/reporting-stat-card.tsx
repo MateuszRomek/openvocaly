@@ -26,7 +26,7 @@ export function ReportingStatCard({
           </CardAction>
         ) : null}
         <CardDescription>{title}</CardDescription>
-        <CardTitle className="text-2xl tracking-tight">{value}</CardTitle>
+        <CardTitle className="text-2xl tracking-tight tabular-nums">{value}</CardTitle>
         <p className="text-muted-foreground text-xs">{description}</p>
       </CardHeader>
     </Card>

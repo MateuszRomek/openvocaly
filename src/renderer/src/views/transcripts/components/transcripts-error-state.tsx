@@ -16,15 +16,13 @@ type TranscriptsErrorStateProps = {
 
 export function TranscriptsErrorState({ onRetry }: TranscriptsErrorStateProps): React.JSX.Element {
   return (
-    <Empty className="border-border/70 min-h-[16rem] rounded-2xl border bg-card/70">
+    <Empty role="alert" className="border-border/70 min-h-[18rem] rounded-2xl border bg-card/70">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <AlertTriangleIcon className="size-4" />
         </EmptyMedia>
         <EmptyTitle>{TRANSCRIPTS_COPY.errors.load}</EmptyTitle>
-        <EmptyDescription>
-          We could not load transcript history. Check again in a moment.
-        </EmptyDescription>
+        <EmptyDescription>{TRANSCRIPTS_COPY.errors.description}</EmptyDescription>
       </EmptyHeader>
 
       <EmptyContent>

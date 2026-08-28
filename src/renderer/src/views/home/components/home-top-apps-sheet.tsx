@@ -27,7 +27,7 @@ export function HomeTopAppsSheet({ appDetails }: HomeTopAppsSheetProps): React.J
       </CardAction>
       <SheetContent side="right">
         <SheetHeader>
-          <SheetTitle>All apps</SheetTitle>
+          <SheetTitle>All Apps</SheetTitle>
           <SheetDescription>Full breakdown for the selected time range.</SheetDescription>
         </SheetHeader>
 

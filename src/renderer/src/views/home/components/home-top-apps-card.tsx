@@ -38,13 +38,18 @@ export function HomeTopAppsCard({ range }: HomeTopAppsCardProps): React.JSX.Elem
     <Card className="bg-card/95 ring-foreground/8">
       <CardHeader className="border-border/50 border-b">
         {hasActivity ? <HomeTopAppsSheet appDetails={appDetails} /> : null}
-        <CardTitle>Top apps</CardTitle>
+        <CardTitle>Top Apps</CardTitle>
         <CardDescription>Top 5 apps by word count.</CardDescription>
       </CardHeader>
       <CardContent className="pt-4">
         {hasActivity ? (
           <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
-            <ChartContainer config={chartConfig} className="mx-auto h-44 w-44 aspect-auto">
+            <ChartContainer
+              config={chartConfig}
+              className="mx-auto h-44 w-44 aspect-auto"
+              role="img"
+              aria-label="Donut chart showing the top apps by dictated word count."
+            >
               <PieChart>
                 <ChartTooltip content={<ChartTooltipContent hideLabel />} />
                 <Pie

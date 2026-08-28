@@ -1,6 +1,7 @@
 import { useCallback, useMemo, type JSX, type ReactNode } from 'react'
 import type { LocalProviderSection } from '../hooks/use-local-provider-settings'
 import { useLocalModelsControllerContext } from './local-models-controller-context'
+import { isLocalModelSelectionPending } from '../helpers/local-model-selection'
 import {
   LocalProviderSectionContext,
   type LocalProviderSectionContextValue
@@ -24,12 +25,26 @@ export function LocalProviderSectionProvider({
     [controller.selectedModelId, isProviderSelected]
   )
 
+  const isSelectionMutatingModel = useCallback(
+    (modelId: string): boolean =>
+      isLocalModelSelectionPending(controller.selectionMutationTarget, providerId, modelId),
+    [controller.selectionMutationTarget, providerId]
+  )
+
   const isModelDownloading = useCallback(
     (modelId: string): boolean =>
       controller.activeDownload !== null &&
       controller.activeDownload.providerId === providerId &&
       controller.activeDownload.modelId === modelId,
     [controller.activeDownload, providerId]
+  )
+
+  const hasModelDownloadError = useCallback(
+    (modelId: string): boolean =>
+      controller.downloadProgress?.providerId === providerId &&
+      controller.downloadProgress.modelId === modelId &&
+      controller.downloadProgress.state === 'error',
+    [controller.downloadProgress, providerId]
   )
 
   const selectModel = useCallback(
@@ -60,11 +75,13 @@ export function LocalProviderSectionProvider({
   const contextValue = useMemo<LocalProviderSectionContextValue>(
     () => ({
       isSelectionMutating: controller.isSelectionMutating,
+      isSelectionMutatingModel,
       supportsRuntimeActions: providerSection.supportsRuntimeActions,
       isAnyDownloadActive: controller.activeDownload !== null,
       downloadProgress: controller.downloadProgress,
       isSelectedModel,
       isModelDownloading,
+      hasModelDownloadError,
       selectModel,
       downloadModel,
       cancelDownload,
@@ -77,8 +94,10 @@ export function LocalProviderSectionProvider({
       controller.activeDownload,
       deleteModel,
       downloadModel,
+      hasModelDownloadError,
       isModelDownloading,
       isSelectedModel,
+      isSelectionMutatingModel,
       providerSection.supportsRuntimeActions,
       selectModel
     ]

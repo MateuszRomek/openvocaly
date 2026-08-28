@@ -1,12 +1,53 @@
-import { format } from 'date-fns'
+import { isToday, isYesterday } from 'date-fns'
 import { TRANSCRIPT_PREVIEW_LENGTH } from '../constants/transcripts'
 import { TRANSCRIPTS_COPY } from '../constants/copy'
 
 const transcriptCountFormatter = new Intl.NumberFormat('en-US')
+const transcriptLocale =
+  typeof navigator === 'undefined' ? undefined : (navigator.languages?.[0] ?? navigator.language)
+const transcriptFullDateFormatter = new Intl.DateTimeFormat(transcriptLocale, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric'
+})
+const transcriptTimeFormatter = new Intl.DateTimeFormat(transcriptLocale, {
+  hour: '2-digit',
+  minute: '2-digit'
+})
+const transcriptDateGroupFormatter = new Intl.DateTimeFormat(transcriptLocale, {
+  weekday: 'long',
+  month: 'short',
+  day: 'numeric'
+})
 
-export function formatTranscriptTimestamp(createdAt: number): string {
+export function formatTranscriptTime(createdAt: number): string {
+  return transcriptTimeFormatter.format(new Date(createdAt))
+}
+
+export function formatTranscriptDateTime(createdAt: number): string {
   const createdDate = new Date(createdAt)
-  return `${format(createdDate, 'MMM d')} · ${format(createdDate, 'HH:mm')}`
+  return `${transcriptFullDateFormatter.format(createdDate)} · ${transcriptTimeFormatter.format(createdDate)}`
+}
+
+export function formatTranscriptDateKey(createdAt: number): string {
+  const createdDate = new Date(createdAt)
+  const month = String(createdDate.getMonth() + 1).padStart(2, '0')
+  const day = String(createdDate.getDate()).padStart(2, '0')
+  return `${createdDate.getFullYear()}-${month}-${day}`
+}
+
+export function formatTranscriptDateGroup(createdAt: number): string {
+  const createdDate = new Date(createdAt)
+
+  if (isToday(createdDate)) {
+    return 'Today'
+  }
+
+  if (isYesterday(createdDate)) {
+    return 'Yesterday'
+  }
+
+  return transcriptDateGroupFormatter.format(createdDate)
 }
 
 export function formatTranscriptDuration(durationMs: number | null): string {
@@ -59,7 +100,8 @@ export function formatTranscriptPreview(
   text: string,
   maxLength: number = TRANSCRIPT_PREVIEW_LENGTH
 ): string {
-  const normalized = text.replace(/\s+/g, ' ').trim()
+  const firstLine = text.split(/\r?\n/).find((line) => line.trim().length > 0) ?? ''
+  const normalized = firstLine.replace(/\s+/g, ' ').trim()
 
   if (normalized.length <= maxLength) {
     return normalized
