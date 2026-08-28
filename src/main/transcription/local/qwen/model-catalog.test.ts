@@ -8,9 +8,7 @@ describe('Qwen MLX model catalog', () => {
     for (const modelId of getQwenModelIds()) {
       const model = getQwenModelDefinition(modelId)
       expect(model.revision).toMatch(/^[a-f0-9]{40}$/)
-      expect(model.files.find((file) => file.name === 'model.safetensors')?.sha256).toMatch(
-        /^[a-f0-9]{64}$/
-      )
+      expect(model.files.every((file) => /^[a-f0-9]{64}$/.test(file.sha256))).toBe(true)
     }
   })
 

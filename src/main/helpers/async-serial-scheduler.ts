@@ -4,9 +4,18 @@
  */
 export class AsyncSerialScheduler {
   private tail: Promise<void> = Promise.resolve()
+  private pendingTaskCount = 0
+
+  /** Reports whether a submitted task is running or waiting for this scheduler. */
+  isBusy(): boolean {
+    return this.pendingTaskCount > 0
+  }
 
   run<T>(task: () => Promise<T>): Promise<T> {
-    const runTask = this.tail.then(task, task)
+    this.pendingTaskCount += 1
+    const runTask = this.tail.then(task, task).finally(() => {
+      this.pendingTaskCount -= 1
+    })
 
     this.tail = runTask.then(
       () => undefined,

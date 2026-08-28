@@ -58,7 +58,7 @@ export class QwenModelManager {
         if (statSync(filePath).size !== file.sizeBytes) {
           return false
         }
-        if (file.sha256 && (await hashFile(filePath)) !== file.sha256) {
+        if ((await hashFile(filePath)) !== file.sha256) {
           return false
         }
       } catch {
@@ -188,7 +188,7 @@ export class QwenModelManager {
         if (statSync(destinationPath).size !== file.sizeBytes) {
           throw new Error(`Downloaded ${file.name} has an unexpected size.`)
         }
-        if (file.sha256 && (await hashFile(destinationPath)) !== file.sha256) {
+        if ((await hashFile(destinationPath)) !== file.sha256) {
           throw new Error(`Downloaded ${file.name} failed its checksum validation.`)
         }
         completedBytes += file.sizeBytes

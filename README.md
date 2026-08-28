@@ -19,6 +19,7 @@ If you are interested in the idea, open an issue or discussion on GitHub and we 
 - Node.js 22+ (see `.nvmrc`)
 - npm 10+
 - Git
+- Python 3 with `venv` and `pip` (builds the bundled Qwen MLX host)
 - internet connection for the first runtime and model download
 
 ### macOS Requirements
