@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import type { Readable, Writable } from 'node:stream'
+import { getReducedPriorityInvocation } from '../../../helpers/process'
 import { resolveQwenMlxHostPath } from './runtime-discovery'
 
 type HostCommand = 'warm' | 'transcribe' | 'unload'
@@ -25,6 +26,7 @@ type PendingRequest = {
   resolve: (response: HostResponse) => void
   reject: (error: Error) => void
   timeout: NodeJS.Timeout
+  removeAbortListener?: () => void
 }
 
 export type QwenMlxHostTranscription = {
@@ -34,7 +36,7 @@ export type QwenMlxHostTranscription = {
 }
 
 const WARM_TIMEOUT_MS = 3 * 60 * 1000
-const TRANSCRIBE_TIMEOUT_MS = 5 * 60 * 1000
+const TRANSCRIBE_TIMEOUT_MS = 60 * 60 * 1000
 
 /**
  * Owns a single app-bundled MLX process. Its protocol is deliberately narrow
@@ -59,11 +61,16 @@ export class QwenMlxHostClient {
     await this.request('warm', { modelDirectory }, WARM_TIMEOUT_MS)
   }
 
-  async transcribe(modelDirectory: string, filePath: string): Promise<QwenMlxHostTranscription> {
+  async transcribe(
+    modelDirectory: string,
+    filePath: string,
+    signal?: AbortSignal
+  ): Promise<QwenMlxHostTranscription> {
     const response = await this.request(
       'transcribe',
       { modelDirectory, filePath },
-      TRANSCRIBE_TIMEOUT_MS
+      TRANSCRIBE_TIMEOUT_MS,
+      signal
     )
     return {
       text: response.text?.trim() ?? '',
@@ -101,9 +108,16 @@ export class QwenMlxHostClient {
   private async request(
     command: HostCommand,
     params: Pick<HostRequest, 'modelDirectory' | 'filePath'>,
-    timeoutMs: number
+    timeoutMs: number,
+    signal?: AbortSignal
   ): Promise<HostResponse> {
+    if (signal?.aborted) {
+      throw new Error(`Qwen MLX host ${command} command cancelled.`)
+    }
     await this.ensureStarted()
+    if (signal?.aborted) {
+      throw new Error(`Qwen MLX host ${command} command cancelled.`)
+    }
     const processRef = this.process
     if (!processRef?.stdin.writable) {
       throw new Error('The Qwen MLX host is not available.')
@@ -113,10 +127,19 @@ export class QwenMlxHostClient {
     const request: HostRequest = { id, command, ...params }
     return await new Promise<HostResponse>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this.pendingRequests.delete(id)
+        this.removePendingRequest(id)
         reject(new Error(`Qwen MLX host ${command} command timed out.`))
       }, timeoutMs)
-      this.pendingRequests.set(id, { resolve, reject, timeout })
+      let removeAbortListener: (() => void) | undefined
+      if (signal) {
+        const abortListener = (): void => {
+          this.rejectRequest(id, new Error(`Qwen MLX host ${command} command cancelled.`))
+          void this.stop()
+        }
+        signal.addEventListener('abort', abortListener, { once: true })
+        removeAbortListener = () => signal.removeEventListener('abort', abortListener)
+      }
+      this.pendingRequests.set(id, { resolve, reject, timeout, removeAbortListener })
       processRef.stdin.write(`${JSON.stringify(request)}\n`, (error) => {
         if (error) {
           this.rejectRequest(id, new Error(`Failed to send Qwen MLX command: ${error.message}`))
@@ -144,7 +167,8 @@ export class QwenMlxHostClient {
     }
 
     this.startPromise = new Promise<void>((resolve, reject) => {
-      const processRef = spawn(binaryPath, [], {
+      const invocation = getReducedPriorityInvocation(binaryPath, [])
+      const processRef = spawn(invocation.command, invocation.args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true
       })
@@ -199,8 +223,7 @@ export class QwenMlxHostClient {
         if (!pending) {
           continue
         }
-        clearTimeout(pending.timeout)
-        this.pendingRequests.delete(response.id)
+        this.removePendingRequest(response.id)
         pending.resolve(response)
       } catch {
         // Third-party runtime logging cannot affect the JSON-line protocol.
@@ -209,12 +232,21 @@ export class QwenMlxHostClient {
   }
 
   private rejectRequest(id: string, error: Error): void {
-    const pending = this.pendingRequests.get(id)
+    const pending = this.removePendingRequest(id)
     if (!pending) {
       return
     }
-    clearTimeout(pending.timeout)
-    this.pendingRequests.delete(id)
     pending.reject(error)
+  }
+
+  private removePendingRequest(id: string): PendingRequest | undefined {
+    const pending = this.pendingRequests.get(id)
+    if (!pending) {
+      return undefined
+    }
+    clearTimeout(pending.timeout)
+    pending.removeAbortListener?.()
+    this.pendingRequests.delete(id)
+    return pending
   }
 }

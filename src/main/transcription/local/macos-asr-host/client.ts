@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import type { Readable, Writable } from 'node:stream'
+import { getReducedPriorityInvocation } from '../../../helpers/process'
 import { resolveMacOSAsrHostPath } from './runtime-discovery'
 
 type HostCommand = 'install' | 'warm' | 'transcribe' | 'unload'
@@ -28,6 +29,7 @@ type PendingRequest = {
   reject: (error: Error) => void
   timeout: NodeJS.Timeout
   onProgress?: (percentage: number) => void
+  removeAbortListener?: () => void
 }
 
 export type MacOSAsrHostTranscription = {
@@ -38,7 +40,7 @@ export type MacOSAsrHostTranscription = {
 
 const INSTALL_TIMEOUT_MS = 30 * 60 * 1000
 const WARM_TIMEOUT_MS = 90 * 1000
-const TRANSCRIBE_TIMEOUT_MS = 5 * 60 * 1000
+const TRANSCRIBE_TIMEOUT_MS = 60 * 60 * 1000
 
 /**
  * Owns one native process and a narrow request/response protocol. Keeping the
@@ -67,11 +69,17 @@ export class MacOSAsrHostClient {
     await this.request('warm', { modelDirectory }, WARM_TIMEOUT_MS)
   }
 
-  async transcribe(modelDirectory: string, filePath: string): Promise<MacOSAsrHostTranscription> {
+  async transcribe(
+    modelDirectory: string,
+    filePath: string,
+    signal?: AbortSignal
+  ): Promise<MacOSAsrHostTranscription> {
     const response = await this.request(
       'transcribe',
       { modelDirectory, filePath },
-      TRANSCRIBE_TIMEOUT_MS
+      TRANSCRIBE_TIMEOUT_MS,
+      undefined,
+      signal
     )
     return {
       text: response.text?.trim() ?? '',
@@ -116,9 +124,16 @@ export class MacOSAsrHostClient {
     command: HostCommand,
     params: Pick<HostRequest, 'modelDirectory' | 'filePath'>,
     timeoutMs: number,
-    onProgress?: (percentage: number) => void
+    onProgress?: (percentage: number) => void,
+    signal?: AbortSignal
   ): Promise<HostResponse> {
+    if (signal?.aborted) {
+      throw new Error(`macOS ASR host ${command} command cancelled.`)
+    }
     await this.ensureStarted()
+    if (signal?.aborted) {
+      throw new Error(`macOS ASR host ${command} command cancelled.`)
+    }
     const processRef = this.process
     if (!processRef?.stdin.writable) {
       throw new Error('The macOS ASR host is not available.')
@@ -129,11 +144,27 @@ export class MacOSAsrHostClient {
 
     return await new Promise<HostResponse>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this.pendingRequests.delete(id)
+        this.removePendingRequest(id)
         reject(new Error(`macOS ASR host ${command} command timed out.`))
       }, timeoutMs)
 
-      this.pendingRequests.set(id, { resolve, reject, timeout, onProgress })
+      let removeAbortListener: (() => void) | undefined
+      if (signal) {
+        const abortListener = (): void => {
+          this.rejectRequest(id, new Error(`macOS ASR host ${command} command cancelled.`))
+          void this.stop()
+        }
+        signal.addEventListener('abort', abortListener, { once: true })
+        removeAbortListener = () => signal.removeEventListener('abort', abortListener)
+      }
+
+      this.pendingRequests.set(id, {
+        resolve,
+        reject,
+        timeout,
+        onProgress,
+        removeAbortListener
+      })
       processRef.stdin.write(`${JSON.stringify(request)}\n`, (error) => {
         if (!error) {
           return
@@ -166,7 +197,8 @@ export class MacOSAsrHostClient {
     }
 
     this.startPromise = new Promise<void>((resolve, reject) => {
-      const processRef = spawn(binaryPath, [], {
+      const invocation = getReducedPriorityInvocation(binaryPath, [])
+      const processRef = spawn(invocation.command, invocation.args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true
       })
@@ -228,8 +260,7 @@ export class MacOSAsrHostClient {
           pending.onProgress?.(Math.max(0, Math.min(100, response.percentage ?? 0)))
           continue
         }
-        clearTimeout(pending.timeout)
-        this.pendingRequests.delete(response.id)
+        this.removePendingRequest(response.id)
         pending.resolve(response)
       } catch {
         // Native-library logging is ignored; only structured replies carry request ids.
@@ -238,12 +269,21 @@ export class MacOSAsrHostClient {
   }
 
   private rejectRequest(id: string, error: Error): void {
-    const pending = this.pendingRequests.get(id)
+    const pending = this.removePendingRequest(id)
     if (!pending) {
       return
     }
-    clearTimeout(pending.timeout)
-    this.pendingRequests.delete(id)
     pending.reject(error)
+  }
+
+  private removePendingRequest(id: string): PendingRequest | undefined {
+    const pending = this.pendingRequests.get(id)
+    if (!pending) {
+      return undefined
+    }
+    clearTimeout(pending.timeout)
+    pending.removeAbortListener?.()
+    this.pendingRequests.delete(id)
+    return pending
   }
 }

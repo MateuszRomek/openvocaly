@@ -36,7 +36,11 @@ export const localWhisperProvider: TranscriptionProviderDefinition = {
   models: WHISPER_MODELS,
   transcribe: async (artifact, context) => {
     try {
-      const result = await whisperRuntime.transcribeArtifact(artifact.filePath, context.modelId)
+      const result = await whisperRuntime.transcribeArtifact(
+        artifact.filePath,
+        context.modelId,
+        context.signal
+      )
       const text = result.text.trim()
       const diagnostics = {
         ...result.diagnostics,
@@ -57,7 +61,8 @@ export const localWhisperProvider: TranscriptionProviderDefinition = {
         ok: true,
         transcript: {
           text,
-          language: result.language
+          language: result.language,
+          durationMs: result.diagnostics.durationMs
         },
         diagnostics
       }

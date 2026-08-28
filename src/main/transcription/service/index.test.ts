@@ -19,6 +19,7 @@ type TranscriptionServiceHarness = {
   service: TranscriptionService
   getPreferences: () => TranscriptionPreferences
   getQwenDeleteCalls: () => number
+  getQwenWarmCalls: () => number
 }
 
 const toModel = (id: string, downloaded: boolean): LocalModelInfo => ({
@@ -42,6 +43,7 @@ const createHarness = (options?: {
     modelId: QWEN_MODEL_ID
   }
   let qwenDeleteCalls = 0
+  let qwenWarmCalls = 0
 
   const preferencesManager = {
     initialize: async (): Promise<void> => undefined,
@@ -94,6 +96,7 @@ const createHarness = (options?: {
           return { ok: true }
         },
         startRuntime: async () => {
+          qwenWarmCalls += 1
           await options?.qwenWarm?.()
           return { ok: true }
         }
@@ -104,7 +107,8 @@ const createHarness = (options?: {
   return {
     service,
     getPreferences: (): TranscriptionPreferences => preferences,
-    getQwenDeleteCalls: (): number => qwenDeleteCalls
+    getQwenDeleteCalls: (): number => qwenDeleteCalls,
+    getQwenWarmCalls: (): number => qwenWarmCalls
   }
 }
 
@@ -159,11 +163,10 @@ describe('TranscriptionService local model lifecycle', () => {
     await expect(download).resolves.toEqual({ ok: true })
   })
 
-  it('does not make shutdown wait for a background warm-up', async () => {
-    const warmGate = new Promise<void>(() => undefined)
-    const harness = createHarness({ qwenWarm: async () => await warmGate })
+  it('does not warm local models during initialization', async () => {
+    const harness = createHarness({ qwenWarm: async () => undefined })
 
     await harness.service.initialize()
-    await expect(harness.service.shutdown()).resolves.toBeUndefined()
+    expect(harness.getQwenWarmCalls()).toBe(0)
   })
 })

@@ -167,6 +167,7 @@ export class MeetingsRepository {
       .set({
         durationMs,
         totalChunks,
+        completedChunks: 0,
         updatedAt: Date.now()
       })
       .where(eq(meetings.id, meetingId))
@@ -206,6 +207,10 @@ export class MeetingsRepository {
         .where(eq(meetings.id, input.meetingId))
         .run()
     })
+  }
+
+  async clearSegments(meetingId: string): Promise<void> {
+    await getDb().delete(meetingSegments).where(eq(meetingSegments.meetingId, meetingId)).run()
   }
 
   async delete(meetingId: string): Promise<void> {

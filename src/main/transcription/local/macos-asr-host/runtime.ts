@@ -165,7 +165,8 @@ export class MacOSParakeetRuntime {
 
   async transcribeArtifact(
     artifactPath: string,
-    modelId: string
+    modelId: string,
+    signal?: AbortSignal
   ): Promise<{ text: string; language: string; diagnostics: TranscriptionDiagnostics }> {
     if (modelId !== PARAKEET_MODEL_ID) {
       throw new LocalParakeetError('local_transcription_failed', 'Unsupported local model.')
@@ -190,8 +191,12 @@ export class MacOSParakeetRuntime {
     const wavPath = join(temporaryDirectory, 'audio.wav')
     const startedAt = Date.now()
     try {
-      await convertFileToWav(artifactPath, wavPath, { sampleRate: 16000, channels: 1 })
-      const result = await this.host.transcribe(getParakeetModelDir(modelId), wavPath)
+      await convertFileToWav(artifactPath, wavPath, {
+        sampleRate: 16000,
+        channels: 1,
+        signal
+      })
+      const result = await this.host.transcribe(getParakeetModelDir(modelId), wavPath, signal)
       return {
         text: result.text,
         language: 'auto',

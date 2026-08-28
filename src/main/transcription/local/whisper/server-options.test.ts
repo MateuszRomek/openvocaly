@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildWhisperServerArgs } from './server-options'
 
 describe('buildWhisperServerArgs', () => {
-  it('uses the balanced Metal policy for local dictation', () => {
+  it('uses the conservative Metal policy for sustained local transcription', () => {
     expect(
       buildWhisperServerArgs({
         modelPath: '/models/whisper-turbo-q5.bin',
@@ -18,7 +18,7 @@ describe('buildWhisperServerArgs', () => {
       '--language',
       'auto',
       '--threads',
-      '2'
+      '1'
     ])
   })
 

@@ -1,3 +1,9 @@
+import type {
+  TranscriptionConfig,
+  TranscriptionPreferences,
+  TranscriptionProviderId
+} from './transcription'
+
 export const MEETING_AUDIO_EXTENSIONS = [
   'flac',
   'm4a',
@@ -47,6 +53,39 @@ export type MeetingSegment = {
 export type MeetingDetails = MeetingListItem & {
   segments: MeetingSegment[]
 }
+
+export type MeetingImportSelection = Pick<TranscriptionPreferences, 'providerId' | 'modelId'>
+
+export type DownloadedMeetingModel = {
+  providerId: TranscriptionProviderId
+  providerLabel: string
+  modelId: string
+  label: string
+  description?: string
+  sizeMb?: number
+  language?: string
+}
+
+export const getDownloadedMeetingModels = (config: TranscriptionConfig): DownloadedMeetingModel[] =>
+  config.providers.flatMap((provider) =>
+    provider.availability === 'available'
+      ? provider.models.flatMap((model) =>
+          model.downloaded
+            ? [
+                {
+                  providerId: provider.id,
+                  providerLabel: provider.label,
+                  modelId: model.id,
+                  label: model.label,
+                  description: model.description,
+                  sizeMb: model.sizeMb,
+                  language: model.language
+                }
+              ]
+            : []
+        )
+      : []
+  )
 
 export type ListMeetingsResponse = {
   items: MeetingListItem[]

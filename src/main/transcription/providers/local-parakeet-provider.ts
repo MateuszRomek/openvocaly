@@ -37,7 +37,8 @@ export const localParakeetProvider: TranscriptionProviderDefinition = {
     try {
       const result = await macOSParakeetRuntime.transcribeArtifact(
         artifact.filePath,
-        context.modelId
+        context.modelId,
+        context.signal
       )
       const text = result.text.trim()
       const diagnostics = {
@@ -59,7 +60,8 @@ export const localParakeetProvider: TranscriptionProviderDefinition = {
         ok: true,
         transcript: {
           text,
-          language: result.language
+          language: result.language,
+          durationMs: result.diagnostics.durationMs
         },
         diagnostics
       }

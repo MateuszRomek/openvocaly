@@ -57,6 +57,7 @@ import type {
   GetMeetingInput,
   GetMeetingResponse,
   ImportMeetingResponse,
+  MeetingImportSelection,
   ListMeetingsResponse,
   MeetingActionInput,
   MeetingActionResponse
@@ -93,7 +94,7 @@ declare global {
       meetings: {
         list: () => Promise<ListMeetingsResponse>
         get: (input: GetMeetingInput) => Promise<GetMeetingResponse>
-        selectAndImport: () => Promise<ImportMeetingResponse>
+        selectAndImport: (input: MeetingImportSelection) => Promise<ImportMeetingResponse>
         cancel: (input: MeetingActionInput) => Promise<MeetingActionResponse>
         resume: (input: MeetingActionInput) => Promise<MeetingActionResponse>
         delete: (input: MeetingActionInput) => Promise<MeetingActionResponse>

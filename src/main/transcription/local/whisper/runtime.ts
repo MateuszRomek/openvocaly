@@ -160,7 +160,8 @@ export class WhisperRuntime {
 
   async transcribeArtifact(
     artifactPath: string,
-    modelId: string
+    modelId: string,
+    signal?: AbortSignal
   ): Promise<WhisperTranscriptionRuntimeResult> {
     const startedAt = Date.now()
 
@@ -202,7 +203,8 @@ export class WhisperRuntime {
     try {
       await convertFileToWav(artifactPath, wavPath, {
         sampleRate: WHISPER_SAMPLE_RATE,
-        channels: 1
+        channels: 1,
+        signal
       })
 
       const durationMs = await estimatePcm16WavDurationMs(wavPath, {
@@ -229,11 +231,15 @@ export class WhisperRuntime {
       let maxCoveredEndMs = 0
 
       for (const segment of segments) {
+        if (signal?.aborted) {
+          throw new Error('Local Whisper transcription cancelled.')
+        }
         const segmentWavBuffer = this.buildSegmentWavBuffer(segment, pcm16Wav)
         const segmentResult = await this.transcribeWindowWithRetry(
           segment,
           segmentWavBuffer,
-          resolvedModelId
+          resolvedModelId,
+          signal
         )
         chunkDiagnostics.push(...segmentResult.attempts)
 
@@ -261,7 +267,8 @@ export class WhisperRuntime {
         const tailRescueResult = await this.transcribeWindowWithRetry(
           tailRescueSegment,
           tailWavBuffer,
-          resolvedModelId
+          resolvedModelId,
+          signal
         )
         chunkDiagnostics.push(...tailRescueResult.attempts)
 
@@ -384,11 +391,15 @@ export class WhisperRuntime {
   private async transcribeWindowWithRetry(
     segment: WhisperChunkSegment,
     wavBuffer: Buffer,
-    modelId: WhisperModelId
+    modelId: WhisperModelId,
+    signal?: AbortSignal
   ): Promise<WhisperWindowTranscriptionResult> {
     const attempts: TranscriptionChunkDiagnostics[] = []
 
     for (let attempt = 1; attempt <= WINDOW_TRANSCRIBE_ATTEMPTS; attempt += 1) {
+      if (signal?.aborted) {
+        throw new Error('Local Whisper transcription cancelled.')
+      }
       const restarted = attempt > 1
 
       if (restarted) {
@@ -423,7 +434,7 @@ export class WhisperRuntime {
       const attemptStartedAt = Date.now()
 
       try {
-        const text = await this.serverClient.transcribe(wavBuffer)
+        const text = await this.serverClient.transcribe(wavBuffer, signal)
         const elapsedMs = Date.now() - attemptStartedAt
         const normalized = normalizeWhisperText(text)
 

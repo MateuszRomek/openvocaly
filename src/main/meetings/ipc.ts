@@ -3,11 +3,13 @@ import type {
   GetMeetingInput,
   GetMeetingResponse,
   ImportMeetingResponse,
+  MeetingImportSelection,
   ListMeetingsResponse,
   MeetingActionInput,
   MeetingActionResponse
 } from '../../shared/meetings'
 import { createIpcRegistrar } from '../helpers/ipc'
+import { isTranscriptionProviderId } from '../transcription/provider-helpers'
 import type { MeetingsService } from './service'
 
 export type MeetingsIpcModule = {
@@ -24,6 +26,23 @@ const getMeetingId = (input: GetMeetingInput | MeetingActionInput | undefined): 
   return meetingId
 }
 
+const getMeetingImportSelection = (input: unknown): MeetingImportSelection => {
+  if (
+    typeof input !== 'object' ||
+    input === null ||
+    !isTranscriptionProviderId((input as { providerId?: unknown }).providerId) ||
+    typeof (input as { modelId?: unknown }).modelId !== 'string' ||
+    !(input as { modelId: string }).modelId.trim()
+  ) {
+    throw new Error('Choose an installed local transcription model before importing a meeting.')
+  }
+
+  return {
+    providerId: (input as { providerId: MeetingImportSelection['providerId'] }).providerId,
+    modelId: (input as { modelId: string }).modelId
+  }
+}
+
 export const createMeetingsIpcModule = (meetingsService: MeetingsService): MeetingsIpcModule => {
   const registerIpcHandlers = createIpcRegistrar(() => {
     ipcMain.handle('meetings:list', (): Promise<ListMeetingsResponse> => meetingsService.list())
@@ -34,26 +53,30 @@ export const createMeetingsIpcModule = (meetingsService: MeetingsService): Meeti
         meetingsService.get(getMeetingId(input))
     )
 
-    ipcMain.handle('meetings:selectAndImport', async (): Promise<ImportMeetingResponse> => {
-      const selection = await dialog.showOpenDialog({
-        title: 'Import a meeting recording',
-        buttonLabel: 'Import recording',
-        properties: ['openFile'],
-        filters: [
-          {
-            name: 'Audio and video',
-            extensions: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mov', 'ogg', 'wav', 'webm']
-          }
-        ]
-      })
+    ipcMain.handle(
+      'meetings:selectAndImport',
+      async (_event, input: unknown): Promise<ImportMeetingResponse> => {
+        const modelSelection = getMeetingImportSelection(input)
+        const fileSelection = await dialog.showOpenDialog({
+          title: 'Import a meeting recording',
+          buttonLabel: 'Import recording',
+          properties: ['openFile'],
+          filters: [
+            {
+              name: 'Audio and video',
+              extensions: ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mov', 'ogg', 'wav', 'webm']
+            }
+          ]
+        })
 
-      const selectedPath = selection.filePaths[0]
-      if (selection.canceled || !selectedPath) {
-        return { ok: false, cancelled: true }
+        const selectedPath = fileSelection.filePaths[0]
+        if (fileSelection.canceled || !selectedPath) {
+          return { ok: false, cancelled: true }
+        }
+
+        return await meetingsService.importFile(selectedPath, modelSelection)
       }
-
-      return await meetingsService.importFile(selectedPath)
-    })
+    )
 
     ipcMain.handle(
       'meetings:cancel',

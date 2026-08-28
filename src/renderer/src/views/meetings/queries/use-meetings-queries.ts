@@ -4,6 +4,7 @@ import type {
   GetMeetingResponse,
   ImportMeetingResponse,
   ListMeetingsResponse,
+  MeetingImportSelection,
   MeetingActionResponse
 } from '../../../../../shared/meetings'
 import { meetingsKeys } from './meetings.keys'
@@ -43,10 +44,14 @@ export function useMeetingDetailsQuery(
   })
 }
 
-export function useImportMeetingMutation(): UseMutationResult<ImportMeetingResponse, Error, void> {
+export function useImportMeetingMutation(): UseMutationResult<
+  ImportMeetingResponse,
+  Error,
+  MeetingImportSelection
+> {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async () => await window.api.meetings.selectAndImport(),
+    mutationFn: async (selection) => await window.api.meetings.selectAndImport(selection),
     onSuccess: async (response) => {
       if (response.ok) {
         await queryClient.invalidateQueries({ queryKey: meetingsKeys.all })
