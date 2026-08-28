@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { RECORDING_COPY } from '@renderer/constants/recording'
 import { useRecordingPreferencesQuery } from '@renderer/queries/recording/use-recording-preferences-query'
 import { useUpdateRecordingPreferencesMutation } from '@renderer/queries/recording/use-update-recording-preferences-mutation'
+import { DEFAULT_RECORDING_SOUND_CUE_SETTINGS } from '../../../../shared/recording'
 
 type UseRecordingPreferencesResult = {
   isLoading: boolean
@@ -9,6 +10,8 @@ type UseRecordingPreferencesResult = {
   requestError: string | null
   soundCuesEnabled: boolean
   setSoundCuesEnabled: (enabled: boolean) => void
+  soundCuesVolume: number
+  setSoundCuesVolume: (volume: number) => void
   selectedMicrophoneDeviceId: string | null
   setSelectedMicrophoneDeviceId: (deviceId: string | null) => void
 }
@@ -41,6 +44,15 @@ export function useRecordingPreferences(): UseRecordingPreferencesResult {
     [mutatePreferences]
   )
 
+  const setSoundCuesVolume = useCallback(
+    (volume: number): void => {
+      mutatePreferences({
+        soundCues: { volume }
+      })
+    },
+    [mutatePreferences]
+  )
+
   const setSelectedMicrophoneDeviceId = useCallback(
     (deviceId: string | null): void => {
       mutatePreferences({
@@ -56,6 +68,8 @@ export function useRecordingPreferences(): UseRecordingPreferencesResult {
     requestError,
     soundCuesEnabled: preferences?.soundCues.enabled ?? true,
     setSoundCuesEnabled,
+    soundCuesVolume: preferences?.soundCues.volume ?? DEFAULT_RECORDING_SOUND_CUE_SETTINGS.volume,
+    setSoundCuesVolume,
     selectedMicrophoneDeviceId: preferences?.microphone.selectedDeviceId ?? null,
     setSelectedMicrophoneDeviceId
   }

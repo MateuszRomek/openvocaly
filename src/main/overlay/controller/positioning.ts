@@ -5,8 +5,8 @@ import {
   type OverlayWindowSize
 } from '../../../shared/overlay-presentation'
 
-export const OVERLAY_WIDTH = 170
-export const OVERLAY_HEIGHT = 40
+export const OVERLAY_WIDTH = 144
+export const OVERLAY_HEIGHT = 34
 const OVERLAY_BOTTOM_PADDING = 24
 export const OVERLAY_FOLLOW_FAST_INTERVAL_MS = 110
 export const OVERLAY_FOLLOW_SLOW_INTERVAL_MS = 320

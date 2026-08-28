@@ -1,7 +1,7 @@
 import type { DictationOverlayState } from '../../shared/dictation'
 
 const IDLE_BAR_BASE = 0.06
-const IDLE_BAR_PULSE = 0.01
+const IDLE_BAR_PULSE = 0.008
 
 export const IDLE_SCALE_FLOOR = 0.14
 const ACTIVE_SCALE_GAIN = 0.74
@@ -11,15 +11,19 @@ export const IDLE_OPACITY_BASE = 0.32
 const ACTIVE_OPACITY_GAIN = 0.68
 const MAX_OPACITY = 1
 
-export const BAR_COUNT = 20
+export const BAR_COUNT = 16
 const CENTER_INDEX = (BAR_COUNT - 1) / 2
-const PROCESSING_SWEEP_SECONDS = 1.18
+const PROCESSING_SWEEP_SECONDS = 1.32
 const PROCESSING_HEAD_PADDING_BARS = 3.5
 const PROCESSING_WAVE_SPREAD_BARS = 2.2
 const PROCESSING_BASE = 0.09
-const PROCESSING_PRIMARY_GAIN = 0.5
-const PROCESSING_TRAIL_GAIN = 0.18
-const PROCESSING_RIPPLE_GAIN = 0.08
+const PROCESSING_PRIMARY_GAIN = 0.46
+const PROCESSING_TRAIL_GAIN = 0.16
+const PROCESSING_RIPPLE_GAIN = 0.045
+const RECORDING_ATTACK_SMOOTHING = 0.34
+const RECORDING_RELEASE_SMOOTHING = 0.12
+const TRANSCRIBING_SMOOTHING = 0.16
+const IDLE_SMOOTHING = 0.12
 
 const getCenterWeight = (index: number): number => {
   const distance = Math.abs(index - CENTER_INDEX) / CENTER_INDEX
@@ -60,7 +64,7 @@ const getProcessingWave = (index: number, now: number): number => {
 
   const primary = toGaussian(distanceFromHead, PROCESSING_WAVE_SPREAD_BARS)
   const trailing = toGaussian(distanceFromHead + 2.6, PROCESSING_WAVE_SPREAD_BARS * 1.85)
-  const ripple = (Math.sin(distanceFromHead * 1.35 - now * 8.2) + 1) / 2
+  const ripple = (Math.sin(distanceFromHead * 1.35 - now * 5.6) + 1) / 2
 
   return clamp01(
     PROCESSING_BASE +
@@ -68,6 +72,11 @@ const getProcessingWave = (index: number, now: number): number => {
       trailing * PROCESSING_TRAIL_GAIN +
       ripple * PROCESSING_RIPPLE_GAIN * (0.5 + primary * 0.5)
   )
+}
+
+const getReducedMotionProcessingWave = (index: number): number => {
+  const distanceFromCenter = Math.abs(index - CENTER_INDEX)
+  return clamp01(PROCESSING_BASE + toGaussian(distanceFromCenter, 4.8) * 0.16)
 }
 
 export const toTargetBars = (state: DictationOverlayState): number[] => {
@@ -78,7 +87,8 @@ export const toTargetBars = (state: DictationOverlayState): number[] => {
   }
 
   return Array.from({ length: BAR_COUNT }, (_, index) => {
-    const band = clamp01(state.bands[index] ?? level * 0.35)
+    const sourceIndex = Math.round((index * (state.bands.length - 1)) / (BAR_COUNT - 1))
+    const band = clamp01(state.bands[sourceIndex] ?? level * 0.35)
     return band * (0.68 + getCenterWeight(index) * 0.32)
   })
 }
@@ -87,22 +97,43 @@ export const resolveBarTarget = (
   phase: DictationOverlayState['phase'],
   index: number,
   now: number,
-  target: number
+  target: number,
+  reducedMotion = false
 ): number => {
   if (phase === 'transcribing') {
-    return getProcessingWave(index, now)
+    return reducedMotion ? getReducedMotionProcessingWave(index) : getProcessingWave(index, now)
   }
 
   if (phase !== 'recording') {
-    const idlePulse = Math.sin(now * 2 + index * 0.31) * IDLE_BAR_PULSE
+    const idlePulse = reducedMotion ? 0 : Math.sin(now * 2 + index * 0.31) * IDLE_BAR_PULSE
     return IDLE_BAR_BASE + idlePulse
   }
 
   return target
 }
 
-export const getBarSmoothing = (phase: DictationOverlayState['phase']): number =>
-  phase === 'recording' ? 0.24 : phase === 'transcribing' ? 0.2 : 0.16
+export const getBarSmoothing = (
+  phase: DictationOverlayState['phase'],
+  previous: number,
+  target: number,
+  reducedMotion = false
+): number => {
+  if (phase === 'recording') {
+    if (reducedMotion) {
+      return RECORDING_RELEASE_SMOOTHING
+    }
+
+    return target >= previous ? RECORDING_ATTACK_SMOOTHING : RECORDING_RELEASE_SMOOTHING
+  }
+
+  return phase === 'transcribing'
+    ? reducedMotion
+      ? RECORDING_RELEASE_SMOOTHING
+      : TRANSCRIBING_SMOOTHING
+    : reducedMotion
+      ? RECORDING_RELEASE_SMOOTHING
+      : IDLE_SMOOTHING
+}
 
 export const toBarVisuals = (current: number): { scale: number; opacity: number } => ({
   scale: Math.min(MAX_SCALE, IDLE_SCALE_FLOOR + current * ACTIVE_SCALE_GAIN),
