@@ -1,10 +1,10 @@
 import { spawn, type ChildProcessByStdio } from 'node:child_process'
-import { cpus } from 'node:os'
 import type { Readable } from 'node:stream'
 import { createSettleOnce } from '../../../helpers/settle-once'
 import type { WhisperModelId } from './model-catalog'
 import { findRuntimePort, resolveRuntimeBinaryPath } from './runtime-discovery'
 import { getWhisperModelFilePath } from '../model-dir-utils'
+import { buildWhisperServerArgs } from './server-options'
 
 const STARTUP_TIMEOUT_SECONDS = 30
 const STARTUP_TIMEOUT_MS = STARTUP_TIMEOUT_SECONDS * 1000
@@ -13,7 +13,6 @@ const HEALTHCHECK_POLL_INTERVAL_MS = 250
 const TRANSCRIPTION_TIMEOUT_SECONDS = 300
 const TRANSCRIPTION_TIMEOUT_MS = TRANSCRIPTION_TIMEOUT_SECONDS * 1000
 const DEFAULT_IDLE_STOP_MS = 2 * 60 * 1000
-const DEFAULT_THREADS = Math.max(2, Math.min(4, Math.floor(cpus().length * 0.5) || 2))
 
 const isAddressInUseError = (message: string): boolean =>
   /address already in use|eaddrinuse/i.test(message)
@@ -191,18 +190,7 @@ export class WhisperServerClient {
       const selectedPort = this.port
       triedPorts.add(selectedPort)
 
-      const args = [
-        '--model',
-        modelPath,
-        '--host',
-        '127.0.0.1',
-        '--port',
-        String(this.port),
-        '--language',
-        'auto',
-        '--threads',
-        String(DEFAULT_THREADS)
-      ]
+      const args = buildWhisperServerArgs({ modelPath, port: this.port })
 
       const processRef = spawn(this.binaryPath, args, {
         stdio: ['ignore', 'pipe', 'pipe'],

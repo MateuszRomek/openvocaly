@@ -1,10 +1,10 @@
 import { cn } from '@renderer/lib/utils'
 
-function Skeleton({ className, ...props }: React.ComponentProps<'div'>): React.JSX.Element {
+function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="skeleton"
-      className={cn('bg-muted rounded-md animate-pulse', className)}
+      className={cn('animate-pulse rounded-xl bg-muted', className)}
       {...props}
     />
   )

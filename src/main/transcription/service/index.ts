@@ -20,12 +20,10 @@ import { StorageRepository } from '../../repositories/storage-repository'
 import { AsyncSerialScheduler } from '../../helpers/async-serial-scheduler'
 import { InitializableComponent } from '../../helpers/initializable-component'
 import { emitTranscriptAddedEvent } from '../../storage/transcript-events'
-import { parakeetRuntime } from '../local/parakeet/runtime'
+import { macOSParakeetRuntime } from '../local/macos-asr-host/runtime'
 import { whisperRuntime } from '../local/whisper/runtime'
-import {
-  resolveDefaultTranscriptionModelId,
-  resolveDefaultTranscriptionProviderId
-} from '../provider-helpers'
+import { qwenRuntime } from '../local/qwen/runtime'
+import { resolveDefaultTranscriptionProviderId } from '../provider-helpers'
 import { TranscriptionProviderFactory } from '../provider-factory'
 import type { TranscriptionArtifact } from '../providers/types'
 import { TranscriptionPreferencesManager } from './preferences-manager'
@@ -45,18 +43,19 @@ type LocalRuntimeController = {
 
 const LOCAL_PROVIDER_IDS = new Set<LocalTranscriptionProviderId>([
   'local-parakeet',
-  'local-whisper'
+  'local-whisper',
+  'local-qwen'
 ])
 
-const LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeController> = {
+const DEFAULT_LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeController> = {
   'local-parakeet': {
-    listModels: () => parakeetRuntime.listModels(),
-    downloadModel: (modelId, onProgress) => parakeetRuntime.downloadModel(modelId, onProgress),
-    cancelDownload: () => parakeetRuntime.cancelDownload(),
-    deleteModel: (modelId) => parakeetRuntime.deleteModel(modelId),
-    getRuntimeStatus: () => parakeetRuntime.getRuntimeStatus(),
-    startRuntime: (modelId) => parakeetRuntime.startRuntime(modelId),
-    stopRuntime: () => parakeetRuntime.stopRuntime()
+    listModels: () => macOSParakeetRuntime.listModels(),
+    downloadModel: (modelId, onProgress) => macOSParakeetRuntime.downloadModel(modelId, onProgress),
+    cancelDownload: () => macOSParakeetRuntime.cancelDownload(),
+    deleteModel: (modelId) => macOSParakeetRuntime.deleteModel(modelId),
+    getRuntimeStatus: () => macOSParakeetRuntime.getRuntimeStatus(),
+    startRuntime: (modelId) => macOSParakeetRuntime.startRuntime(modelId),
+    stopRuntime: () => macOSParakeetRuntime.stopRuntime()
   },
   'local-whisper': {
     listModels: () => whisperRuntime.listModels(),
@@ -66,11 +65,24 @@ const LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeControlle
     getRuntimeStatus: () => whisperRuntime.getRuntimeStatus(),
     startRuntime: (modelId) => whisperRuntime.startRuntime(modelId),
     stopRuntime: () => whisperRuntime.stopRuntime()
+  },
+  'local-qwen': {
+    listModels: () => qwenRuntime.listModels(),
+    downloadModel: (modelId, onProgress) => qwenRuntime.downloadModel(modelId, onProgress),
+    cancelDownload: () => qwenRuntime.cancelDownload(),
+    deleteModel: (modelId) => qwenRuntime.deleteModel(modelId),
+    getRuntimeStatus: () => qwenRuntime.getRuntimeStatus(),
+    startRuntime: (modelId) => qwenRuntime.startRuntime(modelId),
+    stopRuntime: () => qwenRuntime.stopRuntime()
   }
 }
 
 const GLOBAL_LOCAL_DOWNLOAD_LOCK_MESSAGE =
   'Another local model download is already in progress. Wait for it to finish or cancel it first.'
+const LOCAL_MODEL_MUTATION_LOCK_MESSAGE =
+  'A local model change is already in progress. Wait for it to finish or cancel the download first.'
+const NO_DOWNLOADED_MODEL_REPLACEMENT_MESSAGE =
+  'Download and select another local model before deleting the active model.'
 
 const isLocalProviderId = (
   providerId: TranscriptionPreferences['providerId']
@@ -82,14 +94,17 @@ export class TranscriptionService extends InitializableComponent {
   private readonly preferencesManager: TranscriptionPreferencesManager
   private readonly storageRepository: StorageRepository
   private readonly providerFactory: TranscriptionProviderFactory
+  private readonly localRuntimes: Record<LocalTranscriptionProviderId, LocalRuntimeController>
   private readonly localTranscriptionScheduler = new AsyncSerialScheduler()
-  private activeDownloadProviderId: LocalTranscriptionProviderId | null = null
+  private readonly localModelMutationScheduler = new AsyncSerialScheduler()
+  private isShuttingDown = false
 
   constructor(
     options: {
       settingsRepository?: SettingsRepository
       storageRepository?: StorageRepository
       preferencesManager?: TranscriptionPreferencesManager
+      localRuntimes?: Record<LocalTranscriptionProviderId, LocalRuntimeController>
     } = {}
   ) {
     super('TranscriptionService')
@@ -99,6 +114,7 @@ export class TranscriptionService extends InitializableComponent {
     this.preferencesManager =
       options.preferencesManager ?? new TranscriptionPreferencesManager(settingsRepository)
     this.providerFactory = new TranscriptionProviderFactory()
+    this.localRuntimes = options.localRuntimes ?? DEFAULT_LOCAL_RUNTIMES
   }
 
   async initialize(): Promise<void> {
@@ -107,11 +123,14 @@ export class TranscriptionService extends InitializableComponent {
     }
 
     await this.preferencesManager.initialize()
+    this.isShuttingDown = false
     this.initialized = true
+    this.warmPreferencesInBackground(this.preferencesManager.get())
   }
 
   async shutdown(): Promise<void> {
-    await this.stopAllLocalRuntimesNow()
+    this.isShuttingDown = true
+    await this.localTranscriptionScheduler.run(() => this.stopAllLocalRuntimesNow())
 
     this.initialized = false
   }
@@ -137,6 +156,8 @@ export class TranscriptionService extends InitializableComponent {
       await this.localTranscriptionScheduler.run(() => this.stopAllLocalRuntimesNow())
     }
 
+    this.warmPreferencesInBackground(preferences)
+
     return {
       preferences,
       config: this.providerFactory.buildConfig(preferences)
@@ -159,8 +180,7 @@ export class TranscriptionService extends InitializableComponent {
 
   private async stopAllLocalRuntimesNow(): Promise<void> {
     const stopResults = await Promise.allSettled([
-      parakeetRuntime.stopRuntime(),
-      whisperRuntime.stopRuntime()
+      ...[...LOCAL_PROVIDER_IDS].map((providerId) => this.getLocalRuntime(providerId).stopRuntime())
     ])
 
     for (const result of stopResults) {
@@ -171,7 +191,7 @@ export class TranscriptionService extends InitializableComponent {
   }
 
   private getLocalRuntime(providerId: LocalTranscriptionProviderId): LocalRuntimeController {
-    return LOCAL_RUNTIMES[providerId]
+    return this.localRuntimes[providerId]
   }
 
   async listLocalModels(params: LocalProviderActionInput): Promise<ListLocalModelsResponse> {
@@ -182,15 +202,12 @@ export class TranscriptionService extends InitializableComponent {
     params: LocalModelActionInput,
     onProgress?: (progress: LocalModelDownloadProgress) => void
   ): Promise<LocalModelActionResponse> {
-    // TODO: Allow to download multiple models simultaneously by tracking active downloads per provider instead of a global lock
-    if (this.activeDownloadProviderId) {
+    if (this.localModelMutationScheduler.isBusy()) {
       return { ok: false, message: GLOBAL_LOCAL_DOWNLOAD_LOCK_MESSAGE }
     }
 
-    this.activeDownloadProviderId = params.providerId
-
-    try {
-      return await this.getLocalRuntime(params.providerId).downloadModel(
+    return await this.localModelMutationScheduler.run(async () => {
+      const response = await this.getLocalRuntime(params.providerId).downloadModel(
         params.modelId,
         onProgress
           ? (progress) => {
@@ -201,9 +218,17 @@ export class TranscriptionService extends InitializableComponent {
             }
           : undefined
       )
-    } finally {
-      this.activeDownloadProviderId = null
-    }
+      if (response.ok) {
+        const preferences = this.preferencesManager.get()
+        if (
+          preferences.providerId === params.providerId &&
+          preferences.modelId === params.modelId
+        ) {
+          this.warmPreferencesInBackground(preferences)
+        }
+      }
+      return response
+    })
   }
 
   cancelLocalModelDownload(params: LocalProviderActionInput): LocalModelActionResponse {
@@ -211,48 +236,47 @@ export class TranscriptionService extends InitializableComponent {
   }
 
   async deleteLocalModel(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
-    const response = await this.localTranscriptionScheduler.run(() =>
-      this.getLocalRuntime(params.providerId).deleteModel(params.modelId)
-    )
-    if (!response.ok) {
-      return response
-    }
-
     const preferences = this.preferencesManager.get()
     const isDeletingActiveModel =
       preferences.providerId === params.providerId && preferences.modelId === params.modelId
 
-    if (!isDeletingActiveModel) {
-      return response
+    if (this.localModelMutationScheduler.isBusy()) {
+      return { ok: false, message: LOCAL_MODEL_MUTATION_LOCK_MESSAGE }
     }
 
-    try {
-      const fallbackProviderId = resolveDefaultTranscriptionProviderId()
-      const fallbackModelId = resolveDefaultTranscriptionModelId(fallbackProviderId)
-
-      await this.updatePreferences({
-        providerId: fallbackProviderId,
-        modelId: fallbackModelId
-      })
-
-      return response
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Deleted local model, but failed to reset active transcription preferences.'
-
-      console.error('[transcription] failed to reset active model after local delete', {
-        providerId: params.providerId,
-        modelId: params.modelId,
-        error: message
-      })
-
-      return {
-        ok: false,
-        message
+    return await this.localModelMutationScheduler.run(async () => {
+      const replacement = isDeletingActiveModel
+        ? await this.findDownloadedReplacement(params)
+        : null
+      if (isDeletingActiveModel && !replacement) {
+        return { ok: false, message: NO_DOWNLOADED_MODEL_REPLACEMENT_MESSAGE }
       }
-    }
+
+      if (replacement) {
+        try {
+          await this.updatePreferences({
+            providerId: replacement.providerId,
+            modelId: replacement.modelId
+          })
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Failed to select a replacement before deleting the active model.'
+          return { ok: false, message }
+        }
+      }
+
+      const response = await this.localTranscriptionScheduler.run(() =>
+        this.getLocalRuntime(params.providerId).deleteModel(params.modelId)
+      )
+      if (!response.ok || !replacement) {
+        return response
+      }
+
+      this.warmPreferencesInBackground(this.preferencesManager.get())
+      return response
+    })
   }
 
   getLocalRuntimeStatus(params: LocalProviderActionInput): LocalRuntimeStatusResponse {
@@ -351,5 +375,53 @@ export class TranscriptionService extends InitializableComponent {
     return isLocalProviderId(preferences.providerId)
       ? this.localTranscriptionScheduler.run(transcribe)
       : transcribe()
+  }
+
+  /** Warm a downloaded selected model without delaying settings updates or startup. */
+  private warmPreferencesInBackground(preferences: TranscriptionPreferences): void {
+    if (this.isShuttingDown || !isLocalProviderId(preferences.providerId)) {
+      return
+    }
+
+    const runtime = this.getLocalRuntime(preferences.providerId)
+    // Do not submit warm-up to the foreground transcription queue. Switching
+    // models or quitting stops hosts through that queue, which interrupts this
+    // best-effort work instead of waiting for a cold model to finish loading.
+    void runtime
+      .startRuntime(preferences.modelId)
+      .then((result) => {
+        if (!result.ok) {
+          console.debug('[transcription] selected local model was not warmed', result.message)
+        }
+      })
+      .catch((error) => {
+        console.debug('[transcription] failed to warm selected local model', error)
+      })
+  }
+
+  /** Finds a usable installed model before an active model can be removed. */
+  private async findDownloadedReplacement(
+    deleting: LocalModelActionInput
+  ): Promise<{ providerId: LocalTranscriptionProviderId; modelId: string } | null> {
+    const defaultProviderId = resolveDefaultTranscriptionProviderId()
+    const preferredProviderIds = [deleting.providerId, defaultProviderId, ...LOCAL_PROVIDER_IDS]
+    const providerIds = [...new Set(preferredProviderIds)]
+
+    for (const providerId of providerIds) {
+      const runtime = this.getLocalRuntime(providerId)
+      if (!runtime.getRuntimeStatus().status.platformSupported) {
+        continue
+      }
+      const { models } = await runtime.listModels()
+      const replacement = models.find(
+        (model) =>
+          model.downloaded && !(providerId === deleting.providerId && model.id === deleting.modelId)
+      )
+      if (replacement) {
+        return { providerId, modelId: replacement.id }
+      }
+    }
+
+    return null
   }
 }

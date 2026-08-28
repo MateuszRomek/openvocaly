@@ -5,11 +5,11 @@ import { useHomeAppsSuspenseQuery } from '../queries/reporting/use-home-apps-sus
 const TOP_APPS_LIMIT = 5
 
 const CHART_APP_COLORS = [
-  'oklch(0.72 0.17 242)',
-  'oklch(0.73 0.13 210)',
-  'oklch(0.66 0.16 258)',
-  'oklch(0.64 0.14 188)',
-  'oklch(0.58 0.18 284)'
+  'var(--color-chart-1)',
+  'var(--color-chart-2)',
+  'var(--color-chart-3)',
+  'var(--color-chart-4)',
+  'var(--color-chart-5)'
 ] as const
 
 export type HomeTopAppChartPoint = {

@@ -8,10 +8,12 @@ files:
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!.agents{,/**/*}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/bin/**
   - resources/**
+  - resources/qwen-mlx-host/**
   - node_modules/ffmpeg-static/**/*
   - node_modules/@openvocaly/ptt-hook-macos/build/**/*.node
 win:
@@ -23,6 +25,9 @@ win:
     - '!resources/bin/*.so'
     - '!resources/bin/*.so.*'
     - '!resources/bin/macos-fast-paste'
+    - '!resources/bin/macos-asr-host'
+    - '!resources/qwen-mlx-host/**'
+    - '!resources/bin/FluidAudio_FluidAudio.bundle/**'
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -58,6 +63,9 @@ linux:
     - '!resources/bin/*.dylib'
     - '!resources/bin/*.dll'
     - '!resources/bin/macos-fast-paste'
+    - '!resources/bin/macos-asr-host'
+    - '!resources/qwen-mlx-host/**'
+    - '!resources/bin/FluidAudio_FluidAudio.bundle/**'
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

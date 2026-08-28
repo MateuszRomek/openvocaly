@@ -54,5 +54,12 @@ export default defineConfig(
       ]
     }
   },
+  {
+    files: ['src/renderer/src/ui/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      'react-refresh/only-export-components': 'off'
+    }
+  },
   eslintConfigPrettier
 )

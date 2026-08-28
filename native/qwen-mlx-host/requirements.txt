@@ -1,0 +1,4 @@
+# MIT inference runtime pinned to a reviewed source revision. Its transitive
+# dependencies are bundled into the macOS host by scripts/build-qwen-mlx-host.js.
+qwen3-asr-mlx @ git+https://github.com/gabrimatic/qwen3-asr-mlx.git@7f8b420ad4188c6a2be038ba8e24d9f00cfedb72
+PyInstaller==6.19.0

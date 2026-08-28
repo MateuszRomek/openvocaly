@@ -1,17 +1,19 @@
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
 'use client'
 
 import * as React from 'react'
-import { DayPicker, getDefaultClassNames, type DayButton, type Locale } from 'react-day-picker'
+import {
+  DayPicker,
+  getDefaultClassNames,
+  type ChevronProps,
+  type DayButton,
+  type Locale,
+  type RootProps,
+  type WeekNumberProps
+} from 'react-day-picker'
 
 import { cn } from '@renderer/lib/utils'
 import { Button, buttonVariants } from '@renderer/ui/button'
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from 'lucide-react'
-
-type CalendarComponents = NonNullable<React.ComponentProps<typeof DayPicker>['components']>
-type CalendarRootProps = Parameters<NonNullable<CalendarComponents['Root']>>[0]
-type CalendarChevronProps = Parameters<NonNullable<CalendarComponents['Chevron']>>[0]
-type CalendarWeekNumberProps = Parameters<NonNullable<CalendarComponents['WeekNumber']>>[0]
 
 function Calendar({
   className,
@@ -32,7 +34,7 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        'group/calendar bg-background p-2 [--cell-radius:var(--radius-md)] [--cell-size:--spacing(7)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent',
+        'group/calendar bg-background p-3 [--cell-radius:var(--radius-4xl)] [--cell-size:--spacing(8)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent',
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
@@ -78,7 +80,7 @@ function Calendar({
             : 'flex items-center gap-1 rounded-(--cell-radius) text-sm [&>svg]:size-3.5 [&>svg]:text-muted-foreground',
           defaultClassNames.caption_label
         ),
-        table: 'w-full border-collapse',
+        month_grid: cn('w-full border-collapse', defaultClassNames.month_grid),
         weekdays: cn('flex', defaultClassNames.weekdays),
         weekday: cn(
           'flex-1 rounded-(--cell-radius) text-[0.8rem] font-normal text-muted-foreground select-none',
@@ -119,10 +121,10 @@ function Calendar({
         ...classNames
       }}
       components={{
-        Root: ({ className, rootRef, ...props }: CalendarRootProps) => {
+        Root: ({ className, rootRef, ...props }: RootProps) => {
           return <div data-slot="calendar" ref={rootRef} className={cn(className)} {...props} />
         },
-        Chevron: ({ className, orientation, ...props }: CalendarChevronProps) => {
+        Chevron: ({ className, orientation, ...props }: ChevronProps) => {
           if (orientation === 'left') {
             return <ChevronLeftIcon className={cn('size-4', className)} {...props} />
           }
@@ -134,7 +136,7 @@ function Calendar({
           return <ChevronDownIcon className={cn('size-4', className)} {...props} />
         },
         DayButton: ({ ...props }) => <CalendarDayButton locale={locale} {...props} />,
-        WeekNumber: ({ children, ...props }: CalendarWeekNumberProps) => {
+        WeekNumber: ({ children, ...props }: WeekNumberProps) => {
           return (
             <td {...props}>
               <div className="flex size-(--cell-size) items-center justify-center text-center">
