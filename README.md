@@ -61,6 +61,37 @@ npm run dev
 This runs Electron main process + renderer dev server together.
 On first run, startup may take longer while local runtimes are prepared and models are downloaded.
 
+## Build and install the macOS app locally
+
+From the repository root, run:
+
+```bash
+./scripts/build-and-install-macos.sh
+```
+
+The script installs the locked npm dependencies, builds the native transcription runtimes and Electron app, creates the DMG and Apple Silicon ZIP in `dist/`, and installs the app into `/Applications`. The first build can take a while because it may download and compile local runtimes. The build machine needs Python, Swift/Xcode Command Line Tools, Git, and an internet connection; end users do not need Python after the app is built.
+
+Useful options:
+
+```bash
+# Build artifacts without installing the app
+./scripts/build-and-install-macos.sh --no-install
+
+# Reuse node_modules on subsequent builds
+./scripts/build-and-install-macos.sh --skip-deps
+
+# Rebuild all native transcription runtimes
+./scripts/build-and-install-macos.sh --force-runtimes
+```
+
+This local workflow uses ad-hoc signing because the project does not currently have a Developer ID certificate. macOS may show a warning, and replacing an installed ad-hoc build can require Accessibility permission to be re-authorized for the new code identity. If the app is enabled in System Settings but still reports that Accessibility is not granted, quit the app and run:
+
+```bash
+tccutil reset Accessibility com.openvocally.app
+```
+
+Then launch `/Applications/OpenVocaly.app`, add that exact app bundle in System Settings > Privacy & Security > Accessibility, enable it, and restart OpenVocaly. The app bundle contains the local inference runtimes, but model weights are downloaded separately into OpenVocaly application data.
+
 ## Local transcription
 
 OpenVocaly does not send dictation audio to a cloud transcription provider. The app currently ships three deliberate local choices:
@@ -113,6 +144,9 @@ npm run benchmark:whisper -- --audio /absolute/path/to/audio.webm --model /absol
 
 # Build app bundle
 npm run build:mac
+
+# Build and install the local macOS app
+./scripts/build-and-install-macos.sh
 ```
 
 ## Tech Stack

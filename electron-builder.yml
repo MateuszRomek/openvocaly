@@ -49,6 +49,9 @@ nsis:
 mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  signIgnore:
+    - 'resources/qwen-mlx-host/_internal/Python\.framework'
+    - 'resources/bin/FluidAudio_FluidAudio\.bundle'
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
