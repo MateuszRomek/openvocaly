@@ -1,7 +1,7 @@
 export const TRANSCRIPTS_COPY = {
   header: {
     title: 'Transcripts',
-    description: 'Browse past dictations and copy any transcript in one click.'
+    description: 'Your recent dictation, ready to copy.'
   },
   empty: {
     title: 'No transcripts yet',
@@ -13,23 +13,31 @@ export const TRANSCRIPTS_COPY = {
   },
   errors: {
     load: 'Could not load transcripts. Try again.',
-    copy: 'Could not copy transcript text.'
+    copy: 'Could not copy transcript text.',
+    description: 'We could not load transcript history. Check again in a moment.'
   },
   actions: {
-    copy: 'Copy',
+    copyTranscript: 'Copy transcript',
     copied: 'Transcript copied.',
     retry: 'Try again',
     goToLastPage: 'Go to last page'
   },
   labels: {
     unknownApp: 'Unknown app',
+    emptyTranscript: 'This transcript is empty.',
     noLanguage: '—',
     noConfidence: '—',
-    noDuration: '—'
+    noDuration: '—',
+    transcript: 'Transcript',
+    language: 'Language',
+    confidence: 'Confidence',
+    duration: 'Duration',
+    app: 'App'
   },
   pagination: {
     previous: 'Previous',
     next: 'Next',
-    updating: 'Loading next page...'
+    updating: 'Updating transcript history…',
+    label: 'Transcript pages'
   }
 } as const

@@ -37,9 +37,7 @@ export function HomeView(): React.JSX.Element {
   }
 
   return (
-    <section className="relative w-full space-y-5 py-1 sm:space-y-6 sm:py-2">
-      <div className="pointer-events-none absolute inset-x-8 top-2 -z-10 h-52 rounded-[2rem] bg-gradient-to-r from-chart-3/10 via-chart-2/10 to-chart-1/10 blur-3xl" />
-
+    <section className="w-full space-y-8 py-1 sm:py-2">
       <QueryErrorResetBoundary>
         {({ reset }) => (
           <ErrorBoundary
@@ -49,26 +47,35 @@ export function HomeView(): React.JSX.Element {
               <HomeReportingFallback resetErrorBoundary={resetErrorBoundary} />
             )}
           >
-            <header className="space-y-4">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                <div className="space-y-1.5">
-                  <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">Home</h2>
-                  <p className="text-muted-foreground text-sm">
-                    Track words dictated, speed, and app usage.
-                  </p>
-                </div>
-
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                  <HomeReportingRangeTabs value={selectedRange} onChange={handleRangeChange} />
-                </div>
-              </div>
+            <header className="sr-only">
+              <h1>Home</h1>
             </header>
 
             <HomePermissionsNotice />
+            <section aria-labelledby="home-activity-title" className="space-y-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div className="min-w-0 space-y-1.5">
+                  <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-[0.16em]">
+                    Activity
+                  </p>
+                  <h2
+                    id="home-activity-title"
+                    className="text-pretty text-xl font-semibold tracking-tight sm:text-2xl"
+                  >
+                    See Your Signal Over Time.
+                  </h2>
+                  <p className="text-muted-foreground text-sm">
+                    A clear view of the words, pace, and apps behind your dictation.
+                  </p>
+                </div>
 
-            <Suspense fallback={<HomeDashboardSkeleton />}>
-              <HomeDashboardContent range={selectedRange} />
-            </Suspense>
+                <HomeReportingRangeTabs value={selectedRange} onChange={handleRangeChange} />
+              </div>
+
+              <Suspense fallback={<HomeDashboardSkeleton />}>
+                <HomeDashboardContent range={selectedRange} />
+              </Suspense>
+            </section>
           </ErrorBoundary>
         )}
       </QueryErrorResetBoundary>

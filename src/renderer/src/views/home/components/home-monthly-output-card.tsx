@@ -64,12 +64,17 @@ export function HomeMonthlyOutputCard(): React.JSX.Element {
             </TabsList>
           </Tabs>
         </CardAction>
-        <CardTitle>Monthly output</CardTitle>
+        <CardTitle>Monthly Output</CardTitle>
         <CardDescription>Words by month.</CardDescription>
       </CardHeader>
       <CardContent className="pt-4">
         {hasActivity ? (
-          <ChartContainer config={monthlyOutputChartConfig} className="h-56 w-full aspect-auto">
+          <ChartContainer
+            config={monthlyOutputChartConfig}
+            className="h-56 w-full aspect-auto"
+            role="img"
+            aria-label="Bar chart showing words dictated by month."
+          >
             <BarChart data={points} margin={{ left: 12, right: 12, top: 8 }}>
               <CartesianGrid vertical={false} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />

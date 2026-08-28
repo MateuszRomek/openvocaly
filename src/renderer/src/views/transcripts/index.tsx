@@ -32,7 +32,7 @@ export function TranscriptsView(): React.JSX.Element {
   const showList = !showError && !showSkeleton && !showEmpty
 
   return (
-    <section className="w-full max-w-4xl space-y-5 py-1 sm:py-2">
+    <section className="min-w-0 w-full max-w-5xl space-y-7 py-1 sm:space-y-8 sm:py-2">
       <TranscriptsHeader totalItems={totalItems} />
 
       {showError && <TranscriptsErrorState onRetry={retry} />}
