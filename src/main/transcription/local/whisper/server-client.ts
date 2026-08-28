@@ -5,6 +5,7 @@ import type { WhisperModelId } from './model-catalog'
 import { findRuntimePort, resolveRuntimeBinaryPath } from './runtime-discovery'
 import { getWhisperModelFilePath } from '../model-dir-utils'
 import { buildWhisperServerArgs } from './server-options'
+import { getReducedPriorityInvocation } from '../../../helpers/process'
 
 const STARTUP_TIMEOUT_SECONDS = 30
 const STARTUP_TIMEOUT_MS = STARTUP_TIMEOUT_SECONDS * 1000
@@ -191,8 +192,9 @@ export class WhisperServerClient {
       triedPorts.add(selectedPort)
 
       const args = buildWhisperServerArgs({ modelPath, port: this.port })
+      const invocation = getReducedPriorityInvocation(this.binaryPath, args)
 
-      const processRef = spawn(this.binaryPath, args, {
+      const processRef = spawn(invocation.command, invocation.args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true
       })
@@ -271,9 +273,12 @@ export class WhisperServerClient {
     this.modelId = null
   }
 
-  async transcribe(wavBuffer: Buffer): Promise<string> {
+  async transcribe(wavBuffer: Buffer, signal?: AbortSignal): Promise<string> {
     if (!this.isRunning() || this.port === null) {
       throw new Error('Local Whisper runtime is not running.')
+    }
+    if (signal?.aborted) {
+      throw new Error('Local Whisper transcription cancelled.')
     }
 
     this.clearIdleStopTimer()
@@ -285,6 +290,12 @@ export class WhisperServerClient {
     formData.append('language', 'auto')
 
     const abortController = new AbortController()
+    let cancelled = false
+    const abortListener = (): void => {
+      cancelled = true
+      abortController.abort('cancelled')
+    }
+    signal?.addEventListener('abort', abortListener, { once: true })
     const timeout = setTimeout(() => {
       abortController.abort('timeout')
     }, TRANSCRIPTION_TIMEOUT_MS)
@@ -307,6 +318,9 @@ export class WhisperServerClient {
       const text = typeof payload.text === 'string' ? payload.text.trim() : ''
       return text
     } catch (error) {
+      if (cancelled) {
+        throw new Error('Local Whisper transcription cancelled.')
+      }
       if (abortController.signal.aborted) {
         throw new Error('Local Whisper transcription timed out.')
       }
@@ -315,6 +329,7 @@ export class WhisperServerClient {
       throw new Error(`Local Whisper runtime request failed: ${message}`)
     } finally {
       clearTimeout(timeout)
+      signal?.removeEventListener('abort', abortListener)
       this.scheduleIdleStop()
     }
   }

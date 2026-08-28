@@ -31,7 +31,11 @@ export const localQwenProvider: TranscriptionProviderDefinition = {
   models: QWEN_MODELS,
   transcribe: async (artifact, context) => {
     try {
-      const result = await qwenRuntime.transcribeArtifact(artifact.filePath, context.modelId)
+      const result = await qwenRuntime.transcribeArtifact(
+        artifact.filePath,
+        context.modelId,
+        context.signal
+      )
       const text = result.text.trim()
       const diagnostics = {
         ...result.diagnostics,
@@ -46,7 +50,11 @@ export const localQwenProvider: TranscriptionProviderDefinition = {
           diagnostics
         }
       }
-      return { ok: true, transcript: { text, language: result.language }, diagnostics }
+      return {
+        ok: true,
+        transcript: { text, language: result.language, durationMs: result.diagnostics.durationMs },
+        diagnostics
+      }
     } catch (error) {
       if (error instanceof LocalQwenError) {
         return { ok: false, code: error.code, message: error.message }

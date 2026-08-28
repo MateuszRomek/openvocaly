@@ -106,7 +106,11 @@ private actor ParakeetEngine {
     }
 
     let models = try await AsrModels.load(from: repositoryDirectory(in: directory), version: .v3)
-    manager = AsrManager(models: models)
+    // Keep sustained local transcription responsive. FluidAudio's default
+    // config creates four concurrent long-form workers, which can make a long
+    // recording saturate the CPU/Neural Engine and stall macOS.
+    let config = ASRConfig(parallelChunkConcurrency: 1)
+    manager = AsrManager(config: config, models: models)
     loadedModelDirectory = directory
   }
 

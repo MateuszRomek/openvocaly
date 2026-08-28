@@ -97,7 +97,6 @@ export class TranscriptionService extends InitializableComponent {
   private readonly localRuntimes: Record<LocalTranscriptionProviderId, LocalRuntimeController>
   private readonly localTranscriptionScheduler = new AsyncSerialScheduler()
   private readonly localModelMutationScheduler = new AsyncSerialScheduler()
-  private isShuttingDown = false
 
   constructor(
     options: {
@@ -123,13 +122,10 @@ export class TranscriptionService extends InitializableComponent {
     }
 
     await this.preferencesManager.initialize()
-    this.isShuttingDown = false
     this.initialized = true
-    this.warmPreferencesInBackground(this.preferencesManager.get())
   }
 
   async shutdown(): Promise<void> {
-    this.isShuttingDown = true
     await this.localTranscriptionScheduler.run(() => this.stopAllLocalRuntimesNow())
 
     this.initialized = false
@@ -155,8 +151,6 @@ export class TranscriptionService extends InitializableComponent {
     if (this.shouldStopLocalRuntime(previousPreferences, preferences)) {
       await this.localTranscriptionScheduler.run(() => this.stopAllLocalRuntimesNow())
     }
-
-    this.warmPreferencesInBackground(preferences)
 
     return {
       preferences,
@@ -218,15 +212,6 @@ export class TranscriptionService extends InitializableComponent {
             }
           : undefined
       )
-      if (response.ok) {
-        const preferences = this.preferencesManager.get()
-        if (
-          preferences.providerId === params.providerId &&
-          preferences.modelId === params.modelId
-        ) {
-          this.warmPreferencesInBackground(preferences)
-        }
-      }
       return response
     })
   }
@@ -274,13 +259,19 @@ export class TranscriptionService extends InitializableComponent {
         return response
       }
 
-      this.warmPreferencesInBackground(this.preferencesManager.get())
       return response
     })
   }
 
   getLocalRuntimeStatus(params: LocalProviderActionInput): LocalRuntimeStatusResponse {
     return this.getLocalRuntime(params.providerId).getRuntimeStatus()
+  }
+
+  validateLocalSelection(
+    preferences: TranscriptionPreferences
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
+    this.assertInitialized()
+    return this.providerFactory.validateLocalSelection(preferences)
   }
 
   async startLocalRuntime(params: LocalModelActionInput): Promise<LocalModelActionResponse> {
@@ -344,7 +335,8 @@ export class TranscriptionService extends InitializableComponent {
   async transcribeLocalFile(
     filePath: string,
     sessionId: string,
-    preferences: TranscriptionPreferences
+    preferences: TranscriptionPreferences,
+    options: { signal?: AbortSignal } = {}
   ): Promise<TranscriptionResult> {
     this.assertInitialized()
 
@@ -361,42 +353,22 @@ export class TranscriptionService extends InitializableComponent {
         sessionId,
         filePath
       },
-      preferences
+      preferences,
+      options
     )
   }
 
   private transcribeWithPreferences(
     artifact: TranscriptionArtifact,
-    preferences: TranscriptionPreferences
+    preferences: TranscriptionPreferences,
+    options: { signal?: AbortSignal } = {}
   ): Promise<TranscriptionResult> {
     const transcribe = (): Promise<TranscriptionResult> =>
-      this.providerFactory.transcribe(artifact, preferences)
+      this.providerFactory.transcribe(artifact, preferences, options)
 
     return isLocalProviderId(preferences.providerId)
       ? this.localTranscriptionScheduler.run(transcribe)
       : transcribe()
-  }
-
-  /** Warm a downloaded selected model without delaying settings updates or startup. */
-  private warmPreferencesInBackground(preferences: TranscriptionPreferences): void {
-    if (this.isShuttingDown || !isLocalProviderId(preferences.providerId)) {
-      return
-    }
-
-    const runtime = this.getLocalRuntime(preferences.providerId)
-    // Do not submit warm-up to the foreground transcription queue. Switching
-    // models or quitting stops hosts through that queue, which interrupts this
-    // best-effort work instead of waiting for a cold model to finish loading.
-    void runtime
-      .startRuntime(preferences.modelId)
-      .then((result) => {
-        if (!result.ok) {
-          console.debug('[transcription] selected local model was not warmed', result.message)
-        }
-      })
-      .catch((error) => {
-        console.debug('[transcription] failed to warm selected local model', error)
-      })
   }
 
   /** Finds a usable installed model before an active model can be removed. */

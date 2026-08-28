@@ -6,11 +6,11 @@ export type WhisperServerLaunchOptions = {
 }
 
 /**
- * Keep Whisper's CPU-side work bounded on Apple Silicon. The local Turbo Q5
- * benchmark showed equivalent warm latency at two and four threads with Metal
- * enabled, so two is the safer sustained-dictation default.
+ * Keep Whisper's CPU-side work bounded on Apple Silicon. Meetings are allowed
+ * to take longer, so one CPU worker is the safer sustained default while Metal
+ * handles the model-side work.
  */
-const CURRENT_DEFAULT_THREADS = 2
+const CURRENT_DEFAULT_THREADS = 1
 
 /**
  * Builds the complete whisper.cpp server invocation in one place so its

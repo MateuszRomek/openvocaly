@@ -62,6 +62,7 @@ import type {
   GetMeetingInput,
   GetMeetingResponse,
   ImportMeetingResponse,
+  MeetingImportSelection,
   ListMeetingsResponse,
   MeetingActionInput,
   MeetingActionResponse
@@ -131,8 +132,8 @@ const api = {
     list: (): Promise<ListMeetingsResponse> => ipcRenderer.invoke('meetings:list'),
     get: (input: GetMeetingInput): Promise<GetMeetingResponse> =>
       ipcRenderer.invoke('meetings:get', input),
-    selectAndImport: (): Promise<ImportMeetingResponse> =>
-      ipcRenderer.invoke('meetings:selectAndImport'),
+    selectAndImport: (input: MeetingImportSelection): Promise<ImportMeetingResponse> =>
+      ipcRenderer.invoke('meetings:selectAndImport', input),
     cancel: (input: MeetingActionInput): Promise<MeetingActionResponse> =>
       ipcRenderer.invoke('meetings:cancel', input),
     resume: (input: MeetingActionInput): Promise<MeetingActionResponse> =>

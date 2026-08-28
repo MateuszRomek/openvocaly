@@ -115,7 +115,8 @@ export class QwenRuntime {
 
   async transcribeArtifact(
     artifactPath: string,
-    modelId: string
+    modelId: string,
+    signal?: AbortSignal
   ): Promise<QwenTranscriptionRuntimeResult> {
     if (!isQwenMlxSupported()) {
       throw new LocalQwenError(
@@ -148,9 +149,10 @@ export class QwenRuntime {
     try {
       await convertFileToWav(artifactPath, wavPath, {
         sampleRate: QWEN_SAMPLE_RATE,
-        channels: 1
+        channels: 1,
+        signal
       })
-      const result = await this.host.transcribe(getQwenModelDir(modelId), wavPath)
+      const result = await this.host.transcribe(getQwenModelDir(modelId), wavPath, signal)
       const text = result.text.trim()
       return {
         text,

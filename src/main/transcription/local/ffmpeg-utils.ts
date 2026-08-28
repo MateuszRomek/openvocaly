@@ -4,6 +4,7 @@ import { mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ffmpegStatic from 'ffmpeg-static'
+import { getReducedPriorityInvocation } from '../../helpers/process'
 
 const FLOAT32_BYTES_PER_SAMPLE = 4
 const INT16_MAX = 32768
@@ -123,7 +124,7 @@ export const getFfmpegPath = (): string | null => {
 export const convertFileToWav = async (
   inputPath: string,
   outputPath: string,
-  options: { sampleRate?: number; channels?: number } = {}
+  options: { sampleRate?: number; channels?: number; signal?: AbortSignal } = {}
 ): Promise<void> => {
   const ffmpegPath = getFfmpegPath()
   if (!ffmpegPath) {
@@ -135,6 +136,8 @@ export const convertFileToWav = async (
 
   await new Promise<void>((resolve, reject) => {
     const ffmpegArgs = [
+      '-threads',
+      '1',
       '-i',
       inputPath,
       '-ar',
@@ -147,10 +150,46 @@ export const convertFileToWav = async (
       outputPath
     ]
 
-    const processRef = spawn(ffmpegPath, ffmpegArgs, {
+    const invocation = getReducedPriorityInvocation(ffmpegPath, ffmpegArgs)
+    const processRef = spawn(invocation.command, invocation.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     })
+    let settled = false
+
+    const cleanupAbortListener = (): void => {
+      options.signal?.removeEventListener('abort', abortListener)
+    }
+    const resolveOnce = (): void => {
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanupAbortListener()
+      resolve()
+    }
+    const rejectOnce = (error: Error): void => {
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanupAbortListener()
+      reject(error)
+    }
+    const abortListener = (): void => {
+      try {
+        processRef.kill('SIGTERM')
+      } catch {
+        // The process may have already exited.
+      }
+      rejectOnce(new Error('FFmpeg conversion cancelled.'))
+    }
+
+    if (options.signal?.aborted) {
+      abortListener()
+      return
+    }
+    options.signal?.addEventListener('abort', abortListener, { once: true })
 
     let stderr = ''
     processRef.stderr.on('data', (chunk) => {
@@ -158,16 +197,16 @@ export const convertFileToWav = async (
     })
 
     processRef.on('error', (error) => {
-      reject(new Error(`FFmpeg process error: ${error.message}`))
+      rejectOnce(new Error(`FFmpeg process error: ${error.message}`))
     })
 
     processRef.on('close', (code) => {
       if (code === 0) {
-        resolve()
+        resolveOnce()
         return
       }
 
-      reject(new Error(`FFmpeg conversion failed with code ${code}: ${stderr.slice(-300)}`))
+      rejectOnce(new Error(`FFmpeg conversion failed with code ${code}: ${stderr.slice(-300)}`))
     })
   })
 }

@@ -97,9 +97,52 @@ export class TranscriptionProviderFactory {
     }
   }
 
+  async validateLocalSelection(
+    preferences: TranscriptionPreferences
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
+    const provider = transcriptionProvidersById.get(preferences.providerId)
+    if (!provider) {
+      return { ok: false, message: 'Selected transcription provider is not supported.' }
+    }
+
+    if (provider.availability !== 'available') {
+      return { ok: false, message: `${provider.label} transcription is not available yet.` }
+    }
+
+    if (!provider.models.some((model) => model.id === preferences.modelId)) {
+      return { ok: false, message: 'Selected transcription model is not supported.' }
+    }
+
+    const failureCode = await provider.validateBeforeTranscribe?.({
+      modelId: preferences.modelId
+    })
+    if (failureCode) {
+      const failure = this.toMissingRequirementResult(provider.label, failureCode)
+      return {
+        ok: false,
+        message: failure.ok
+          ? `${provider.label} is not configured.`
+          : (failure.message ?? `${provider.label} is not configured.`)
+      }
+    }
+
+    if (!provider.isModelDownloaded(preferences.modelId)) {
+      const failure = this.toMissingRequirementResult(provider.label, 'local_model_not_downloaded')
+      return {
+        ok: false,
+        message: failure.ok
+          ? `${provider.label} is not configured.`
+          : (failure.message ?? `${provider.label} is not configured.`)
+      }
+    }
+
+    return { ok: true }
+  }
+
   async transcribe(
     artifact: TranscriptionArtifact,
-    preferences: TranscriptionPreferences
+    preferences: TranscriptionPreferences,
+    options: { signal?: AbortSignal } = {}
   ): Promise<TranscriptionResult> {
     if (process.env['OPENVOCALY_RECORDING_FORCE_TRANSCRIPTION_FAILURE'] === '1') {
       return {
@@ -143,7 +186,7 @@ export class TranscriptionProviderFactory {
         return this.toMissingRequirementResult(provider.label, 'local_model_not_downloaded')
       }
 
-      return await provider.transcribe(artifact, { modelId })
+      return await provider.transcribe(artifact, { modelId, signal: options.signal })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown provider error.'
       return this.toProviderFailureMessage(provider.label, message, 'local_transcription_failed')

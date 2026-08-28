@@ -13,6 +13,7 @@ export type TranscriptionArtifact = {
 
 export type LocalProviderTranscriptionContext = {
   modelId: string
+  signal?: AbortSignal
 }
 
 export type ProviderReadinessContext = {
