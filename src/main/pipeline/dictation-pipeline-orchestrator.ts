@@ -15,7 +15,10 @@ import type { DictationOverlayPublisher } from './overlay-publisher'
 import { PasteLastTranscriptionCoordinator } from './paste-last-transcription-coordinator'
 import type { DictationSessionStateManager } from './session'
 import { resolveTerminalDisplayDelayMs } from './terminal-policy'
-import type { DictationTranscriptionWorkflow } from './transcription-workflow'
+import type {
+  DictationTranscriptionWorkflow,
+  TranscriptionWorkflowResult
+} from './transcription-workflow'
 
 /**
  * Coordinates top-level dictation lifecycle in main process.
@@ -29,6 +32,13 @@ import type { DictationTranscriptionWorkflow } from './transcription-workflow'
 export class DictationPipelineOrchestrator {
   private initialized = false
   private readonly pasteLastCoordinator: PasteLastTranscriptionCoordinator
+  private activeTranscription: {
+    sessionId: string
+    mode: RecordingMode
+    controller: AbortController
+    persistenceStarted: boolean
+    operation: Promise<TranscriptionWorkflowResult> | null
+  } | null = null
 
   private unsubscribeCommand: (() => void) | null = null
   private unsubscribeRecordingSession: (() => void) | null = null
@@ -95,6 +105,14 @@ export class DictationPipelineOrchestrator {
       return
     }
 
+    this.initialized = false
+
+    const activeTranscription = this.activeTranscription
+    activeTranscription?.controller.abort()
+    if (activeTranscription?.operation) {
+      await activeTranscription.operation
+    }
+
     this.dependencies.idleReset.destroy()
 
     if (this.unsubscribeCommand) {
@@ -115,7 +133,6 @@ export class DictationPipelineOrchestrator {
     this.dependencies.pasteService.destroy()
     this.dependencies.overlayPublisher.destroy()
     this.dependencies.session.resetToIdle()
-    this.initialized = false
   }
 
   getRuntimeState(): DictationRuntimeStateResponse {
@@ -157,6 +174,11 @@ export class DictationPipelineOrchestrator {
 
     if (intent.type === 'cancel') {
       await this.dependencies.recordingService.cancelRecording()
+      return
+    }
+
+    if (intent.type === 'cancel_transcription') {
+      await this.cancelActiveTranscription()
       return
     }
 
@@ -218,15 +240,50 @@ export class DictationPipelineOrchestrator {
       return
     }
 
-    await this.transitionToTranscribing(artifact.sessionId, artifact.mode)
+    const activeTranscription = {
+      sessionId: artifact.sessionId,
+      mode: artifact.mode,
+      controller: new AbortController(),
+      persistenceStarted: false,
+      operation: null as Promise<TranscriptionWorkflowResult> | null
+    }
+    this.activeTranscription = activeTranscription
 
-    const workflowResult = await this.dependencies.transcriptionWorkflow.processArtifact(artifact)
+    let workflowResult: TranscriptionWorkflowResult
+    const operation = this.runTranscription(artifact, activeTranscription)
+    activeTranscription.operation = operation
+    try {
+      workflowResult = await operation
+    } finally {
+      if (this.activeTranscription === activeTranscription) {
+        this.activeTranscription = null
+      }
+    }
 
-    if (!this.dependencies.session.isCurrentSession(artifact.sessionId)) {
+    if (!this.initialized || !this.dependencies.session.isCurrentSession(artifact.sessionId)) {
+      return
+    }
+
+    if (workflowResult.type === 'cancelled') {
+      if (!this.dependencies.session.isPhase('failed')) {
+        await this.transitionToFailed(
+          'aborted',
+          'Transcription cancelled.',
+          artifact.sessionId,
+          artifact.mode
+        )
+      }
       return
     }
 
     if (workflowResult.type === 'complete') {
+      if (
+        activeTranscription.controller.signal.aborted ||
+        !this.dependencies.session.isPhase('transcribing')
+      ) {
+        return
+      }
+
       await this.handlePostTranscriptionSuccess(artifact, workflowResult.transcriptText)
       return
     }
@@ -237,6 +294,28 @@ export class DictationPipelineOrchestrator {
       artifact.sessionId,
       artifact.mode
     )
+  }
+
+  private async runTranscription(
+    artifact: RecordingArtifact,
+    activeTranscription: {
+      controller: AbortController
+      persistenceStarted: boolean
+    }
+  ): Promise<TranscriptionWorkflowResult> {
+    await this.transitionToTranscribing(artifact.sessionId, artifact.mode)
+
+    return await this.dependencies.transcriptionWorkflow.processArtifact(artifact, {
+      signal: activeTranscription.controller.signal,
+      tryBeginPersistence: () => {
+        if (activeTranscription.controller.signal.aborted) {
+          return false
+        }
+
+        activeTranscription.persistenceStarted = true
+        return true
+      }
+    })
   }
 
   private async handlePostTranscriptionSuccess(
@@ -361,6 +440,26 @@ export class DictationPipelineOrchestrator {
 
     this.dependencies.idleReset.clear()
     await this.publishOverlayImmediate()
+  }
+
+  private async cancelActiveTranscription(): Promise<void> {
+    const activeTranscription = this.activeTranscription
+    if (
+      !activeTranscription ||
+      activeTranscription.persistenceStarted ||
+      !this.dependencies.session.isPhase('transcribing') ||
+      !this.dependencies.session.isCurrentSession(activeTranscription.sessionId)
+    ) {
+      return
+    }
+
+    activeTranscription.controller.abort()
+    await this.transitionToFailed(
+      'aborted',
+      'Transcription cancelled.',
+      activeTranscription.sessionId,
+      activeTranscription.mode
+    )
   }
 
   private async transitionToAwaitingManualPaste(

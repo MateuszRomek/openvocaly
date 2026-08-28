@@ -11,8 +11,8 @@ export const SHORTCUT_ACTION_META: Record<ShortcutAction, { label: string; descr
       description: 'Press once to start recording and press again to stop.'
     },
     'recording.cancel': {
-      label: 'Cancel recording',
-      description: 'Abort an active recording session without transcribing.'
+      label: 'Cancel dictation',
+      description: 'Abort an active recording or in-flight transcription.'
     },
     'recording.push_to_talk': {
       label: 'Push-to-talk',

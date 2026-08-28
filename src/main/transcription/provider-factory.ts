@@ -10,6 +10,14 @@ import { transcriptionProviders, transcriptionProvidersById } from './providers'
 import type { TranscriptionArtifact, TranscriptionProviderDefinition } from './providers/types'
 
 export class TranscriptionProviderFactory {
+  private toCancelledResult(): TranscriptionResult {
+    return {
+      ok: false,
+      code: 'cancelled',
+      message: 'Transcription cancelled.'
+    }
+  }
+
   private resolveProviderModelId(
     provider: TranscriptionProviderDefinition,
     preferences?: TranscriptionPreferences
@@ -144,6 +152,10 @@ export class TranscriptionProviderFactory {
     preferences: TranscriptionPreferences,
     options: { signal?: AbortSignal } = {}
   ): Promise<TranscriptionResult> {
+    if (options.signal?.aborted) {
+      return this.toCancelledResult()
+    }
+
     if (process.env['OPENVOCALY_RECORDING_FORCE_TRANSCRIPTION_FAILURE'] === '1') {
       return {
         ok: false,
@@ -182,12 +194,21 @@ export class TranscriptionProviderFactory {
     }
 
     try {
+      if (options.signal?.aborted) {
+        return this.toCancelledResult()
+      }
+
       if (!provider.isModelDownloaded(modelId)) {
         return this.toMissingRequirementResult(provider.label, 'local_model_not_downloaded')
       }
 
-      return await provider.transcribe(artifact, { modelId, signal: options.signal })
+      const result = await provider.transcribe(artifact, { modelId, signal: options.signal })
+      return options.signal?.aborted ? this.toCancelledResult() : result
     } catch (error) {
+      if (options.signal?.aborted) {
+        return this.toCancelledResult()
+      }
+
       const message = error instanceof Error ? error.message : 'Unknown provider error.'
       return this.toProviderFailureMessage(provider.label, message, 'local_transcription_failed')
     }

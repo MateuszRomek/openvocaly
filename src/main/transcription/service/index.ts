@@ -84,6 +84,15 @@ const LOCAL_MODEL_MUTATION_LOCK_MESSAGE =
 const NO_DOWNLOADED_MODEL_REPLACEMENT_MESSAGE =
   'Download and select another local model before deleting the active model.'
 
+export type TranscriptionArtifactOptions = {
+  signal?: AbortSignal
+  /**
+   * Claims the persistence boundary. Returning false means cancellation won
+   * before persistence started and the transcript must not be stored.
+   */
+  tryBeginPersistence?: () => boolean
+}
+
 const isLocalProviderId = (
   providerId: TranscriptionPreferences['providerId']
 ): providerId is LocalTranscriptionProviderId => {
@@ -286,13 +295,28 @@ export class TranscriptionService extends InitializableComponent {
     )
   }
 
-  async transcribeArtifact(artifact: RecordingArtifact): Promise<TranscriptionResult> {
+  async transcribeArtifact(
+    artifact: RecordingArtifact,
+    options: TranscriptionArtifactOptions = {}
+  ): Promise<TranscriptionResult> {
     this.assertInitialized()
 
-    const result = await this.transcribeWithPreferences(artifact, this.preferencesManager.get())
+    const result = await this.transcribeWithPreferences(
+      artifact,
+      this.preferencesManager.get(),
+      options
+    )
 
     if (!result.ok) {
       return result
+    }
+
+    if (options.signal?.aborted || options.tryBeginPersistence?.() === false) {
+      return {
+        ok: false,
+        code: 'cancelled',
+        message: 'Transcription cancelled.'
+      }
     }
 
     try {
@@ -336,7 +360,7 @@ export class TranscriptionService extends InitializableComponent {
     filePath: string,
     sessionId: string,
     preferences: TranscriptionPreferences,
-    options: { signal?: AbortSignal } = {}
+    options: TranscriptionArtifactOptions = {}
   ): Promise<TranscriptionResult> {
     this.assertInitialized()
 

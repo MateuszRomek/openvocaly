@@ -85,6 +85,7 @@ export type TranscriptionDiagnostics = {
 
 export type TranscriptionFailureCode =
   | 'forced_failure'
+  | 'cancelled'
   | 'provider_not_supported'
   | 'provider_unavailable'
   | 'provider_not_configured'
