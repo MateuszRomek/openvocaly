@@ -16,3 +16,5 @@ native/ptt-hook-macos/build/
 native/ptt-hook-macos/bin/
 native/macos-asr-host/.build/
 __pycache__/
+
+.agents/agent-mode/models.*.local.yaml
