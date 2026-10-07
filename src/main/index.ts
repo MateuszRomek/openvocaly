@@ -1,12 +1,4 @@
-import {
-  app,
-  shell,
-  BrowserWindow,
-  ipcMain,
-  nativeImage,
-  nativeTheme,
-  powerMonitor
-} from 'electron'
+import { app, BrowserWindow, ipcMain, nativeImage, nativeTheme, powerMonitor } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import appIconIco from '../../build/icon.ico?asset'
@@ -17,6 +9,7 @@ import { closeDb } from './db'
 import { withShutdownTimeout } from './helpers/lifecycle'
 import { createLogger } from './helpers/logger'
 import { isMacOS, isWindows } from './helpers/platform'
+import { hardenWebContents } from './helpers/web-contents-security'
 
 const GRACEFUL_QUIT_TIMEOUT_MS = 2500
 const PASTE_WARMUP_DELAY_MS = 8_000
@@ -25,6 +18,8 @@ const appWindowIcon = isWindows() ? appIconIco : appIconBackgroundDarkPng
 const MAC_DOCK_ICON_INSET_RATIO = 0.1
 
 const mainContext = createMainAppContext()
+
+app.on('web-contents-created', (_, contents) => hardenWebContents(contents))
 
 let mainWindow: BrowserWindow | null = null
 let hasShutdownCompleted = false
@@ -252,7 +247,7 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       backgroundThrottling: true,
       devTools: is.dev
     }
@@ -260,11 +255,6 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
   })
 
   mainWindow.on('close', (event) => {
@@ -351,6 +341,8 @@ app.whenReady().then(async () => {
   )
 
   createWindow()
+
+  mainContext.services.transcriptionService.warmActiveLocalRuntime()
 
   void runStep('pipeline failed to prewarm overlay', () =>
     mainContext.services.pipelineOrchestrator.prewarm()

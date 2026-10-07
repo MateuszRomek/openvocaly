@@ -1,5 +1,6 @@
 import { app } from 'electron'
-import { copyFile, mkdir, rm, stat } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
 import type {
   GetMeetingResponse,
@@ -11,6 +12,7 @@ import type {
 import { MEETING_AUDIO_EXTENSIONS } from '../../shared/meetings'
 import { createUuid } from '../helpers/id'
 import type { TranscriptionService } from '../transcription/service'
+import { prepareMeetingAudioChunks } from './audio-chunks'
 import { MeetingsRepository } from './repository'
 
 const SUPPORTED_EXTENSIONS = new Set<string>(MEETING_AUDIO_EXTENSIONS)
@@ -28,7 +30,8 @@ export class MeetingsService {
 
   constructor(
     private readonly transcriptionService: TranscriptionService,
-    private readonly repository = new MeetingsRepository()
+    private readonly repository = new MeetingsRepository(),
+    private readonly prepareAudioChunks = prepareMeetingAudioChunks
   ) {}
 
   async initialize(): Promise<void> {
@@ -262,6 +265,13 @@ export class MeetingsService {
 
     const transcriptionController = new AbortController()
     this.activeTranscriptionController = transcriptionController
+    const isCancelled = (): boolean => this.stopping || this.cancelledMeetingIds.has(meetingId)
+    const finishCancelled = async (): Promise<void> => {
+      if (!this.stopping) {
+        await this.repository.markCancelled(meetingId)
+      }
+    }
+    let workDir: string | null = null
 
     try {
       await this.repository.markProcessing(meetingId)
@@ -269,60 +279,68 @@ export class MeetingsService {
       if (existingDetails?.segments.length) {
         await this.repository.clearSegments(meetingId)
       }
-
-      await this.repository.setChunkPlan(meetingId, meeting.durationMs ?? 0, 1)
-      if (this.stopping || this.cancelledMeetingIds.has(meetingId)) {
-        if (!this.stopping) {
-          await this.repository.markCancelled(meetingId)
-        }
+      if (isCancelled()) {
+        await finishCancelled()
         return
       }
 
-      // The provider owns its long-form windowing. Meetings must not split the
-      // same recording first and then make the provider split every piece again.
-      const result = await this.transcriptionService.transcribeLocalFile(
+      workDir = await mkdtemp(join(tmpdir(), 'openvocaly-meeting-'))
+      const chunks = await this.prepareAudioChunks(
         sourceFilePath,
-        meetingId,
-        {
-          providerId: meeting.providerId,
-          modelId: meeting.modelId
-        },
-        { signal: transcriptionController.signal }
+        workDir,
+        transcriptionController.signal
       )
+      const durationMs = chunks.at(-1)?.endMs ?? meeting.durationMs ?? 0
+      await this.repository.setChunkPlan(meetingId, durationMs, chunks.length)
 
-      if (this.stopping || this.cancelledMeetingIds.has(meetingId)) {
-        if (!this.stopping) {
-          await this.repository.markCancelled(meetingId)
+      let partial = false
+      let hasSpeech = false
+      for (const [index, chunk] of chunks.entries()) {
+        if (isCancelled()) {
+          await finishCancelled()
+          return
         }
-        return
+        const result = await this.transcriptionService.transcribeLocalFile(
+          chunk.filePath,
+          meetingId,
+          {
+            providerId: meeting.providerId,
+            modelId: meeting.modelId
+          },
+          { signal: transcriptionController.signal }
+        )
+        if (isCancelled()) {
+          await finishCancelled()
+          return
+        }
+        if (!result.ok) {
+          await this.repository.markFailed(
+            meetingId,
+            result.message ?? 'Meeting transcription failed.'
+          )
+          return
+        }
+
+        partial ||= result.diagnostics?.partial === true
+        const text = result.transcript.text.trim()
+        if (!text) {
+          continue
+        }
+        hasSpeech = true
+        await this.repository.persistSegment({
+          meetingId,
+          chunkIndex: index + 1,
+          startMs: chunk.startMs,
+          endMs: chunk.endMs,
+          text
+        })
       }
 
-      if (!result.ok) {
-        await this.repository.markFailed(
-          meetingId,
-          result.message ?? 'Meeting transcription failed.'
-        )
-        return
-      }
-      if (!result.transcript.text.trim()) {
+      if (!hasSpeech) {
         await this.repository.markFailed(meetingId, 'No speech was detected in this recording.')
         return
       }
-
-      const durationMs =
-        result.transcript.durationMs ?? result.diagnostics?.durationMs ?? meeting.durationMs ?? 0
-      await this.repository.setChunkPlan(meetingId, durationMs, 1)
-      await this.repository.persistSegment({
-        meetingId,
-        chunkIndex: 1,
-        startMs: 0,
-        endMs: durationMs,
-        text: result.transcript.text.trim()
-      })
-      await this.repository.markCompleted(
-        meetingId,
-        result.diagnostics?.partial ? 'partial' : 'completed'
-      )
+      await this.repository.markCompleted(meetingId, partial ? 'partial' : 'completed')
     } catch (error) {
       if (this.stopping) {
         return
@@ -338,6 +356,9 @@ export class MeetingsService {
     } finally {
       if (this.activeTranscriptionController === transcriptionController) {
         this.activeTranscriptionController = null
+      }
+      if (workDir) {
+        await rm(workDir, { recursive: true, force: true }).catch(() => undefined)
       }
     }
   }

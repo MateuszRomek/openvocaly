@@ -1,4 +1,4 @@
-import { setInterval as setNodeInterval } from 'node:timers'
+import { setInterval as setNodeInterval, setTimeout as setNodeTimeout } from 'node:timers'
 import type {
   RecordingArtifact,
   RecordingCaptureEvent,
@@ -44,6 +44,7 @@ import {
 
 const DEFAULT_OUTPUT_FORMAT: RecordingOutputFormat = 'webm_opus'
 const CLEANUP_INTERVAL_MS = 12 * 60 * 60 * 1000
+export const CAPTURE_TRANSITION_TIMEOUT_MS = 5_000
 
 /**
  * Coordinates the recording lifecycle in the main process.
@@ -58,6 +59,7 @@ export class RecordingServiceOrchestrator extends InitializableComponent {
   private state: RecordingSessionState = createRecordingSessionState()
   private unsubscribeCapture: (() => void) | null = null
   private cleanupInterval: NodeJS.Timeout | null = null
+  private transitionWatchdog: NodeJS.Timeout | null = null
 
   private readonly captureRuntime: RecordingCaptureRuntime
   private readonly artifactManager: RecordingArtifactManager
@@ -120,6 +122,8 @@ export class RecordingServiceOrchestrator extends InitializableComponent {
       clearInterval(this.cleanupInterval)
       this.cleanupInterval = null
     }
+
+    this.clearTransitionWatchdog()
 
     if (this.unsubscribeCapture) {
       this.unsubscribeCapture()
@@ -196,6 +200,7 @@ export class RecordingServiceOrchestrator extends InitializableComponent {
     }
 
     this.state.machine = moveToStarting(this.state.activeArtifact.artifact.sessionId, mode)
+    this.armTransitionWatchdog()
     this.publishSessionSnapshot()
 
     try {
@@ -219,6 +224,7 @@ export class RecordingServiceOrchestrator extends InitializableComponent {
     }
 
     this.state.machine = moveToStopping(this.state.machine)
+    this.armTransitionWatchdog()
     this.publishSessionSnapshot()
 
     try {
@@ -337,6 +343,14 @@ export class RecordingServiceOrchestrator extends InitializableComponent {
           await this.finalizeAndPublishArtifact(sessionId, durationMs)
         },
         onFailure: async ({ sessionId, reason, message }) => {
+          if (!isActiveCapturePhase(this.state.machine.phase)) {
+            return
+          }
+
+          if (sessionId && sessionId !== this.state.machine.sessionId) {
+            return
+          }
+
           await this.handleCaptureFailure(sessionId, reason, message)
         }
       }
@@ -348,6 +362,7 @@ export class RecordingServiceOrchestrator extends InitializableComponent {
       return
     }
 
+    this.clearTransitionWatchdog()
     let finalizedArtifact = this.state.activeArtifact.artifact
 
     try {
@@ -355,6 +370,13 @@ export class RecordingServiceOrchestrator extends InitializableComponent {
     } catch (error) {
       const failure = toFinalizeArtifactFailure(error)
       await this.handleCaptureFailure(sessionId, failure.reason, failure.message)
+      return
+    }
+
+    if (
+      this.state.machine.sessionId !== sessionId ||
+      !isActiveCapturePhase(this.state.machine.phase)
+    ) {
       return
     }
 
@@ -390,6 +412,52 @@ export class RecordingServiceOrchestrator extends InitializableComponent {
     this.state.machine = moveToFailed(this.state.machine, reason, message)
     resetSessionLevels(this.state)
     this.publishSessionSnapshot()
+  }
+
+  private armTransitionWatchdog(): void {
+    this.clearTransitionWatchdog()
+    const { sessionId, phase } = this.state.machine
+
+    this.transitionWatchdog = setNodeTimeout(() => {
+      this.transitionWatchdog = null
+      if (this.state.machine.sessionId !== sessionId || this.state.machine.phase !== phase) {
+        return
+      }
+
+      void this.failStalledTransition(sessionId, phase).catch((error) => {
+        console.error('[recording] failed to recover from stalled capture transition', error)
+      })
+    }, CAPTURE_TRANSITION_TIMEOUT_MS)
+    this.transitionWatchdog.unref()
+  }
+
+  private clearTransitionWatchdog(): void {
+    if (!this.transitionWatchdog) {
+      return
+    }
+
+    clearTimeout(this.transitionWatchdog)
+    this.transitionWatchdog = null
+  }
+
+  private async failStalledTransition(sessionId: string | null, phase: string): Promise<void> {
+    console.error('[recording] capture transition timed out', { sessionId, phase })
+    await this.handleCaptureFailure(
+      sessionId,
+      'capture_error',
+      phase === 'starting' ? 'Microphone did not start in time.' : 'Recording did not stop in time.'
+    )
+
+    await this.captureRuntime
+      .sendCommand({
+        type: 'cancel',
+        reason: 'capture_error',
+        soundCues: { ...this.preferencesManager.get().soundCues, enabled: false }
+      })
+      .catch((error) => {
+        console.error('[recording] failed to cancel stalled capture', error)
+      })
+    await this.playCue('error')
   }
 
   private async failCaptureSession(

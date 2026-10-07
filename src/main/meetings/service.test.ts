@@ -13,6 +13,7 @@ import type {
   MeetingSegment
 } from '../../shared/meetings'
 import type { TranscriptionResult } from '../../shared/transcription'
+import type { MeetingAudioChunk } from './audio-chunks'
 import type { MeetingsRepository } from './repository'
 import { MeetingsService } from './service'
 
@@ -31,23 +32,26 @@ const meeting: MeetingListItem = {
   errorMessage: null
 }
 
-const createTranscriptResult = (): TranscriptionResult => ({
+const createTranscriptResult = (text: string): TranscriptionResult => ({
   ok: true,
   transcript: {
-    text: 'The complete meeting transcript.',
-    language: 'en',
-    durationMs: 5 * 60 * 1000
+    text,
+    language: 'en'
   },
   diagnostics: {
     providerId: 'local-parakeet',
     modelId: meeting.modelId,
-    durationMs: 5 * 60 * 1000,
     resultType: 'success_full'
   }
 })
 
+const twoChunks = async (): Promise<MeetingAudioChunk[]> => [
+  { filePath: '/work/chunk-0001.wav', startMs: 0, endMs: 61_240 },
+  { filePath: '/work/chunk-0002.wav', startMs: 61_240, endMs: 95_000 }
+]
+
 describe('MeetingsService', () => {
-  it('transcribes the managed recording once instead of nesting a second chunking pipeline', async () => {
+  it('transcribes pause-aligned chunks as separate jobs and reports progress per chunk', async () => {
     const segments: MeetingSegment[] = []
     const repository = {
       get: vi.fn(async (): Promise<MeetingListItem> => ({ ...meeting, status: 'queued' })),
@@ -70,36 +74,32 @@ describe('MeetingsService', () => {
       markFailed: vi.fn(async (): Promise<void> => undefined)
     } as unknown as MeetingsRepository
 
-    const transcribeLocalFile = vi.fn(async (): Promise<TranscriptionResult> => {
-      return createTranscriptResult()
+    const transcribeLocalFile = vi.fn(async (filePath: string): Promise<TranscriptionResult> => {
+      return createTranscriptResult(
+        filePath.endsWith('0001.wav') ? 'First minute.' : 'Second part.'
+      )
     })
     const transcriptionService = {
       transcribeLocalFile
     } as never
-    const service = new MeetingsService(transcriptionService, repository)
+    const service = new MeetingsService(transcriptionService, repository, twoChunks)
 
     await (
       service as unknown as { processMeeting: (meetingId: string) => Promise<void> }
     ).processMeeting(meeting.id)
 
-    expect(transcribeLocalFile).toHaveBeenCalledTimes(1)
-    expect(transcribeLocalFile).toHaveBeenCalledWith(
-      '/recordings/planning.mp3',
-      'meeting-1',
-      {
-        providerId: meeting.providerId,
-        modelId: meeting.modelId
-      },
-      expect.any(Object)
-    )
-    expect(repository.setChunkPlan).toHaveBeenLastCalledWith(meeting.id, 5 * 60 * 1000, 1)
-    expect(repository.persistSegment).toHaveBeenCalledWith({
-      meetingId: meeting.id,
-      chunkIndex: 1,
-      startMs: 0,
-      endMs: 5 * 60 * 1000,
-      text: 'The complete meeting transcript.'
-    })
+    const selection = { providerId: meeting.providerId, modelId: meeting.modelId }
+    expect(transcribeLocalFile.mock.calls).toEqual([
+      ['/work/chunk-0001.wav', 'meeting-1', selection, expect.any(Object)],
+      ['/work/chunk-0002.wav', 'meeting-1', selection, expect.any(Object)]
+    ])
+    expect(repository.setChunkPlan).toHaveBeenCalledWith(meeting.id, 95_000, 2)
+    expect(
+      segments.map(({ chunkIndex, startMs, endMs, text }) => ({ chunkIndex, startMs, endMs, text }))
+    ).toEqual([
+      { chunkIndex: 1, startMs: 0, endMs: 61_240, text: 'First minute.' },
+      { chunkIndex: 2, startMs: 61_240, endMs: 95_000, text: 'Second part.' }
+    ])
     expect(repository.markCompleted).toHaveBeenCalledWith(meeting.id, 'completed')
   })
 
@@ -147,7 +147,7 @@ describe('MeetingsService', () => {
       }
     )
     const transcriptionService = { transcribeLocalFile } as never
-    const service = new MeetingsService(transcriptionService, repository)
+    const service = new MeetingsService(transcriptionService, repository, twoChunks)
     ;(service as unknown as { activeMeetingId: string }).activeMeetingId = meeting.id
 
     const processPromise = (
@@ -159,6 +159,7 @@ describe('MeetingsService', () => {
     await processPromise
 
     expect(transcriptionSignal?.aborted).toBe(true)
+    expect(transcribeLocalFile).toHaveBeenCalledTimes(1)
     expect(markCancelled).toHaveBeenCalledWith(meeting.id)
   })
 })

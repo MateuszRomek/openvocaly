@@ -1,9 +1,20 @@
 import type { RecordingFailureReason } from '../../../shared/recording'
 
+export const MIC_WARM_GRACE_MS = 15_000
+
+type WarmMicrophoneStream = {
+  stream: MediaStream
+  deviceId: string | null
+  releaseTimer: number
+}
+
 export type CaptureRuntimeState = {
   sessionId: string | null
   mediaRecorder: MediaRecorder | null
   mediaStream: MediaStream | null
+  mediaStreamDeviceId: string | null
+  warmStream: WarmMicrophoneStream | null
+  pendingStartToken: object | null
   audioContext: AudioContext | null
   analyserNode: AnalyserNode | null
   meterTimer: number | null
@@ -21,6 +32,9 @@ export const createCaptureRuntimeState = (): CaptureRuntimeState => ({
   sessionId: null,
   mediaRecorder: null,
   mediaStream: null,
+  mediaStreamDeviceId: null,
+  warmStream: null,
+  pendingStartToken: null,
   audioContext: null,
   analyserNode: null,
   meterTimer: null,
@@ -53,21 +67,78 @@ const teardownAudioGraph = (state: CaptureRuntimeState): void => {
   state.analyserNode = null
 }
 
-const stopMediaTracks = (state: CaptureRuntimeState): void => {
-  if (!state.mediaStream) {
+export const stopStreamTracks = (stream: MediaStream): void => {
+  for (const track of stream.getTracks()) {
+    track.stop()
+  }
+}
+
+const hasLiveAudioTrack = (stream: MediaStream): boolean =>
+  stream.getAudioTracks().some((track) => track.readyState === 'live')
+
+export const releaseWarmStream = (state: CaptureRuntimeState): void => {
+  const warmStream = state.warmStream
+  if (!warmStream) {
     return
   }
 
-  for (const track of state.mediaStream.getTracks()) {
-    track.stop()
-  }
-
-  state.mediaStream = null
+  state.warmStream = null
+  window.clearTimeout(warmStream.releaseTimer)
+  stopStreamTracks(warmStream.stream)
 }
 
-export const finalizeCaptureState = (state: CaptureRuntimeState): void => {
+export const takeLiveWarmStreamForDevice = (
+  state: CaptureRuntimeState,
+  preferredDeviceId: string | null
+): { stream: MediaStream; deviceId: string | null } | null => {
+  const warmStream = state.warmStream
+  if (!warmStream) {
+    return null
+  }
+
+  const matchesDevice = !preferredDeviceId || warmStream.deviceId === preferredDeviceId
+  if (!matchesDevice || !hasLiveAudioTrack(warmStream.stream)) {
+    releaseWarmStream(state)
+    return null
+  }
+
+  state.warmStream = null
+  window.clearTimeout(warmStream.releaseTimer)
+  return { stream: warmStream.stream, deviceId: warmStream.deviceId }
+}
+
+const releaseOrParkMediaStream = (state: CaptureRuntimeState, keepMicWarm: boolean): void => {
+  const stream = state.mediaStream
+  const deviceId = state.mediaStreamDeviceId
+  state.mediaStream = null
+  state.mediaStreamDeviceId = null
+
+  if (!stream) {
+    return
+  }
+
+  releaseWarmStream(state)
+
+  if (!keepMicWarm || !hasLiveAudioTrack(stream)) {
+    stopStreamTracks(stream)
+    return
+  }
+
+  const releaseTimer = window.setTimeout(() => {
+    if (state.warmStream?.stream === stream) {
+      releaseWarmStream(state)
+    }
+  }, MIC_WARM_GRACE_MS)
+  state.warmStream = { stream, deviceId, releaseTimer }
+}
+
+export const finalizeCaptureState = (
+  state: CaptureRuntimeState,
+  options: { keepMicWarm?: boolean } = {}
+): void => {
   teardownAudioGraph(state)
-  stopMediaTracks(state)
+  releaseOrParkMediaStream(state, options.keepMicWarm ?? false)
+  state.pendingStartToken = null
   state.mediaRecorder = null
   state.sessionId = null
   state.startedAt = 0

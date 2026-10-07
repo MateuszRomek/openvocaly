@@ -28,4 +28,22 @@ describe('resolveDictationCommandIntent', () => {
       resolveDictationCommandIntent({ phase: 'recording', mode: 'toggle' }, cancelCommand)
     ).toEqual({ type: 'cancel' })
   })
+
+  it('lets a new press interrupt the complete or failed display', () => {
+    const pushToTalkStart: RecordingCommand = { type: 'push_to_talk_start', emittedAt: 1 }
+    const toggle: RecordingCommand = { type: 'toggle', emittedAt: 1 }
+
+    expect(
+      resolveDictationCommandIntent({ phase: 'failed', mode: 'push_to_talk' }, pushToTalkStart)
+    ).toEqual({ type: 'start', mode: 'push_to_talk' })
+    expect(
+      resolveDictationCommandIntent({ phase: 'complete', mode: 'push_to_talk' }, toggle)
+    ).toEqual({ type: 'start', mode: 'toggle' })
+    expect(
+      resolveDictationCommandIntent(
+        { phase: 'transcribing', mode: 'push_to_talk' },
+        pushToTalkStart
+      )
+    ).toEqual({ type: 'ignore' })
+  })
 })

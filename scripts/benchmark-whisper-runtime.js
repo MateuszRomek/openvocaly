@@ -77,13 +77,11 @@ const parseArguments = (argv) => {
 }
 
 const resolveWhisperServerPath = () => {
-  if (process.platform !== 'darwin') {
-    throw new Error('The benchmark currently supports macOS only.')
+  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
+    throw new Error('The benchmark currently supports Apple Silicon macOS only.')
   }
 
-  const binaryName =
-    process.arch === 'arm64' ? 'whisper-server-darwin-arm64' : 'whisper-server-darwin-x64'
-  const binaryPath = join(projectRoot, 'resources', 'bin', binaryName)
+  const binaryPath = join(projectRoot, 'resources', 'bin', 'whisper-server-darwin-arm64')
 
   if (!existsSync(binaryPath)) {
     throw new Error(

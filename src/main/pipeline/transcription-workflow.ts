@@ -81,7 +81,11 @@ export class DictationTranscriptionWorkflow {
         }
       }
 
-      await this.artifactManager.markTranscriptionSuccess(artifact)
+      try {
+        await this.artifactManager.markTranscriptionSuccess(artifact)
+      } catch (error) {
+        console.error('[pipeline] failed to persist transcription success artifact', error)
+      }
       return {
         type: 'complete',
         transcriptText: transcriptionResult.transcript.text

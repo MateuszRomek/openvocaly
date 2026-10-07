@@ -116,7 +116,7 @@ export class RecordingCaptureRuntime {
 
     this.ready = false
 
-    this.window = new BrowserWindow({
+    const window = new BrowserWindow({
       width: 10,
       height: 10,
       show: false,
@@ -129,28 +129,54 @@ export class RecordingCaptureRuntime {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         autoplayPolicy: 'no-user-gesture-required',
         backgroundThrottling: true,
         devTools: is.dev
       }
     })
+    this.window = window
     this.applyCapturePerformanceMode()
 
-    this.window.on('closed', () => {
-      this.window = null
-      this.ready = false
-      this.captureActive = false
+    window.on('closed', () => {
+      if (this.window === window) {
+        this.handleWindowLost('Capture window closed unexpectedly.')
+      }
+    })
+    window.webContents.on('render-process-gone', (_event, details) => {
+      if (this.window === window) {
+        this.handleWindowLost(`Capture renderer exited (${details.reason}).`)
+        if (!window.isDestroyed()) {
+          window.destroy()
+        }
+      }
     })
 
     const target = resolveCaptureRendererTarget()
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      await this.window.loadURL(target)
+      await window.loadURL(target)
       return
     }
 
-    await this.window.loadFile(target)
+    await window.loadFile(target)
+  }
+
+  private handleWindowLost(message: string): void {
+    const wasCapturing = this.captureActive
+    this.window = null
+    this.ready = false
+    this.captureActive = false
+    this.commandQueue = []
+
+    if (!wasCapturing) {
+      return
+    }
+
+    console.error('[recording] capture renderer lost during capture', { message })
+    for (const listener of this.listeners) {
+      listener({ type: 'error', sessionId: null, reason: 'capture_error', message })
+    }
   }
 
   /**

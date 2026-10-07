@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rename, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { LOCAL_MODELS } from '../../../../shared/local-model-catalog'
@@ -27,6 +27,11 @@ const PARAKEET_REQUIRED_FILES = [
   'parakeet_vocab.json'
 ] as const
 
+const hasRequiredParakeetFiles = (modelDirectory: string): boolean =>
+  PARAKEET_REQUIRED_FILES.every((fileName) =>
+    existsSync(join(modelDirectory, PARAKEET_REPOSITORY_DIRECTORY, fileName))
+  )
+
 /** The macOS-only Parakeet adapter. It owns no Electron or UI concerns. */
 export class MacOSParakeetRuntime {
   private readonly host = new MacOSAsrHostClient()
@@ -44,10 +49,7 @@ export class MacOSParakeetRuntime {
       return false
     }
 
-    const repositoryDirectory = join(getParakeetModelDir(modelId), PARAKEET_REPOSITORY_DIRECTORY)
-    return PARAKEET_REQUIRED_FILES.every((fileName) =>
-      existsSync(join(repositoryDirectory, fileName))
-    )
+    return hasRequiredParakeetFiles(getParakeetModelDir(modelId))
   }
 
   async downloadModel(
@@ -63,12 +65,23 @@ export class MacOSParakeetRuntime {
     if (this.activeDownload) {
       return { ok: false, message: 'Parakeet is already downloading.' }
     }
+    if (this.isModelDownloaded(modelId)) {
+      this.updateProgress('complete', onProgress)
+      return { ok: true }
+    }
 
     const download = { cancelled: false, onProgress }
     this.activeDownload = download
     this.updateProgress('downloading', onProgress)
+    // FluidAudio writes straight into its target, so an interrupted install must
+    // never land in the final directory that isModelDownloaded inspects.
+    const modelDirectory = getParakeetModelDir(modelId)
+    const temporaryDirectory = join(
+      getParakeetModelsRootDir(),
+      `.${modelId}-${Date.now()}.download`
+    )
     try {
-      await this.host.install(getParakeetModelDir(modelId), (percentage) => {
+      await this.host.install(temporaryDirectory, (percentage) => {
         if (this.activeDownload !== download || download.cancelled) {
           return
         }
@@ -78,9 +91,11 @@ export class MacOSParakeetRuntime {
         this.updateProgress('idle', onProgress)
         return { ok: true, message: 'Parakeet download cancelled.' }
       }
-      if (!this.isModelDownloaded(modelId)) {
+      if (!hasRequiredParakeetFiles(temporaryDirectory)) {
         throw new Error('The installed Parakeet model did not pass validation.')
       }
+      await rm(modelDirectory, { recursive: true, force: true })
+      await rename(temporaryDirectory, modelDirectory)
       this.updateProgress('complete', onProgress)
       return { ok: true }
     } catch (error) {
@@ -96,6 +111,7 @@ export class MacOSParakeetRuntime {
       if (this.activeDownload === download) {
         this.activeDownload = null
       }
+      await rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined)
     }
   }
 
@@ -194,7 +210,8 @@ export class MacOSParakeetRuntime {
       await convertFileToWav(artifactPath, wavPath, {
         sampleRate: 16000,
         channels: 1,
-        signal
+        signal,
+        priority: 'interactive'
       })
       const result = await this.host.transcribe(getParakeetModelDir(modelId), wavPath, signal)
       return {

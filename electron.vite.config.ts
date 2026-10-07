@@ -20,7 +20,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     main: {},
-    preload: {},
+    preload: {
+      build: { externalizeDeps: { exclude: ['@electron-toolkit/preload'] } }
+    },
     renderer: {
       server: rendererPort ? { port: rendererPort } : undefined,
       build: {

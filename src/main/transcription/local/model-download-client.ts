@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto'
 import { once } from 'node:events'
-import { createWriteStream } from 'node:fs'
+import { createReadStream, createWriteStream } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
@@ -15,6 +16,15 @@ const toErrorMessage = (responseText: string, status: number): string => {
   }
   return `Model download failed with status ${status}: ${compactText}`
 }
+
+export const hashFileSha256 = async (filePath: string): Promise<string> =>
+  await new Promise<string>((resolve, reject) => {
+    const hash = createHash('sha256')
+    const stream = createReadStream(filePath)
+    stream.on('data', (chunk) => hash.update(chunk))
+    stream.once('error', reject)
+    stream.once('end', () => resolve(hash.digest('hex')))
+  })
 
 export const downloadFile = async (
   sourceUrl: string,
@@ -67,6 +77,14 @@ export const downloadFile = async (
 
     fileStream.end()
     await once(fileStream, 'finish')
+
+    // fetch decodes compressed bodies, so content-length only counts bytes for identity encoding.
+    const isIdentityEncoded = !response.headers.get('content-encoding')
+    if (isIdentityEncoded && totalBytes > 0 && downloadedBytes !== totalBytes) {
+      throw new Error(
+        `Model download was truncated: received ${downloadedBytes} of ${totalBytes} bytes.`
+      )
+    }
   } catch (error) {
     fileStream.destroy()
     throw error

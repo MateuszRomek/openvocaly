@@ -1,13 +1,9 @@
 import { spawn } from 'node:child_process'
 import { existsSync, accessSync, constants as fsConstants } from 'node:fs'
-import { mkdtemp, readFile, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { readFile, rm, stat, unlink } from 'node:fs/promises'
 import ffmpegStatic from 'ffmpeg-static'
-import { getReducedPriorityInvocation } from '../../helpers/process'
+import { getProcessInvocation, type ProcessPriority } from '../../helpers/process'
 
-const FLOAT32_BYTES_PER_SAMPLE = 4
-const INT16_MAX = 32768
 const PCM16_BYTES_PER_SAMPLE = 2
 
 type Pcm16WavChunkMetadata = {
@@ -124,7 +120,12 @@ export const getFfmpegPath = (): string | null => {
 export const convertFileToWav = async (
   inputPath: string,
   outputPath: string,
-  options: { sampleRate?: number; channels?: number; signal?: AbortSignal } = {}
+  options: {
+    sampleRate?: number
+    channels?: number
+    signal?: AbortSignal
+    priority: ProcessPriority
+  }
 ): Promise<void> => {
   const ffmpegPath = getFfmpegPath()
   if (!ffmpegPath) {
@@ -150,7 +151,7 @@ export const convertFileToWav = async (
       outputPath
     ]
 
-    const invocation = getReducedPriorityInvocation(ffmpegPath, ffmpegArgs)
+    const invocation = getProcessInvocation(ffmpegPath, ffmpegArgs, options.priority)
     const processRef = spawn(invocation.command, invocation.args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
@@ -222,223 +223,6 @@ export const estimatePcm16WavDurationMs = async (
   const payloadBytes = Math.max(0, info.size - 44)
 
   return Math.floor((payloadBytes / bytesPerSecond) * 1000)
-}
-
-export const splitWavFileIntoChunks = async (
-  inputPath: string,
-  options: { chunkDurationSeconds: number; chunkFilePrefix: string }
-): Promise<{ chunkPaths: string[]; chunksDir: string }> => {
-  const ffmpegPath = getFfmpegPath()
-  if (!ffmpegPath) {
-    throw new Error('FFmpeg not found.')
-  }
-
-  if (!Number.isFinite(options.chunkDurationSeconds) || options.chunkDurationSeconds <= 0) {
-    throw new Error('Chunk duration must be greater than zero.')
-  }
-
-  const chunksDir = await mkdtemp(join(tmpdir(), `${options.chunkFilePrefix}-`))
-  const outputPattern = join(chunksDir, 'chunk-%03d.wav')
-
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const ffmpegArgs = [
-        '-i',
-        inputPath,
-        '-f',
-        'segment',
-        '-segment_time',
-        String(options.chunkDurationSeconds),
-        '-reset_timestamps',
-        '1',
-        '-map',
-        '0:a:0',
-        '-c:a',
-        'copy',
-        '-y',
-        outputPattern
-      ]
-
-      const processRef = spawn(ffmpegPath, ffmpegArgs, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true
-      })
-
-      let stderr = ''
-      processRef.stderr.on('data', (chunk) => {
-        stderr += String(chunk)
-      })
-
-      processRef.on('error', (error) => {
-        reject(new Error(`FFmpeg process error: ${error.message}`))
-      })
-
-      processRef.on('close', (code) => {
-        if (code === 0) {
-          resolve()
-          return
-        }
-
-        reject(new Error(`FFmpeg chunk split failed with code ${code}: ${stderr.slice(-300)}`))
-      })
-    })
-
-    const entries = await readdir(chunksDir)
-    const chunkPaths = entries
-      .filter((entry) => entry.toLowerCase().endsWith('.wav'))
-      .sort((left, right) => left.localeCompare(right))
-      .map((entry) => join(chunksDir, entry))
-
-    if (!chunkPaths.length) {
-      throw new Error('FFmpeg did not produce any WAV chunks.')
-    }
-
-    return {
-      chunkPaths,
-      chunksDir
-    }
-  } catch (error) {
-    await rm(chunksDir, { recursive: true, force: true }).catch(() => undefined)
-    throw error
-  }
-}
-
-export type LocalMediaChunk = {
-  filePath: string
-  durationMs: number
-}
-
-/**
- * Normalizes any FFmpeg-readable media input directly into bounded PCM16 WAV files.
- * The full decoded recording is never held in memory or written as one large WAV.
- */
-export const splitMediaFileIntoWavChunks = async (
-  inputPath: string,
-  options: {
-    chunkDurationSeconds: number
-    chunkOverlapSeconds?: number
-    chunkFilePrefix: string
-    sampleRate?: number
-    channels?: number
-  }
-): Promise<{ chunks: LocalMediaChunk[]; chunksDir: string; durationMs: number }> => {
-  const ffmpegPath = getFfmpegPath()
-  if (!ffmpegPath) {
-    throw new Error('FFmpeg not found.')
-  }
-
-  if (!Number.isFinite(options.chunkDurationSeconds) || options.chunkDurationSeconds <= 0) {
-    throw new Error('Chunk duration must be greater than zero.')
-  }
-
-  const sampleRate = Math.max(1, Math.floor(options.sampleRate ?? 16000))
-  const channels = Math.max(1, Math.floor(options.channels ?? 1))
-  const chunkOverlapSeconds = Math.max(
-    0,
-    Math.min(options.chunkDurationSeconds - 1, options.chunkOverlapSeconds ?? 0)
-  )
-  const chunksDir = await mkdtemp(join(tmpdir(), `${options.chunkFilePrefix}-`))
-  const outputPattern = join(chunksDir, 'chunk-%04d.wav')
-
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const ffmpegArgs = [
-        '-i',
-        inputPath,
-        '-vn',
-        '-map',
-        '0:a:0',
-        '-ar',
-        String(sampleRate),
-        '-ac',
-        String(channels),
-        '-c:a',
-        'pcm_s16le',
-        '-f',
-        'segment',
-        '-segment_time',
-        String(options.chunkDurationSeconds),
-        '-reset_timestamps',
-        '1',
-        '-y',
-        outputPattern
-      ]
-
-      const processRef = spawn(ffmpegPath, ffmpegArgs, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true
-      })
-
-      let stderr = ''
-      processRef.stderr.on('data', (chunk) => {
-        stderr += String(chunk)
-      })
-
-      processRef.on('error', (error) => {
-        reject(new Error(`FFmpeg process error: ${error.message}`))
-      })
-
-      processRef.on('close', (code) => {
-        if (code === 0) {
-          resolve()
-          return
-        }
-
-        reject(new Error(`FFmpeg media split failed with code ${code}: ${stderr.slice(-300)}`))
-      })
-    })
-
-    const entries = (await readdir(chunksDir))
-      .filter((entry) => entry.toLowerCase().endsWith('.wav'))
-      .sort((left, right) => left.localeCompare(right))
-
-    if (!entries.length) {
-      throw new Error('FFmpeg did not produce any audio chunks.')
-    }
-
-    const chunks: LocalMediaChunk[] = []
-    let durationMs = 0
-
-    for (const entry of entries) {
-      const filePath = join(chunksDir, entry)
-      const chunkDurationMs = await estimatePcm16WavDurationMs(filePath, {
-        sampleRate,
-        channels
-      })
-      chunks.push({
-        filePath,
-        durationMs: chunkDurationMs
-      })
-      durationMs += chunkDurationMs
-    }
-
-    if (chunkOverlapSeconds > 0) {
-      const overlapFrames = Math.floor(chunkOverlapSeconds * sampleRate)
-      const overlapBytes = overlapFrames * channels * PCM16_BYTES_PER_SAMPLE
-
-      for (let index = 1; index < chunks.length; index += 1) {
-        const previousChunk = await readPcm16WavData(chunks[index - 1].filePath)
-        const currentChunk = await readPcm16WavData(chunks[index].filePath)
-        const previousTail = previousChunk.sampleBytes.subarray(
-          Math.max(0, previousChunk.sampleBytes.length - overlapBytes)
-        )
-        const overlappedWav = buildPcm16WavBuffer(
-          Buffer.concat([previousTail, currentChunk.sampleBytes]),
-          { sampleRate, channels }
-        )
-        await writeFile(chunks[index].filePath, overlappedWav)
-      }
-    }
-
-    return {
-      chunks,
-      chunksDir,
-      durationMs
-    }
-  } catch (error) {
-    await rm(chunksDir, { recursive: true, force: true }).catch(() => undefined)
-    throw error
-  }
 }
 
 const parsePcm16WavChunkMetadata = (wavBuffer: Buffer): Pcm16WavChunkMetadata => {
@@ -547,30 +331,6 @@ export const buildPcm16WavBuffer = (
   header.writeUInt32LE(dataSize, 40)
 
   return Buffer.concat([header, Buffer.from(sampleBytes)])
-}
-
-/**
- * Reads a PCM16 WAV file and converts samples into the Float32LE byte format
- * expected by the local Parakeet websocket runtime.
- */
-export const wavFileToFloat32Buffer = async (wavPath: string): Promise<Buffer> => {
-  const pcm16 = await readPcm16WavData(wavPath)
-  const wavBuffer = pcm16.sampleBytes
-  const dataOffset = 0
-  const dataSize = wavBuffer.length
-  const samplesCount = Math.floor(dataSize / 2)
-  if (samplesCount <= 0) {
-    return Buffer.alloc(0)
-  }
-  const output = Buffer.allocUnsafe(samplesCount * FLOAT32_BYTES_PER_SAMPLE)
-
-  for (let index = 0; index < samplesCount; index += 1) {
-    const int16Value = wavBuffer.readInt16LE(dataOffset + index * 2)
-    const normalized = int16Value / INT16_MAX
-    output.writeFloatLE(normalized, index * FLOAT32_BYTES_PER_SAMPLE)
-  }
-
-  return output
 }
 
 /**

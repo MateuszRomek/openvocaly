@@ -88,6 +88,11 @@ export const createMainAppContext = (): MainAppContext => {
     settingsRepository,
     storageRepository
   })
+  recordingSessionBus.subscribe((snapshot) => {
+    if (snapshot.phase === 'starting') {
+      transcriptionService.warmActiveLocalRuntime()
+    }
+  })
   const meetingsService = new MeetingsService(transcriptionService)
   const reportingService = new ReportingService()
   const pasteService = new DictationPasteService(permissionsService)

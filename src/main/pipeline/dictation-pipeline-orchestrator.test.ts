@@ -7,6 +7,7 @@ vi.mock('@electron-toolkit/utils', () => ({ is: { dev: true } }))
 
 import type { RecordingArtifact } from '../../shared/recording'
 import type { RecordingCommand } from '../recording/command-bus'
+import type { RecordingSessionSnapshot } from '../recording/service/session'
 import { DictationPipelineOrchestrator } from './dictation-pipeline-orchestrator'
 import { DictationSessionStateManager } from './session'
 
@@ -212,5 +213,114 @@ describe('DictationPipelineOrchestrator transcription cancellation', () => {
 
     expect(destroyPasteService).toHaveBeenCalledTimes(1)
     expect(destroyOverlayPublisher).toHaveBeenCalledTimes(1)
+  })
+})
+
+type OrchestratorInternals = {
+  initialized: boolean
+  handleShortcutCommand: (command: RecordingCommand) => Promise<void>
+  handleRecordingSessionSnapshot: (snapshot: RecordingSessionSnapshot) => Promise<void>
+  handleArtifactReady: (artifact: RecordingArtifact) => Promise<void>
+}
+
+const toSnapshot = (
+  phase: RecordingSessionSnapshot['phase'],
+  sessionId: string,
+  mode: RecordingSessionSnapshot['mode'] = 'push_to_talk'
+): RecordingSessionSnapshot => ({
+  phase,
+  mode,
+  sessionId,
+  meterLevel: 0,
+  meterBands: [],
+  activeArtifactPath: null
+})
+
+const command = (type: RecordingCommand['type']): RecordingCommand => ({ type, emittedAt: 1 })
+
+const createHarness = (
+  overrides: {
+    recordingService?: Record<string, unknown>
+    pasteService?: Record<string, unknown>
+    transcriptionWorkflow?: Record<string, unknown>
+  } = {}
+): {
+  orchestrator: OrchestratorInternals
+  session: DictationSessionStateManager
+  idleReset: { clear: ReturnType<typeof vi.fn>; schedule: ReturnType<typeof vi.fn> }
+  publishImmediate: ReturnType<typeof vi.fn>
+} => {
+  const session = new DictationSessionStateManager()
+  const idleReset = { clear: vi.fn(), schedule: vi.fn(), destroy: vi.fn() }
+  const publishImmediate = vi.fn(async (): Promise<void> => undefined)
+  const orchestrator = new DictationPipelineOrchestrator({
+    commandBus: {} as never,
+    sessionBus: {} as never,
+    artifactBus: {} as never,
+    recordingService: {
+      resetSessionToIdle: vi.fn(),
+      playCue: vi.fn(async (): Promise<void> => undefined),
+      ...overrides.recordingService
+    } as never,
+    overlayPublisher: { publishImmediate } as never,
+    session,
+    idleReset: idleReset as never,
+    transcriptionWorkflow: (overrides.transcriptionWorkflow ?? {}) as never,
+    pasteService: {
+      cancelActiveFallback: vi.fn(),
+      ...overrides.pasteService
+    } as never,
+    storageRepository: {} as never
+  }) as unknown as OrchestratorInternals
+  orchestrator.initialized = true
+
+  return { orchestrator, session, idleReset, publishImmediate }
+}
+
+describe('DictationPipelineOrchestrator push-to-talk responsiveness', () => {
+  it('starts a new recording when the key is pressed during the failure display', async () => {
+    const startRecording = vi.fn(async (): Promise<void> => undefined)
+    const resetSessionToIdle = vi.fn()
+    const { orchestrator, session, idleReset } = createHarness({
+      recordingService: { startRecording, resetSessionToIdle }
+    })
+    session.setFailed('transcription_error', 'No speech detected', 'session-1', 'push_to_talk')
+
+    await orchestrator.handleShortcutCommand(command('push_to_talk_start'))
+
+    expect(idleReset.clear).toHaveBeenCalled()
+    expect(resetSessionToIdle).toHaveBeenCalledTimes(1)
+    expect(startRecording).toHaveBeenCalledWith('push_to_talk')
+  })
+
+  it('cancels when the key is released before the starting state was published', async () => {
+    let finishArtifactCreation: (() => void) | undefined
+    const cancelRecording = vi.fn(async (): Promise<void> => undefined)
+    const harness = createHarness({
+      recordingService: {
+        cancelRecording,
+        startRecording: vi.fn(async (): Promise<void> => {
+          await new Promise<void>((resolve) => {
+            finishArtifactCreation = resolve
+          })
+          await harness.orchestrator.handleRecordingSessionSnapshot(
+            toSnapshot('starting', 'session-2')
+          )
+        })
+      }
+    })
+
+    const start = harness.orchestrator.handleShortcutCommand(command('push_to_talk_start'))
+    await vi.waitFor(() => expect(finishArtifactCreation).toBeDefined())
+    expect(harness.session.phase).toBe('idle')
+
+    await harness.orchestrator.handleShortcutCommand(command('push_to_talk_stop'))
+    expect(cancelRecording).not.toHaveBeenCalled()
+
+    finishArtifactCreation?.()
+    await start
+
+    expect(harness.session.phase).toBe('starting')
+    expect(cancelRecording).toHaveBeenCalledTimes(1)
   })
 })

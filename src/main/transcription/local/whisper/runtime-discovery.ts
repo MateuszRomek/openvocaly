@@ -24,7 +24,7 @@ export const findRuntimePort = async (options?: FindRuntimePortOptions): Promise
       server.once('listening', () => {
         server.close(() => resolve(true))
       })
-      server.listen(port)
+      server.listen(port, '127.0.0.1')
     })
 
     if (isFree) {
@@ -35,35 +35,10 @@ export const findRuntimePort = async (options?: FindRuntimePortOptions): Promise
   throw new Error('No available Whisper runtime port.')
 }
 
-const resolveBinaryNames = (): string[] => {
-  const arch = process.arch
-  const platform = process.platform
-
-  if (platform === 'darwin') {
-    if (arch === 'arm64') {
-      return ['whisper-server-darwin-arm64', 'whisper-server-darwin-x64']
-    }
-    if (arch === 'x64') {
-      return ['whisper-server-darwin-x64', 'whisper-server-darwin-arm64']
-    }
-
-    return ['whisper-server-darwin-arm64', 'whisper-server-darwin-x64']
-  }
-
-  if (platform === 'win32' && arch === 'x64') {
-    return ['whisper-server-win32-x64.exe']
-  }
-
-  if (platform === 'linux' && arch === 'x64') {
-    return ['whisper-server-linux-x64']
-  }
-
-  return []
-}
+const RUNTIME_BINARY_NAME = 'whisper-server-darwin-arm64'
 
 export const resolveRuntimeBinaryPath = (): string | null => {
-  const binaryNames = resolveBinaryNames()
-  if (binaryNames.length === 0) {
+  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
     return null
   }
 
@@ -78,11 +53,9 @@ export const resolveRuntimeBinaryPath = (): string | null => {
   ].filter((entry): entry is string => Boolean(entry))
 
   for (const root of candidateRoots) {
-    for (const binaryName of binaryNames) {
-      const candidate = join(root, binaryName)
-      if (existsSync(candidate)) {
-        return candidate
-      }
+    const candidate = join(root, RUNTIME_BINARY_NAME)
+    if (existsSync(candidate)) {
+      return candidate
     }
   }
 

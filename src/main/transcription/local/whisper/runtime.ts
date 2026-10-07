@@ -48,6 +48,7 @@ type WhisperChunkSegment = {
 
 type WhisperWindowTranscriptionResult = {
   text: string
+  failed: boolean
   attempts: TranscriptionChunkDiagnostics[]
 }
 
@@ -204,7 +205,8 @@ export class WhisperRuntime {
       await convertFileToWav(artifactPath, wavPath, {
         sampleRate: WHISPER_SAMPLE_RATE,
         channels: 1,
-        signal
+        signal,
+        priority: 'interactive'
       })
 
       const durationMs = await estimatePcm16WavDurationMs(wavPath, {
@@ -243,14 +245,14 @@ export class WhisperRuntime {
         )
         chunkDiagnostics.push(...segmentResult.attempts)
 
-        if (!segmentResult.text) {
-          if (this.hasHardChunkFailure(segmentResult.attempts)) {
-            failedChunkIndexes.push(segment.chunkIndex)
-          }
+        if (segmentResult.failed) {
+          failedChunkIndexes.push(segment.chunkIndex)
           continue
         }
 
-        mergedText = mergeTranscriptChunkText(mergedText, segmentResult.text)
+        if (segmentResult.text) {
+          mergedText = mergeTranscriptChunkText(mergedText, segmentResult.text)
+        }
         maxCoveredEndMs = Math.max(maxCoveredEndMs, segment.endMs)
       }
 
@@ -272,8 +274,10 @@ export class WhisperRuntime {
         )
         chunkDiagnostics.push(...tailRescueResult.attempts)
 
-        if (tailRescueResult.text.trim()) {
-          mergedText = mergeTranscriptChunkText(mergedText, tailRescueResult.text)
+        if (!tailRescueResult.failed) {
+          if (tailRescueResult.text) {
+            mergedText = mergeTranscriptChunkText(mergedText, tailRescueResult.text)
+          }
           maxCoveredEndMs = durationMs
           failedChunkIndexes = failedChunkIndexes.filter(
             (index) => index !== tailRescueSegment.chunkIndex
@@ -283,7 +287,7 @@ export class WhisperRuntime {
         this.logger.debug({
           event: 'whisper_tail_rescue_completed',
           modelId: resolvedModelId,
-          rescued: Boolean(tailRescueResult.text.trim()),
+          rescued: !tailRescueResult.failed,
           remainingFailedChunkIndexes: failedChunkIndexes
         })
       }
@@ -459,7 +463,7 @@ export class WhisperRuntime {
             textLength: normalized.length
           })
 
-          return { text: normalized, attempts }
+          return { text: normalized, failed: false, attempts }
         }
 
         attempts.push({
@@ -471,7 +475,7 @@ export class WhisperRuntime {
           elapsedMs
         })
 
-        this.logger.warn({
+        this.logger.debug({
           event: 'whisper_chunk_empty',
           modelId,
           chunkIndex: segment.chunkIndex,
@@ -480,6 +484,7 @@ export class WhisperRuntime {
           restarted,
           elapsedMs
         })
+        return { text: '', failed: false, attempts }
       } catch (error) {
         const elapsedMs = Date.now() - attemptStartedAt
         const message = error instanceof Error ? error.message : 'Unknown local runtime error.'
@@ -509,7 +514,7 @@ export class WhisperRuntime {
       }
     }
 
-    return { text: '', attempts }
+    return { text: '', failed: true, attempts }
   }
 
   private classifyChunkFailure(
@@ -529,15 +534,6 @@ export class WhisperRuntime {
     }
 
     return 'failed_runtime'
-  }
-
-  private hasHardChunkFailure(attempts: TranscriptionChunkDiagnostics[]): boolean {
-    return attempts.some(
-      (attempt) =>
-        attempt.resultType === 'failed_runtime' ||
-        attempt.resultType === 'failed_timeout' ||
-        attempt.resultType === 'failed_protocol'
-    )
   }
 
   private resolveOverallResultType(params: {

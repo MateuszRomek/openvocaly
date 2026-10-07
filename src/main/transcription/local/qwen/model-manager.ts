@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import { createReadStream, existsSync, statSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { mkdir, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
@@ -7,7 +6,7 @@ import type {
   LocalModelInfo
 } from '../../../../shared/local-transcription'
 import { getQwenModelDir, getQwenModelsRootDir } from '../model-dir-utils'
-import { downloadFile } from '../model-download-client'
+import { downloadFile, hashFileSha256 } from '../model-download-client'
 import {
   getQwenModelDefinition,
   getQwenModelDownloadUrl,
@@ -26,15 +25,6 @@ type DownloadState = {
 }
 
 const QWEN_PROVIDER_ID = 'local-qwen' as const
-
-const hashFile = async (filePath: string): Promise<string> =>
-  await new Promise<string>((resolve, reject) => {
-    const hash = createHash('sha256')
-    const stream = createReadStream(filePath)
-    stream.on('data', (chunk) => hash.update(chunk))
-    stream.once('error', reject)
-    stream.once('end', () => resolve(hash.digest('hex')))
-  })
 
 /**
  * Owns Qwen model installation as an app-controlled, atomic transaction. The
@@ -58,7 +48,7 @@ export class QwenModelManager {
         if (statSync(filePath).size !== file.sizeBytes) {
           return false
         }
-        if ((await hashFile(filePath)) !== file.sha256) {
+        if ((await hashFileSha256(filePath)) !== file.sha256) {
           return false
         }
       } catch {
@@ -188,7 +178,7 @@ export class QwenModelManager {
         if (statSync(destinationPath).size !== file.sizeBytes) {
           throw new Error(`Downloaded ${file.name} has an unexpected size.`)
         }
-        if ((await hashFile(destinationPath)) !== file.sha256) {
+        if ((await hashFileSha256(destinationPath)) !== file.sha256) {
           throw new Error(`Downloaded ${file.name} failed its checksum validation.`)
         }
         completedBytes += file.sizeBytes
@@ -199,9 +189,6 @@ export class QwenModelManager {
         await rm(destinationDirectory, { recursive: true, force: true })
       }
       await rename(temporaryDirectory, destinationDirectory)
-      if (!(await this.isModelDirectoryValid(modelId))) {
-        throw new Error('Downloaded Qwen model failed validation checks.')
-      }
       this.emitProgress(modelId, 'complete', totalBytes, totalBytes, onProgress)
     } catch (error) {
       if (abortController.signal.aborted) {

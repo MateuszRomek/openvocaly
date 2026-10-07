@@ -1,4 +1,5 @@
 import type { DictationFailureReason, DictationRuntimeStateResponse } from '../../shared/dictation'
+import { isTerminalPhase } from '../../shared/lifecycle'
 import type { RecordingArtifact, RecordingMode } from '../../shared/recording'
 import type { SessionTargetApp } from '../../shared/storage'
 import { emitSessionTargetAppUpdatedEvent } from '../storage/transcript-events'
@@ -14,7 +15,7 @@ import type { DictationIdleResetController } from './idle-reset-controller'
 import type { DictationOverlayPublisher } from './overlay-publisher'
 import { PasteLastTranscriptionCoordinator } from './paste-last-transcription-coordinator'
 import type { DictationSessionStateManager } from './session'
-import { resolveTerminalDisplayDelayMs } from './terminal-policy'
+import { resolveTerminalDisplayDelayMs, type TerminalOutcome } from './terminal-policy'
 import type {
   DictationTranscriptionWorkflow,
   TranscriptionWorkflowResult
@@ -39,6 +40,7 @@ export class DictationPipelineOrchestrator {
     persistenceStarted: boolean
     operation: Promise<TranscriptionWorkflowResult> | null
   } | null = null
+  private pendingStart: { deferredCommand: RecordingCommand | null } | null = null
 
   private unsubscribeCommand: (() => void) | null = null
   private unsubscribeRecordingSession: (() => void) | null = null
@@ -160,6 +162,13 @@ export class DictationPipelineOrchestrator {
       return
     }
 
+    if (this.pendingStart) {
+      if (command.type !== 'push_to_talk_start') {
+        this.pendingStart.deferredCommand = command
+      }
+      return
+    }
+
     const intent = resolveDictationCommandIntent(
       {
         phase: this.dependencies.session.phase,
@@ -194,7 +203,31 @@ export class DictationPipelineOrchestrator {
       return
     }
 
-    await this.dependencies.recordingService.startRecording(intent.mode)
+    await this.startRecording(intent.mode)
+  }
+
+  private async startRecording(mode: RecordingMode): Promise<void> {
+    if (isTerminalPhase(this.dependencies.session.phase)) {
+      this.dependencies.idleReset.clear()
+      this.dependencies.session.resetToIdle()
+      this.dependencies.recordingService.resetSessionToIdle()
+    }
+
+    const pendingStart: { deferredCommand: RecordingCommand | null } = { deferredCommand: null }
+    this.pendingStart = pendingStart
+    try {
+      await this.dependencies.recordingService.startRecording(mode)
+    } finally {
+      this.pendingStart = null
+    }
+
+    if (this.dependencies.session.isIdle()) {
+      await this.dependencies.overlayPublisher.publishImmediate(null)
+    }
+
+    if (pendingStart.deferredCommand) {
+      await this.handleShortcutCommand(pendingStart.deferredCommand)
+    }
   }
 
   private async handleRecordingSessionSnapshot(snapshot: RecordingSessionSnapshot): Promise<void> {
@@ -506,11 +539,7 @@ export class DictationPipelineOrchestrator {
     })
   }
 
-  private scheduleTerminalReset(
-    outcome:
-      | { type: 'complete' }
-      | { type: 'failed'; reason: DictationFailureReason; hasMessage: boolean }
-  ): void {
+  private scheduleTerminalReset(outcome: TerminalOutcome): void {
     const delayMs = resolveTerminalDisplayDelayMs(outcome)
 
     this.dependencies.idleReset.schedule(delayMs, () => {
