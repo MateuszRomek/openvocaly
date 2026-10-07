@@ -1,32 +1,10 @@
-import { randomUUID } from 'node:crypto'
-import { spawn, type ChildProcessByStdio } from 'node:child_process'
-import type { Readable, Writable } from 'node:stream'
-import { getReducedPriorityInvocation } from '../../../helpers/process'
+import { JsonLineHostClient, type HostReply } from '../json-line-host-client'
 import { resolveQwenMlxHostPath } from './runtime-discovery'
 
-type HostCommand = 'warm' | 'transcribe' | 'unload'
-
-type HostRequest = {
-  id: string
-  command: HostCommand
-  modelDirectory?: string
-  filePath?: string
-}
-
-type HostResponse = {
-  id: string
-  ok: boolean
+type QwenMlxHostReply = HostReply & {
   text?: string
   language?: string
   durationMs?: number
-  error?: string
-}
-
-type PendingRequest = {
-  resolve: (response: HostResponse) => void
-  reject: (error: Error) => void
-  timeout: NodeJS.Timeout
-  removeAbortListener?: () => void
 }
 
 export type QwenMlxHostTranscription = {
@@ -38,27 +16,23 @@ export type QwenMlxHostTranscription = {
 const WARM_TIMEOUT_MS = 3 * 60 * 1000
 const TRANSCRIBE_TIMEOUT_MS = 60 * 60 * 1000
 
-/**
- * Owns a single app-bundled MLX process. Its protocol is deliberately narrow
- * so model download, IPC, and process lifecycle remain separate concerns.
- */
 export class QwenMlxHostClient {
-  private process: ChildProcessByStdio<Writable, Readable, Readable> | null = null
-  private startPromise: Promise<void> | null = null
-  private stdoutBuffer = ''
-  private stderrOutput = ''
-  private readonly pendingRequests = new Map<string, PendingRequest>()
+  private readonly host = new JsonLineHostClient<QwenMlxHostReply>({
+    label: 'Qwen MLX host',
+    resolveBinaryPath: resolveQwenMlxHostPath,
+    missingBinaryMessage: 'The Qwen MLX host is unavailable. Reinstall the app.'
+  })
 
   isAvailable(): boolean {
-    return resolveQwenMlxHostPath() !== null
+    return this.host.isAvailable()
   }
 
   isRunning(): boolean {
-    return this.process !== null && !this.process.killed
+    return this.host.isRunning()
   }
 
   async warm(modelDirectory: string): Promise<void> {
-    await this.request('warm', { modelDirectory }, WARM_TIMEOUT_MS)
+    await this.host.request('warm', { modelDirectory }, { timeoutMs: WARM_TIMEOUT_MS })
   }
 
   async transcribe(
@@ -66,11 +40,10 @@ export class QwenMlxHostClient {
     filePath: string,
     signal?: AbortSignal
   ): Promise<QwenMlxHostTranscription> {
-    const response = await this.request(
+    const response = await this.host.request(
       'transcribe',
       { modelDirectory, filePath },
-      TRANSCRIBE_TIMEOUT_MS,
-      signal
+      { timeoutMs: TRANSCRIBE_TIMEOUT_MS, signal }
     )
     return {
       text: response.text?.trim() ?? '',
@@ -80,173 +53,6 @@ export class QwenMlxHostClient {
   }
 
   async stop(): Promise<void> {
-    const processRef = this.process
-    this.process = null
-    this.startPromise = null
-    if (!processRef) {
-      return
-    }
-
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => {
-        processRef.kill('SIGKILL')
-        resolve()
-      }, 5000)
-      processRef.once('close', () => {
-        clearTimeout(timeout)
-        resolve()
-      })
-      try {
-        processRef.kill('SIGTERM')
-      } catch {
-        clearTimeout(timeout)
-        resolve()
-      }
-    })
-  }
-
-  private async request(
-    command: HostCommand,
-    params: Pick<HostRequest, 'modelDirectory' | 'filePath'>,
-    timeoutMs: number,
-    signal?: AbortSignal
-  ): Promise<HostResponse> {
-    if (signal?.aborted) {
-      throw new Error(`Qwen MLX host ${command} command cancelled.`)
-    }
-    await this.ensureStarted()
-    if (signal?.aborted) {
-      throw new Error(`Qwen MLX host ${command} command cancelled.`)
-    }
-    const processRef = this.process
-    if (!processRef?.stdin.writable) {
-      throw new Error('The Qwen MLX host is not available.')
-    }
-
-    const id = randomUUID()
-    const request: HostRequest = { id, command, ...params }
-    return await new Promise<HostResponse>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.removePendingRequest(id)
-        reject(new Error(`Qwen MLX host ${command} command timed out.`))
-      }, timeoutMs)
-      let removeAbortListener: (() => void) | undefined
-      if (signal) {
-        const abortListener = (): void => {
-          this.rejectRequest(id, new Error(`Qwen MLX host ${command} command cancelled.`))
-          void this.stop()
-        }
-        signal.addEventListener('abort', abortListener, { once: true })
-        removeAbortListener = () => signal.removeEventListener('abort', abortListener)
-      }
-      this.pendingRequests.set(id, { resolve, reject, timeout, removeAbortListener })
-      processRef.stdin.write(`${JSON.stringify(request)}\n`, (error) => {
-        if (error) {
-          this.rejectRequest(id, new Error(`Failed to send Qwen MLX command: ${error.message}`))
-        }
-      })
-    }).then((response) => {
-      if (!response.ok) {
-        throw new Error(response.error || `Qwen MLX host ${command} command failed.`)
-      }
-      return response
-    })
-  }
-
-  private async ensureStarted(): Promise<void> {
-    if (this.isRunning()) {
-      return
-    }
-    if (this.startPromise) {
-      return await this.startPromise
-    }
-
-    const binaryPath = resolveQwenMlxHostPath()
-    if (!binaryPath) {
-      throw new Error('The Qwen MLX host is unavailable. Reinstall the app.')
-    }
-
-    this.startPromise = new Promise<void>((resolve, reject) => {
-      const invocation = getReducedPriorityInvocation(binaryPath, [])
-      const processRef = spawn(invocation.command, invocation.args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true
-      })
-      this.process = processRef
-      this.stdoutBuffer = ''
-      this.stderrOutput = ''
-      processRef.stdout.on('data', (chunk) => this.handleStdout(String(chunk)))
-      processRef.stderr.on('data', (chunk) => {
-        this.stderrOutput = `${this.stderrOutput}${String(chunk)}`.slice(-2000)
-      })
-      processRef.once('spawn', resolve)
-      processRef.once('error', (error) => {
-        this.process = null
-        reject(new Error(`Failed to start Qwen MLX host: ${error.message}`))
-      })
-      processRef.once('close', (code, signal) => {
-        if (this.process === processRef) {
-          this.process = null
-        }
-        this.startPromise = null
-        const details = this.stderrOutput.trim()
-        const error = new Error(
-          `Qwen MLX host exited (${signal ? `signal ${signal}` : `code ${code}`})${
-            details ? `: ${details}` : ''
-          }`
-        )
-        for (const id of this.pendingRequests.keys()) {
-          this.rejectRequest(id, error)
-        }
-      })
-    })
-
-    try {
-      await this.startPromise
-    } catch (error) {
-      this.startPromise = null
-      throw error
-    }
-  }
-
-  private handleStdout(chunk: string): void {
-    this.stdoutBuffer += chunk
-    const lines = this.stdoutBuffer.split('\n')
-    this.stdoutBuffer = lines.pop() ?? ''
-    for (const line of lines) {
-      if (!line.trim()) {
-        continue
-      }
-      try {
-        const response = JSON.parse(line) as HostResponse
-        const pending = this.pendingRequests.get(response.id)
-        if (!pending) {
-          continue
-        }
-        this.removePendingRequest(response.id)
-        pending.resolve(response)
-      } catch {
-        // Third-party runtime logging cannot affect the JSON-line protocol.
-      }
-    }
-  }
-
-  private rejectRequest(id: string, error: Error): void {
-    const pending = this.removePendingRequest(id)
-    if (!pending) {
-      return
-    }
-    pending.reject(error)
-  }
-
-  private removePendingRequest(id: string): PendingRequest | undefined {
-    const pending = this.pendingRequests.get(id)
-    if (!pending) {
-      return undefined
-    }
-    clearTimeout(pending.timeout)
-    pending.removeAbortListener?.()
-    this.pendingRequests.delete(id)
-    return pending
+    await this.host.stop()
   }
 }

@@ -23,6 +23,8 @@ import {
 import {
   finalizeCaptureState,
   flushPendingChunkWrites,
+  stopStreamTracks,
+  takeLiveWarmStreamForDevice,
   type CaptureRuntimeState
 } from './runtime-state'
 
@@ -30,6 +32,62 @@ type StartCommand = Extract<RecordingCaptureCommand, { type: 'start' }>
 
 const START_SIGNAL_DELAY_AFTER_CAPTURE_START_MS = 90
 const START_SIGNAL_FALLBACK_DELAY_MS = 1200
+
+const toAudioConstraints = (deviceId: string | null): MediaTrackConstraints => ({
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  ...(deviceId ? { deviceId: { exact: deviceId } } : {})
+})
+
+const isMissingDeviceError = (error: unknown): boolean => {
+  const name = (error as { name?: unknown } | null)?.name
+  return name === 'OverconstrainedError' || name === 'NotFoundError'
+}
+
+const openMicrophoneStream = async (
+  state: CaptureRuntimeState,
+  preferredDeviceId: string | null
+): Promise<{ stream: MediaStream; deviceId: string | null }> => {
+  const warmStream = takeLiveWarmStreamForDevice(state, preferredDeviceId)
+  if (warmStream) {
+    return warmStream
+  }
+
+  if (preferredDeviceId) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: toAudioConstraints(preferredDeviceId)
+      })
+      return { stream, deviceId: preferredDeviceId }
+    } catch (error) {
+      if (!isMissingDeviceError(error)) {
+        throw error
+      }
+    }
+  }
+
+  const deviceResolution = await resolvePreferredMicrophoneDevice(preferredDeviceId)
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: toAudioConstraints(deviceResolution.resolvedDeviceId)
+  })
+  return { stream, deviceId: deviceResolution.resolvedDeviceId }
+}
+
+const discardActiveRecorder = (state: CaptureRuntimeState): void => {
+  const recorder = state.mediaRecorder
+  if (recorder) {
+    recorder.ondataavailable = null
+    recorder.onstart = null
+    recorder.onstop = null
+    recorder.onerror = null
+    if (recorder.state !== 'inactive') {
+      recorder.stop()
+    }
+  }
+
+  finalizeCaptureState(state)
+}
 
 export const stopCapture = (state: CaptureRuntimeState): void => {
   if (state.startReadyTimer !== null) {
@@ -84,57 +142,54 @@ export const startCapture = async (
   command: StartCommand
 ): Promise<void> => {
   if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
-    return
+    console.warn('[recording] discarding orphaned recorder before new start', {
+      orphanSessionId: state.sessionId,
+      sessionId: command.sessionId
+    })
+    discardActiveRecorder(state)
   }
 
   const mimeType = resolveSupportedCaptureMimeType()
 
   if (!mimeType) {
-    emitCaptureError(state.sessionId, 'capture_error', 'MediaRecorder does not support WebM audio.')
+    emitCaptureError(
+      command.sessionId,
+      'capture_error',
+      'MediaRecorder does not support WebM audio.'
+    )
     return
   }
 
-  try {
-    const deviceResolution = await resolvePreferredMicrophoneDevice(
-      command.preferredMicrophoneDeviceId
-    )
-    emitCaptureDeviceResolved(command.sessionId, deviceResolution.resolvedDeviceId)
+  const startToken = {}
+  state.pendingStartToken = startToken
+  state.sessionId = command.sessionId
+  const isSuperseded = (): boolean => state.pendingStartToken !== startToken
 
-    const audioConstraints: MediaTrackConstraints = {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-      ...(deviceResolution.resolvedDeviceId
-        ? { deviceId: { exact: deviceResolution.resolvedDeviceId } }
-        : {})
+  let openedStream: MediaStream | null = null
+  let committed = false
+
+  try {
+    const microphone = await openMicrophoneStream(state, command.preferredMicrophoneDeviceId)
+    openedStream = microphone.stream
+
+    if (isSuperseded()) {
+      stopStreamTracks(microphone.stream)
+      return
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: audioConstraints
-    })
+    state.pendingStartToken = null
+    committed = true
+    emitCaptureDeviceResolved(command.sessionId, microphone.deviceId)
 
+    const stream = microphone.stream
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType,
       audioBitsPerSecond: 96000
     })
 
-    const audioContext = new AudioContext()
-    try {
-      await audioContext.resume()
-    } catch {
-      // Ignore resume failures; cue playback handles retry paths.
-    }
-    const source = audioContext.createMediaStreamSource(stream)
-    const analyserNode = audioContext.createAnalyser()
-    analyserNode.fftSize = 1024
-    analyserNode.smoothingTimeConstant = 0.45
-    source.connect(analyserNode)
-
-    state.sessionId = command.sessionId
     state.mediaStream = stream
+    state.mediaStreamDeviceId = microphone.deviceId
     state.mediaRecorder = mediaRecorder
-    state.audioContext = audioContext
-    state.analyserNode = analyserNode
     state.startedAt = Date.now()
     state.stopAsFailure = null
     state.meterLevel = 0
@@ -229,7 +284,7 @@ export const startCapture = async (
           emitCaptureStopped(stoppedSessionId, durationMs)
         }
 
-        finalizeCaptureState(state)
+        finalizeCaptureState(state, { keepMicWarm: !stopFailure })
       })()
     }
 
@@ -237,13 +292,38 @@ export const startCapture = async (
     // Fallback if `onstart` is delayed or not emitted by platform-specific backend.
     scheduleStartSignal(START_SIGNAL_FALLBACK_DELAY_MS)
 
+    const audioContext = new AudioContext()
+    void audioContext.resume().catch(() => undefined)
+    const source = audioContext.createMediaStreamSource(stream)
+    const analyserNode = audioContext.createAnalyser()
+    analyserNode.fftSize = 1024
+    analyserNode.smoothingTimeConstant = 0.45
+    source.connect(analyserNode)
+    state.audioContext = audioContext
+    state.analyserNode = analyserNode
+
     startAudioLevels(state, ({ sessionId, level, bands }) => {
       emitCaptureMeter(sessionId, level, bands)
     })
   } catch (error) {
-    const failure = toCaptureStartFailure(error)
-    emitCaptureError(state.sessionId, failure.reason, failure.message)
+    if (!committed && isSuperseded()) {
+      if (openedStream) {
+        stopStreamTracks(openedStream)
+      }
+      return
+    }
 
+    const failure = toCaptureStartFailure(error)
+    emitCaptureError(command.sessionId, failure.reason, failure.message)
+
+    if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+      discardActiveRecorder(state)
+      return
+    }
+
+    if (openedStream && state.mediaStream !== openedStream) {
+      stopStreamTracks(openedStream)
+    }
     finalizeCaptureState(state)
   }
 }

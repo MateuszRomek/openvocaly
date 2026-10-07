@@ -1,5 +1,5 @@
 import type { DictationPhase } from '../../shared/dictation'
-import { isActiveCapturePhase, isIdlePhase } from '../../shared/lifecycle'
+import { isActiveCapturePhase, isIdlePhase, isTerminalPhase } from '../../shared/lifecycle'
 import type { RecordingMode } from '../../shared/recording'
 import type { RecordingCommand } from '../recording/command-bus'
 
@@ -26,6 +26,7 @@ export const resolveDictationCommandIntent = (
 ): DictationCommandIntent => {
   const isModePhase = (phase: 'starting' | 'recording', mode: RecordingMode): boolean =>
     context.phase === phase && context.mode === mode
+  const canStart = isIdlePhase(context.phase) || isTerminalPhase(context.phase)
 
   if (command.type === 'cancel') {
     if (context.phase === 'transcribing') {
@@ -44,7 +45,7 @@ export const resolveDictationCommandIntent = (
   }
 
   if (command.type === 'toggle') {
-    if (isIdlePhase(context.phase)) {
+    if (canStart) {
       return { type: 'start', mode: 'toggle' }
     }
 
@@ -60,7 +61,7 @@ export const resolveDictationCommandIntent = (
   }
 
   if (command.type === 'push_to_talk_start') {
-    if (!isIdlePhase(context.phase)) {
+    if (!canStart) {
       return { type: 'ignore' }
     }
 

@@ -47,6 +47,7 @@ export class DictationPasteService {
   private readonly logger = createLogger('paste.service')
   private readonly adapter: PastePlatformAdapter
   private activeFallbackSession: ManualFallbackSession | null = null
+  private pendingRestore: { transaction: ClipboardTransaction; timer: NodeJS.Timeout } | null = null
 
   constructor(
     private readonly permissionsService: PermissionsService,
@@ -64,8 +65,7 @@ export class DictationPasteService {
     }
     const { capabilities, transcriptText } = preflight
 
-    const clipboardTransaction = this.createClipboardTransaction()
-    clipboardTransaction.capture()
+    const clipboardTransaction = this.beginClipboardTransaction()
 
     let clipboardRestored = false
 
@@ -88,9 +88,11 @@ export class DictationPasteService {
         })
 
         if (pasteResult.ok) {
-          await createUnrefDelay(CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS)
-          clipboardTransaction.restore()
           clipboardRestored = true
+          this.scheduleClipboardRestore(
+            clipboardTransaction,
+            CLIPBOARD_RESTORE_DELAY_AFTER_PASTE_MS
+          )
           this.schedulePostPasteTargetAppProbe(params)
           return {
             type: 'auto_paste_success',
@@ -112,13 +114,17 @@ export class DictationPasteService {
         supportsManualPasteWatcher: capabilities.supportsManualPasteWatcher
       })
 
+      clipboardRestored = true
       if (manualOutcome.type === 'manual_paste_success') {
-        await createUnrefDelay(CLIPBOARD_RESTORE_DELAY_AFTER_MANUAL_PASTE_MS)
+        this.scheduleClipboardRestore(
+          clipboardTransaction,
+          CLIPBOARD_RESTORE_DELAY_AFTER_MANUAL_PASTE_MS
+        )
         this.schedulePostPasteTargetAppProbe(params)
+      } else {
+        clipboardTransaction.restore()
       }
 
-      clipboardTransaction.restore()
-      clipboardRestored = true
       return manualOutcome
     } catch (error) {
       return {
@@ -144,8 +150,7 @@ export class DictationPasteService {
     }
     const { capabilities, transcriptText } = preflight
 
-    const clipboardTransaction = this.createClipboardTransaction()
-    clipboardTransaction.capture()
+    const clipboardTransaction = this.beginClipboardTransaction()
 
     let clipboardRestored = false
 
@@ -263,6 +268,7 @@ export class DictationPasteService {
   }
 
   destroy(): void {
+    this.flushPendingRestore()
     this.cancelActiveFallback()
     this.adapter.stopManualPasteWatcher()
     this.clearActiveFallback()
@@ -510,23 +516,47 @@ export class DictationPasteService {
     })
   }
 
+  private beginClipboardTransaction(): ClipboardTransaction {
+    this.flushPendingRestore()
+    const clipboardTransaction = this.createClipboardTransaction()
+    clipboardTransaction.capture()
+    return clipboardTransaction
+  }
+
+  private flushPendingRestore(): void {
+    const pendingRestore = this.pendingRestore
+    if (!pendingRestore) {
+      return
+    }
+
+    this.pendingRestore = null
+    clearTimeout(pendingRestore.timer)
+    this.restoreSafely(pendingRestore.transaction)
+  }
+
   private scheduleClipboardRestore(
     clipboardTransaction: ClipboardTransaction,
     delayMs: number
   ): void {
-    const restoreTimer = setTimeout(() => {
-      try {
-        clipboardTransaction.restore()
-      } catch (error) {
-        this.logger.debug({
-          message:
-            error instanceof Error
-              ? error.message
-              : 'Clipboard restore failed after scheduled delay.',
-          event: 'clipboard_restore_scheduled_failed'
-        })
+    this.flushPendingRestore()
+    const timer = setTimeout(() => {
+      if (this.pendingRestore?.transaction === clipboardTransaction) {
+        this.pendingRestore = null
       }
+      this.restoreSafely(clipboardTransaction)
     }, delayMs)
-    restoreTimer.unref()
+    timer.unref()
+    this.pendingRestore = { transaction: clipboardTransaction, timer }
+  }
+
+  private restoreSafely(clipboardTransaction: ClipboardTransaction): void {
+    try {
+      clipboardTransaction.restore()
+    } catch (error) {
+      this.logger.debug({
+        message: error instanceof Error ? error.message : 'Clipboard restore failed.',
+        event: 'clipboard_restore_failed'
+      })
+    }
   }
 }

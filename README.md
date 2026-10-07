@@ -16,7 +16,7 @@ If you are interested in the idea, open an issue or discussion on GitHub and we 
 
 ### Prerequisites
 
-- Node.js 22+ (see `.nvmrc`)
+- Node.js 24 (pinned in `.nvmrc`; the install script switches to it through nvm when nvm is installed)
 - npm 10+
 - Git
 - Python 3 with `venv` and `pip` (builds the bundled Qwen MLX host)
@@ -63,34 +63,50 @@ On first run, startup may take longer while local runtimes are prepared and mode
 
 ## Build and install the macOS app locally
 
-From the repository root, run:
+OpenVocaly is built from source on each Mac. No Apple Developer account is needed. These steps work on any Apple Silicon Mac running macOS 14 or later.
+
+Once per Mac, create a local code signing certificate:
+
+```bash
+./scripts/setup-macos-signing.sh
+```
+
+macOS asks for your password once to trust it. The certificate stays in your login keychain and never leaves the Mac. Signing with a stable identity lets macOS keep the Microphone and Accessibility permissions across rebuilds. Without it the app is ad-hoc signed, and you grant both permissions again after every install.
+
+Then build and install:
 
 ```bash
 ./scripts/build-and-install-macos.sh
 ```
 
-The script installs the locked npm dependencies, builds the native transcription runtimes and Electron app, creates the DMG and Apple Silicon ZIP in `dist/`, and installs the app into `/Applications`. The first build can take a while because it may download and compile local runtimes. The build machine needs Python, Swift/Xcode Command Line Tools, Git, and an internet connection; end users do not need Python after the app is built.
+The script checks the machine first (Apple Silicon, macOS version, Node, Python, a working Swift and C toolchain, free disk space) and stops with a fix if something is missing. It then installs the locked npm dependencies, builds the native transcription runtimes and the app, verifies the bundle and its signature, quits a running OpenVocaly, replaces `/Applications/OpenVocaly.app` (restoring the previous copy if the swap fails), and launches it. If the signing identity changed since the last install, it resets the old permission grants so macOS asks again cleanly.
+
+To update a Mac to the latest code:
+
+```bash
+./scripts/build-and-install-macos.sh --update
+```
 
 Useful options:
 
 ```bash
-# Build artifacts without installing the app
+# Only check that this Mac can build the app
+./scripts/build-and-install-macos.sh --check
+
+# Build without installing
 ./scripts/build-and-install-macos.sh --no-install
 
-# Reuse node_modules on subsequent builds
-./scripts/build-and-install-macos.sh --skip-deps
+# Also produce the DMG and ZIP in dist/
+./scripts/build-and-install-macos.sh --artifacts
 
-# Rebuild all native transcription runtimes
+# Reuse node_modules, or rebuild the native transcription runtimes
+./scripts/build-and-install-macos.sh --skip-deps
 ./scripts/build-and-install-macos.sh --force-runtimes
 ```
 
-This local workflow uses ad-hoc signing because the project does not currently have a Developer ID certificate. macOS may show a warning, and replacing an installed ad-hoc build can require Accessibility permission to be re-authorized for the new code identity. If the app is enabled in System Settings but still reports that Accessibility is not granted, quit the app and run:
+Run `./scripts/build-and-install-macos.sh --help` for the full list. The first build takes a while because it compiles the local runtimes. Model weights are downloaded separately into OpenVocaly's application data from the **Local models** screen.
 
-```bash
-tccutil reset Accessibility com.openvocally.app
-```
-
-Then launch `/Applications/OpenVocaly.app`, add that exact app bundle in System Settings > Privacy & Security > Accessibility, enable it, and restart OpenVocaly. The app bundle contains the local inference runtimes, but model weights are downloaded separately into OpenVocaly application data.
+After the first install, grant Microphone and Accessibility access when OpenVocaly asks, then restart it.
 
 ## Local transcription
 

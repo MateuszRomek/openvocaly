@@ -20,6 +20,7 @@ type ClipboardSnapshot = {
  */
 export class ClipboardTransaction {
   private snapshot: ClipboardSnapshot | null = null
+  private writtenText: string | null = null
 
   capture(): void {
     const formats = clipboard.availableFormats('clipboard')
@@ -52,6 +53,7 @@ export class ClipboardTransaction {
 
   writeText(text: string): void {
     clipboard.writeText(text)
+    this.writtenText = text
   }
 
   restore(): void {
@@ -60,6 +62,12 @@ export class ClipboardTransaction {
     }
 
     const snapshot = this.snapshot
+    this.snapshot = null
+
+    if (this.writtenText !== null && clipboard.readText('clipboard') !== this.writtenText) {
+      return
+    }
+
     let restored = false
 
     const writePayload: Data = {}
@@ -131,7 +139,5 @@ export class ClipboardTransaction {
         '[paste] clipboard snapshot restore skipped: no restorable formats were captured'
       )
     }
-
-    this.snapshot = null
   }
 }

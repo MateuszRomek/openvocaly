@@ -27,6 +27,7 @@ export type QwenTranscriptionRuntimeResult = {
 /** macOS adapter for app-owned Qwen MLX model directories and the bundled host. */
 export class QwenRuntime {
   private readonly host = new QwenMlxHostClient()
+  private loadedModelId: QwenModelId | null = null
 
   async listModels(): Promise<ListLocalModelsResponse> {
     return { models: await qwenModelManager.listModels() }
@@ -77,7 +78,7 @@ export class QwenRuntime {
       status: {
         available: this.host.isAvailable(),
         running: this.host.isRunning(),
-        modelId: null,
+        modelId: this.host.isRunning() ? this.loadedModelId : null,
         binaryPath: null,
         platformSupported: isQwenMlxSupported()
       }
@@ -99,6 +100,7 @@ export class QwenRuntime {
     }
     try {
       await this.host.warm(getQwenModelDir(modelId))
+      this.loadedModelId = modelId
       return { ok: true }
     } catch (error) {
       return {
@@ -150,9 +152,11 @@ export class QwenRuntime {
       await convertFileToWav(artifactPath, wavPath, {
         sampleRate: QWEN_SAMPLE_RATE,
         channels: 1,
-        signal
+        signal,
+        priority: 'interactive'
       })
       const result = await this.host.transcribe(getQwenModelDir(modelId), wavPath, signal)
+      this.loadedModelId = modelId
       const text = result.text.trim()
       return {
         text,

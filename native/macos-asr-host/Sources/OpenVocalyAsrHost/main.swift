@@ -209,7 +209,7 @@ struct OpenVocalyAsrHost {
       }
     } catch {
       FileHandle.standardError.write(
-        Data("ASR host input failed: \(error.localizedDescription)\\n".utf8)
+        Data("ASR host input failed: \(error.localizedDescription)\n".utf8)
       )
     }
   }

@@ -10,7 +10,7 @@ const { join } = require('node:path')
 const WHISPER_CPP_TAG = process.env.WHISPER_CPP_TAG || 'v1.8.3'
 const WHISPER_CPP_REPO_URL = 'https://github.com/ggml-org/whisper.cpp.git'
 const BIN_DIR = join(__dirname, '..', 'resources', 'bin')
-const UNIVERSAL_OUTPUTS = ['whisper-server-darwin-arm64', 'whisper-server-darwin-x64']
+const OUTPUT_NAME = 'whisper-server-darwin-arm64'
 const HOMEBREW_BIN_CANDIDATES = ['/opt/homebrew/bin', '/usr/local/bin']
 
 const runCommand = async (command, args, options = {}) => {
@@ -69,8 +69,6 @@ const setExecutable = (filePath) => {
 }
 
 const exists = (filePath) => fs.existsSync(filePath)
-const getHostOutputName = () =>
-  process.arch === 'arm64' ? 'whisper-server-darwin-arm64' : 'whisper-server-darwin-x64'
 
 const canExecuteWhisperServer = (binaryPath) => {
   const probe = spawnSync(binaryPath, ['--help'], {
@@ -86,7 +84,7 @@ const canExecuteWhisperServer = (binaryPath) => {
 }
 
 const isExistingRuntimeUsable = () => {
-  const hostOutputPath = join(BIN_DIR, getHostOutputName())
+  const hostOutputPath = join(BIN_DIR, OUTPUT_NAME)
   if (!exists(hostOutputPath)) {
     return false
   }
@@ -120,9 +118,6 @@ const isXcodeCommandLineToolsInstalled = () => {
   return probe.status === 0
 }
 
-const allOutputsExist = () =>
-  UNIVERSAL_OUTPUTS.every((outputName) => exists(join(BIN_DIR, outputName)))
-
 const findBuiltBinary = (buildDir) => {
   const candidates = [
     join(buildDir, 'bin', 'whisper-server'),
@@ -139,17 +134,8 @@ const findBuiltBinary = (buildDir) => {
   return null
 }
 
-const copyUniversalBinary = async (binaryPath) => {
-  for (const outputName of UNIVERSAL_OUTPUTS) {
-    const outputPath = join(BIN_DIR, outputName)
-    await cp(binaryPath, outputPath, { force: true })
-    setExecutable(outputPath)
-  }
-}
-
-const copyArchBinary = async (binaryPath, arch) => {
-  const outputName = arch === 'arm64' ? 'whisper-server-darwin-arm64' : 'whisper-server-darwin-x64'
-  const outputPath = join(BIN_DIR, outputName)
+const copyBinary = async (binaryPath) => {
+  const outputPath = join(BIN_DIR, OUTPUT_NAME)
   await cp(binaryPath, outputPath, { force: true })
   setExecutable(outputPath)
 }
@@ -265,7 +251,7 @@ const run = async () => {
 
   await mkdir(BIN_DIR, { recursive: true })
 
-  if (allOutputsExist() && !process.argv.includes('--force')) {
+  if (exists(join(BIN_DIR, OUTPUT_NAME)) && !process.argv.includes('--force')) {
     if (isExistingRuntimeUsable()) {
       console.log('Whisper runtime already exists (use --force to rebuild).')
       process.exit(0)
@@ -289,43 +275,13 @@ const run = async () => {
       }
     )
 
-    let binaryPath
-    try {
-      console.log('Building universal whisper-server binary (arm64 + x64)...')
-      const universalBuildDir = join(tmpRoot, 'build-universal')
-      binaryPath = await buildWhisperServer({
-        sourceDir,
-        buildDir: universalBuildDir,
-        cmakeArchValue: 'arm64;x86_64'
-      })
-      await copyUniversalBinary(binaryPath)
-    } catch (error) {
-      console.warn(
-        'Universal build failed, retrying host-arch whisper-server build:',
-        error instanceof Error ? error.message : error
-      )
-      const archBuilds = [
-        { arch: 'arm64', cmakeArchValue: 'arm64' },
-        { arch: 'x86_64', cmakeArchValue: 'x86_64' }
-      ]
-
-      for (const archBuild of archBuilds) {
-        const buildDir = join(tmpRoot, `build-${archBuild.arch}`)
-        try {
-          binaryPath = await buildWhisperServer({
-            sourceDir,
-            buildDir,
-            cmakeArchValue: archBuild.cmakeArchValue
-          })
-          await copyArchBinary(binaryPath, archBuild.arch)
-        } catch (archError) {
-          const message = archError instanceof Error ? archError.message : String(archError)
-          throw new Error(
-            `Failed to build whisper-server for ${archBuild.arch} after universal fallback. ${message}`
-          )
-        }
-      }
-    }
+    console.log('Building arm64 whisper-server binary...')
+    const binaryPath = await buildWhisperServer({
+      sourceDir,
+      buildDir: join(tmpRoot, 'build-arm64'),
+      cmakeArchValue: 'arm64'
+    })
+    await copyBinary(binaryPath)
 
     console.log(`Saved whisper-server binaries in ${BIN_DIR}`)
     const saved = fs

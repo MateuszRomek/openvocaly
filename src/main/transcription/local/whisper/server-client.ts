@@ -1,25 +1,81 @@
-import { spawn, type ChildProcessByStdio } from 'node:child_process'
+import { execFile, spawn, type ChildProcessByStdio } from 'node:child_process'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { basename, join } from 'node:path'
 import type { Readable } from 'node:stream'
+import { setTimeout as delay } from 'node:timers/promises'
+import { promisify } from 'node:util'
 import { createSettleOnce } from '../../../helpers/settle-once'
 import type { WhisperModelId } from './model-catalog'
 import { findRuntimePort, resolveRuntimeBinaryPath } from './runtime-discovery'
-import { getWhisperModelFilePath } from '../model-dir-utils'
+import { getWhisperModelFilePath, getWhisperModelsRootDir } from '../model-dir-utils'
 import { buildWhisperServerArgs } from './server-options'
-import { getReducedPriorityInvocation } from '../../../helpers/process'
+import { getProcessInvocation } from '../../../helpers/process'
 
 const STARTUP_TIMEOUT_SECONDS = 30
 const STARTUP_TIMEOUT_MS = STARTUP_TIMEOUT_SECONDS * 1000
 const STARTUP_PORT_RETRY_MAX_ATTEMPTS = 4
 const HEALTHCHECK_POLL_INTERVAL_MS = 250
+const HEALTHCHECK_REQUEST_TIMEOUT_MS = 1000
 const TRANSCRIPTION_TIMEOUT_SECONDS = 300
 const TRANSCRIPTION_TIMEOUT_MS = TRANSCRIPTION_TIMEOUT_SECONDS * 1000
-const DEFAULT_IDLE_STOP_MS = 2 * 60 * 1000
+const DEFAULT_IDLE_STOP_MS = 20 * 60 * 1000
+const STALE_SERVER_EXIT_WAIT_MS = 2000
+const SERVER_PID_FILE_NAME = 'whisper-server.pid'
+
+const execFileAsync = promisify(execFile)
 
 const isAddressInUseError = (message: string): boolean =>
   /address already in use|eaddrinuse/i.test(message)
 
 const isMissingWhisperDylibError = (details: string): boolean =>
   /Library not loaded:\s*@rpath\/libwhisper\.1\.dylib/i.test(details)
+
+const getServerPidFilePath = (): string => join(getWhisperModelsRootDir(), SERVER_PID_FILE_NAME)
+
+const isPidStillWhisperServer = async (pid: number): Promise<boolean> => {
+  try {
+    const { stdout } = await execFileAsync('ps', ['-p', String(pid), '-o', 'comm='])
+    return basename(stdout.trim()).startsWith('whisper-server')
+  } catch {
+    return false
+  }
+}
+
+const isProcessAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const killStaleServer = async (): Promise<void> => {
+  const pid = Number((await readFile(getServerPidFilePath(), 'utf8').catch(() => '')).trim())
+  if (!Number.isInteger(pid) || pid <= 0 || !(await isPidStillWhisperServer(pid))) {
+    return
+  }
+
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch {
+    return
+  }
+
+  const deadline = Date.now() + STALE_SERVER_EXIT_WAIT_MS
+  while (isProcessAlive(pid) && Date.now() < deadline) {
+    await delay(50)
+  }
+}
+
+const recordServerPid = async (pid: number | undefined): Promise<void> => {
+  if (pid === undefined) {
+    return
+  }
+
+  await mkdir(getWhisperModelsRootDir(), { recursive: true })
+  await writeFile(getServerPidFilePath(), String(pid))
+}
 
 export type WhisperRuntimeStatus = {
   available: boolean
@@ -34,6 +90,7 @@ export class WhisperServerClient {
   private modelId: WhisperModelId | null = null
   private binaryPath: string | null = null
   private idleStopTimer: NodeJS.Timeout | null = null
+  private staleServerCleanup: Promise<void> | null = null
 
   private isRunning(): boolean {
     return Boolean(this.process && this.port !== null)
@@ -83,7 +140,8 @@ export class WhisperServerClient {
 
     try {
       const response = await fetch(`http://127.0.0.1:${this.port}/`, {
-        method: 'GET'
+        method: 'GET',
+        signal: AbortSignal.timeout(HEALTHCHECK_REQUEST_TIMEOUT_MS)
       })
       return response.ok
     } catch {
@@ -98,7 +156,6 @@ export class WhisperServerClient {
       let stderrOutput = ''
       let stdoutOutput = ''
       const settleController = createSettleOnce<Error | null>((error) => {
-        clearInterval(pollRef)
         clearTimeout(timeoutRef)
 
         if (error) {
@@ -109,16 +166,14 @@ export class WhisperServerClient {
         resolve()
       })
 
-      const pollRef = setInterval(async () => {
-        if (settleController.isSettled()) {
-          return
+      const pollUntilHealthy = async (): Promise<void> => {
+        while (!settleController.isSettled()) {
+          await delay(HEALTHCHECK_POLL_INTERVAL_MS)
+          if (!settleController.isSettled() && (await this.checkHealth())) {
+            settleController.settle(null)
+          }
         }
-
-        const healthy = await this.checkHealth()
-        if (healthy) {
-          settleController.settle(null)
-        }
-      }, HEALTHCHECK_POLL_INTERVAL_MS)
+      }
 
       const timeoutRef = setTimeout(() => {
         const details = [stderrOutput, stdoutOutput].join('\n').trim().slice(-1000)
@@ -144,6 +199,8 @@ export class WhisperServerClient {
           new Error(`Failed to start local Whisper runtime: ${error.message}`)
         )
       })
+
+      void pollUntilHealthy()
 
       processRef.on('close', (code, signal) => {
         const details = [stderrOutput, stdoutOutput].join('\n').trim().slice(-1000)
@@ -183,6 +240,9 @@ export class WhisperServerClient {
       throw new Error('Local Whisper runtime binary is unavailable on this platform.')
     }
 
+    this.staleServerCleanup ??= killStaleServer()
+    await this.staleServerCleanup
+
     const modelPath = getWhisperModelFilePath(modelId)
     const triedPorts = new Set<number>()
 
@@ -192,7 +252,7 @@ export class WhisperServerClient {
       triedPorts.add(selectedPort)
 
       const args = buildWhisperServerArgs({ modelPath, port: this.port })
-      const invocation = getReducedPriorityInvocation(this.binaryPath, args)
+      const invocation = getProcessInvocation(this.binaryPath, args, 'interactive')
 
       const processRef = spawn(invocation.command, invocation.args, {
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -200,6 +260,9 @@ export class WhisperServerClient {
       })
       this.process = processRef
       this.modelId = modelId
+      void recordServerPid(processRef.pid).catch((error) => {
+        console.warn('[transcription] failed to record Whisper runtime pid', error)
+      })
 
       processRef.on('close', () => {
         this.process = null

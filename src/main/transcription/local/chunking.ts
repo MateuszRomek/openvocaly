@@ -133,3 +133,58 @@ export const dedupeChunkBoundary = (
 
   return nextText.trim()
 }
+
+export type AudioSpan = {
+  startMs: number
+  endMs: number
+}
+
+const ENERGY_FRAME_MS = 20
+
+export const planQuietAudioSpans = (
+  samples: Buffer,
+  sampleRate: number,
+  options: { targetMs: number; searchMs: number; quietWindowMs: number }
+): AudioSpan[] => {
+  const frameSamples = Math.max(1, Math.round((sampleRate * ENERGY_FRAME_MS) / 1000))
+  const frameCount = Math.floor(samples.length / 2 / frameSamples)
+  const durationMs = Math.floor((samples.length / 2 / sampleRate) * 1000)
+  const quietFrames = Math.max(1, Math.round(options.quietWindowMs / ENERGY_FRAME_MS))
+  const targetFrames = Math.round(options.targetMs / ENERGY_FRAME_MS)
+  const searchFrames = Math.round(options.searchMs / ENERGY_FRAME_MS)
+
+  const frameEnergy = (frame: number): number => {
+    let energy = 0
+    const firstSample = frame * frameSamples
+    for (let index = firstSample; index < firstSample + frameSamples; index += 1) {
+      const sample = samples.readInt16LE(index * 2)
+      energy += sample * sample
+    }
+    return energy
+  }
+
+  const spans: AudioSpan[] = []
+  let startFrame = 0
+  while (frameCount - startFrame > targetFrames + searchFrames + quietFrames) {
+    const firstFrame = startFrame + targetFrames - searchFrames
+    const lastFrame = startFrame + targetFrames + searchFrames
+    const energies = Array.from({ length: lastFrame + quietFrames - firstFrame }, (_, offset) =>
+      frameEnergy(firstFrame + offset)
+    )
+    let windowEnergy = energies.slice(0, quietFrames).reduce((sum, energy) => sum + energy, 0)
+    let quietestOffset = 0
+    let quietestEnergy = windowEnergy
+    for (let offset = 1; offset <= lastFrame - firstFrame; offset += 1) {
+      windowEnergy += energies[offset + quietFrames - 1] - energies[offset - 1]
+      if (windowEnergy < quietestEnergy) {
+        quietestEnergy = windowEnergy
+        quietestOffset = offset
+      }
+    }
+    const cutFrame = firstFrame + quietestOffset + Math.floor(quietFrames / 2)
+    spans.push({ startMs: startFrame * ENERGY_FRAME_MS, endMs: cutFrame * ENERGY_FRAME_MS })
+    startFrame = cutFrame
+  }
+  spans.push({ startMs: startFrame * ENERGY_FRAME_MS, endMs: durationMs })
+  return spans
+}

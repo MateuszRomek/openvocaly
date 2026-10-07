@@ -106,4 +106,31 @@ describe('DictationTranscriptionWorkflow', () => {
     expect(markTranscriptionSuccess).toHaveBeenCalledWith(artifact)
     expect(tryBeginPersistence).toHaveBeenCalledTimes(1)
   })
+
+  it('delivers the transcript when marking the artifact as transcribed fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const workflow = new DictationTranscriptionWorkflow(
+      {
+        recordingService: { playCue: vi.fn() } as never,
+        transcriptionService: {
+          transcribeArtifact: async (): Promise<TranscriptionResult> => ({
+            ok: true,
+            transcript: { text: 'still pasted' }
+          })
+        } as never
+      },
+      {
+        markFailure: vi.fn(),
+        markTranscriptionSuccess: async () => {
+          throw new Error('disk full')
+        }
+      } as unknown as RecordingArtifactManager
+    )
+
+    await expect(workflow.processArtifact(artifact)).resolves.toEqual({
+      type: 'complete',
+      transcriptText: 'still pasted'
+    })
+    consoleError.mockRestore()
+  })
 })

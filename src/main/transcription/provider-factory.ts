@@ -1,3 +1,4 @@
+import { is } from '@electron-toolkit/utils'
 import type {
   TranscriptionConfig,
   TranscriptionFailureCode,
@@ -156,7 +157,7 @@ export class TranscriptionProviderFactory {
       return this.toCancelledResult()
     }
 
-    if (process.env['OPENVOCALY_RECORDING_FORCE_TRANSCRIPTION_FAILURE'] === '1') {
+    if (is.dev && process.env['OPENVOCALY_RECORDING_FORCE_TRANSCRIPTION_FAILURE'] === '1') {
       return {
         ok: false,
         code: 'forced_failure',

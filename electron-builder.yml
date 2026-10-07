@@ -3,101 +3,29 @@ productName: OpenVocaly
 directories:
   buildResources: build
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!.agents'
-  - '!.agents/**'
-  - '!.git'
-  - '!.git/**'
-  - '!dist'
-  - '!dist/**'
-  - '!native/macos-asr-host/.build'
-  - '!native/macos-asr-host/.build/**'
-  - '!native/ptt-hook-macos/build'
-  - '!native/ptt-hook-macos/build/**'
-  - '!native/ptt-hook-macos/bin'
-  - '!native/ptt-hook-macos/bin/**'
-  - '!**/__pycache__'
-  - '!**/__pycache__/**'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-asarUnpack:
-  - resources/bin/**
+  - out/**
   - resources/**
-  - resources/qwen-mlx-host/**
+  - '!resources/macos-fast-paste.swift'
+  - '!**/__pycache__/**'
+asarUnpack:
+  - resources/**
   - node_modules/ffmpeg-static/**/*
   - node_modules/@openvocaly/ptt-hook-macos/build/**/*.node
-win:
-  executableName: openvocaly
-  files:
-    - '!resources/bin/*darwin*'
-    - '!resources/bin/*linux*'
-    - '!resources/bin/*.dylib'
-    - '!resources/bin/*.so'
-    - '!resources/bin/*.so.*'
-    - '!resources/bin/macos-fast-paste'
-    - '!resources/bin/macos-asr-host'
-    - '!resources/qwen-mlx-host/**'
-    - '!resources/bin/FluidAudio_FluidAudio.bundle/**'
-nsis:
-  artifactName: ${name}-${version}-setup.${ext}
-  shortcutName: ${productName}
-  uninstallDisplayName: ${productName}
-  createDesktopShortcut: always
 mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   signIgnore:
     - 'resources/qwen-mlx-host/_internal/Python\.framework'
     - 'resources/bin/FluidAudio_FluidAudio\.bundle'
+  hardenedRuntime: false
+  target:
+    - target: dmg
+      arch: arm64
+    - target: zip
+      arch: arm64
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  files:
-    - '!src'
-    - '!src/**'
-    - '!.agents'
-    - '!.agents/**'
-    - '!.git'
-    - '!.git/**'
-    - '!dist'
-    - '!dist/**'
-    - '!native/macos-asr-host/.build'
-    - '!native/macos-asr-host/.build/**'
-    - '!native/ptt-hook-macos/build'
-    - '!native/ptt-hook-macos/build/**'
-    - '!native/ptt-hook-macos/bin'
-    - '!native/ptt-hook-macos/bin/**'
-    - '!**/__pycache__'
-    - '!**/__pycache__/**'
-    - '!resources/bin/*win32*'
-    - '!resources/bin/*linux*'
-    - '!resources/bin/*.dll'
-    - '!resources/bin/*.so'
-    - '!resources/bin/*.so.*'
+    - NSMicrophoneUsageDescription: OpenVocaly listens while you hold the dictation shortcut and transcribes the audio on this Mac.
   notarize: false
 dmg:
-  artifactName: ${name}-${version}.${ext}
-linux:
-  target:
-    - AppImage
-    - snap
-    - deb
-  maintainer: electronjs.org
-  category: Utility
-  files:
-    - '!resources/bin/*darwin*'
-    - '!resources/bin/*win32*'
-    - '!resources/bin/*.dylib'
-    - '!resources/bin/*.dll'
-    - '!resources/bin/macos-fast-paste'
-    - '!resources/bin/macos-asr-host'
-    - '!resources/qwen-mlx-host/**'
-    - '!resources/bin/FluidAudio_FluidAudio.bundle/**'
-appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

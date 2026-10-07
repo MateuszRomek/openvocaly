@@ -113,6 +113,27 @@ void EmitPttEvent(bool isStart) {
 }
 
 CGEventRef HandleKeyboardEvent(CGEventTapProxy, CGEventType type, CGEventRef event, void*) {
+  if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
+    // macOS disables slow or user-suspended taps; key-ups during the gap are lost, so a
+    // held binding is released rather than left stuck recording.
+    if (g_eventTap != nullptr) {
+      CGEventTapEnable(g_eventTap, true);
+    }
+
+    bool wasHolding = false;
+    {
+      std::lock_guard<std::mutex> guard(g_bindingMutex);
+      wasHolding = g_holdState == PttHoldState::kHolding;
+      g_holdState = PttHoldState::kIdle;
+    }
+
+    if (wasHolding) {
+      EmitPttEvent(false);
+    }
+
+    return event;
+  }
+
   if (g_tsfn == nullptr) {
     return event;
   }

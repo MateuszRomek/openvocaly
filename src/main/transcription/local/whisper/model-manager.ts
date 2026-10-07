@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs'
 import { mkdir, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { getWhisperModelFilePath, getWhisperModelsRootDir } from '../model-dir-utils'
-import { downloadFile } from '../model-download-client'
+import { downloadFile, hashFileSha256 } from '../model-download-client'
 import {
   getWhisperModelDefinition,
   getWhisperModelIds,
@@ -69,7 +69,7 @@ export class WhisperModelManager {
 
     try {
       const stats = statSync(modelPath)
-      return stats.size >= model.minimumSizeBytes
+      return stats.size === model.sizeBytes
     } catch {
       return false
     }
@@ -183,14 +183,18 @@ export class WhisperModelManager {
       this.updateProgress(installing)
       onProgress?.(installing)
 
+      const model = getWhisperModelDefinition(modelId)
+      if (statSync(tempPath).size !== model.sizeBytes) {
+        throw new Error('Downloaded Whisper model has an unexpected size.')
+      }
+      if ((await hashFileSha256(tempPath)) !== model.sha256) {
+        throw new Error('Downloaded Whisper model failed its checksum validation.')
+      }
+
       if (existsSync(modelPath)) {
         await rm(modelPath, { force: true })
       }
       await rename(tempPath, modelPath)
-
-      if (!this.isModelFileValid(modelId)) {
-        throw new Error('Downloaded Whisper model failed validation checks.')
-      }
 
       const complete = {
         providerId: WHISPER_PROVIDER_ID,

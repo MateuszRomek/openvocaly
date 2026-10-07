@@ -17,12 +17,14 @@ import type {
 } from '../../../shared/transcription'
 import { SettingsRepository } from '../../repositories/settings-repository'
 import { StorageRepository } from '../../repositories/storage-repository'
-import { AsyncSerialScheduler } from '../../helpers/async-serial-scheduler'
+import { AsyncSerialScheduler, type SchedulerPriority } from '../../helpers/async-serial-scheduler'
+import { createLogger } from '../../helpers/logger'
 import { InitializableComponent } from '../../helpers/initializable-component'
 import { emitTranscriptAddedEvent } from '../../storage/transcript-events'
 import { macOSParakeetRuntime } from '../local/macos-asr-host/runtime'
 import { whisperRuntime } from '../local/whisper/runtime'
 import { qwenRuntime } from '../local/qwen/runtime'
+import { sweepStaleLocalModelArtifacts } from '../local/stale-artifact-sweep'
 import { resolveDefaultTranscriptionProviderId } from '../provider-helpers'
 import { TranscriptionProviderFactory } from '../provider-factory'
 import type { TranscriptionArtifact } from '../providers/types'
@@ -37,6 +39,7 @@ type LocalRuntimeController = {
   cancelDownload: () => LocalModelActionResponse
   deleteModel: (modelId: string) => Promise<LocalModelActionResponse>
   getRuntimeStatus: () => LocalRuntimeStatusResponse
+  isModelDownloaded: (modelId: string) => boolean
   startRuntime: (modelId: string) => Promise<LocalModelActionResponse>
   stopRuntime: () => Promise<LocalModelActionResponse>
 }
@@ -54,6 +57,7 @@ const DEFAULT_LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeC
     cancelDownload: () => macOSParakeetRuntime.cancelDownload(),
     deleteModel: (modelId) => macOSParakeetRuntime.deleteModel(modelId),
     getRuntimeStatus: () => macOSParakeetRuntime.getRuntimeStatus(),
+    isModelDownloaded: (modelId) => macOSParakeetRuntime.isModelDownloaded(modelId),
     startRuntime: (modelId) => macOSParakeetRuntime.startRuntime(modelId),
     stopRuntime: () => macOSParakeetRuntime.stopRuntime()
   },
@@ -63,6 +67,7 @@ const DEFAULT_LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeC
     cancelDownload: () => whisperRuntime.cancelDownload(),
     deleteModel: (modelId) => whisperRuntime.deleteModel(modelId),
     getRuntimeStatus: () => whisperRuntime.getRuntimeStatus(),
+    isModelDownloaded: (modelId) => whisperRuntime.isModelDownloaded(modelId),
     startRuntime: (modelId) => whisperRuntime.startRuntime(modelId),
     stopRuntime: () => whisperRuntime.stopRuntime()
   },
@@ -72,6 +77,7 @@ const DEFAULT_LOCAL_RUNTIMES: Record<LocalTranscriptionProviderId, LocalRuntimeC
     cancelDownload: () => qwenRuntime.cancelDownload(),
     deleteModel: (modelId) => qwenRuntime.deleteModel(modelId),
     getRuntimeStatus: () => qwenRuntime.getRuntimeStatus(),
+    isModelDownloaded: (modelId) => qwenRuntime.isModelDownloaded(modelId),
     startRuntime: (modelId) => qwenRuntime.startRuntime(modelId),
     stopRuntime: () => qwenRuntime.stopRuntime()
   }
@@ -100,6 +106,7 @@ const isLocalProviderId = (
 }
 
 export class TranscriptionService extends InitializableComponent {
+  private readonly logger = createLogger('transcription.service')
   private readonly preferencesManager: TranscriptionPreferencesManager
   private readonly storageRepository: StorageRepository
   private readonly providerFactory: TranscriptionProviderFactory
@@ -130,6 +137,7 @@ export class TranscriptionService extends InitializableComponent {
       return
     }
 
+    void sweepStaleLocalModelArtifacts()
     await this.preferencesManager.initialize()
     this.initialized = true
   }
@@ -160,6 +168,7 @@ export class TranscriptionService extends InitializableComponent {
     if (this.shouldStopLocalRuntime(previousPreferences, preferences)) {
       await this.localTranscriptionScheduler.run(() => this.stopAllLocalRuntimesNow())
     }
+    this.warmActiveLocalRuntime()
 
     return {
       preferences,
@@ -289,6 +298,41 @@ export class TranscriptionService extends InitializableComponent {
     )
   }
 
+  warmActiveLocalRuntime(): void {
+    if (!this.initialized) {
+      return
+    }
+    const { providerId, modelId } = this.preferencesManager.get()
+    if (!isLocalProviderId(providerId)) {
+      return
+    }
+    const runtime = this.getLocalRuntime(providerId)
+    if (!runtime.isModelDownloaded(modelId)) {
+      return
+    }
+
+    void this.localTranscriptionScheduler
+      .run(() => runtime.startRuntime(modelId))
+      .then((response) => {
+        if (!response.ok) {
+          this.logger.warn({
+            event: 'local_runtime_warm_failed',
+            providerId,
+            modelId,
+            message: response.message
+          })
+        }
+      })
+      .catch((error: unknown) => {
+        this.logger.warn({
+          event: 'local_runtime_warm_failed',
+          providerId,
+          modelId,
+          message: error instanceof Error ? error.message : String(error)
+        })
+      })
+  }
+
   async stopLocalRuntime(params: LocalProviderActionInput): Promise<LocalModelActionResponse> {
     return this.localTranscriptionScheduler.run(() =>
       this.getLocalRuntime(params.providerId).stopRuntime()
@@ -304,7 +348,8 @@ export class TranscriptionService extends InitializableComponent {
     const result = await this.transcribeWithPreferences(
       artifact,
       this.preferencesManager.get(),
-      options
+      options,
+      'interactive'
     )
 
     if (!result.ok) {
@@ -342,18 +387,14 @@ export class TranscriptionService extends InitializableComponent {
         createdAt: Date.now()
       }
       emitTranscriptAddedEvent(transcriptAddedEvent)
-
-      return result
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to persist transcription to database.'
-
-      return {
-        ok: false,
-        code: 'storage_failed',
-        message
-      }
+      console.error('[transcription] failed to persist transcript; delivering it anyway', {
+        sessionId: artifact.sessionId,
+        error
+      })
     }
+
+    return result
   }
 
   async transcribeLocalFile(
@@ -378,20 +419,22 @@ export class TranscriptionService extends InitializableComponent {
         filePath
       },
       preferences,
-      options
+      options,
+      'background'
     )
   }
 
   private transcribeWithPreferences(
     artifact: TranscriptionArtifact,
     preferences: TranscriptionPreferences,
-    options: { signal?: AbortSignal } = {}
+    options: { signal?: AbortSignal },
+    priority: SchedulerPriority
   ): Promise<TranscriptionResult> {
     const transcribe = (): Promise<TranscriptionResult> =>
       this.providerFactory.transcribe(artifact, preferences, options)
 
     return isLocalProviderId(preferences.providerId)
-      ? this.localTranscriptionScheduler.run(transcribe)
+      ? this.localTranscriptionScheduler.run(transcribe, priority)
       : transcribe()
   }
 

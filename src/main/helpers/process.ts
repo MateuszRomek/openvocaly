@@ -3,12 +3,18 @@ export type ProcessInvocation = {
   args: string[]
 }
 
+export type ProcessPriority = 'interactive' | 'background'
+
 /**
- * Keeps local media/model work below interactive macOS work in the scheduler.
- * This is a secondary guardrail; runtime concurrency remains explicitly bounded
- * by each model host. Darwin background policy is inherited by child processes.
+ * Dictation work keeps normal priority: macOS background QoS also throttles
+ * I/O and confines work to efficiency cores, which made push-to-talk slow.
+ * Background work only lowers its CPU nice value.
  */
-export const getReducedPriorityInvocation = (command: string, args: string[]): ProcessInvocation =>
-  process.platform === 'darwin'
-    ? { command: '/usr/sbin/taskpolicy', args: ['-b', '-c', 'background', command, ...args] }
+export const getProcessInvocation = (
+  command: string,
+  args: string[],
+  priority: ProcessPriority
+): ProcessInvocation =>
+  priority === 'background' && process.platform === 'darwin'
+    ? { command: '/usr/bin/nice', args: ['-n', '10', command, ...args] }
     : { command, args }

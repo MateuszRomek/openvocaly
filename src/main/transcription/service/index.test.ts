@@ -68,6 +68,7 @@ const createHarness = (options?: {
         platformSupported: true
       }
     }),
+    isModelDownloaded: () => false,
     startRuntime: async () => ({ ok: true }),
     stopRuntime: async () => ({ ok: true })
   }
@@ -79,7 +80,8 @@ const createHarness = (options?: {
         ...unavailableRuntime,
         listModels: async () => ({
           models: [toModel(PARAKET_MODEL_ID, options?.parakeetDownloaded ?? false)]
-        })
+        }),
+        isModelDownloaded: () => options?.parakeetDownloaded ?? false
       },
       'local-whisper': unavailableRuntime,
       'local-qwen': {
@@ -87,6 +89,7 @@ const createHarness = (options?: {
         listModels: async () => ({
           models: [toModel(QWEN_MODEL_ID, options?.qwenDownloaded ?? true)]
         }),
+        isModelDownloaded: () => options?.qwenDownloaded ?? true,
         downloadModel: async () => {
           await options?.qwenDownload?.()
           return { ok: true }
@@ -168,5 +171,40 @@ describe('TranscriptionService local model lifecycle', () => {
 
     await harness.service.initialize()
     expect(harness.getQwenWarmCalls()).toBe(0)
+  })
+
+  it('warms the selected downloaded model after preferences change', async () => {
+    const harness = createHarness({ qwenDownloaded: true })
+    await harness.service.initialize()
+
+    await harness.service.updatePreferences({ providerId: 'local-qwen', modelId: QWEN_MODEL_ID })
+
+    await vi.waitFor(() => expect(harness.getQwenWarmCalls()).toBe(1))
+  })
+
+  it('does not warm a model that is not downloaded', async () => {
+    const harness = createHarness({ qwenDownloaded: false })
+    await harness.service.initialize()
+
+    harness.service.warmActiveLocalRuntime()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(harness.getQwenWarmCalls()).toBe(0)
+  })
+
+  it('keeps dictation working when warming fails', async () => {
+    const harness = createHarness({
+      qwenWarm: async () => {
+        throw new Error('host crashed')
+      }
+    })
+    await harness.service.initialize()
+
+    harness.service.warmActiveLocalRuntime()
+    await vi.waitFor(() => expect(harness.getQwenWarmCalls()).toBe(1))
+
+    await expect(
+      harness.service.startLocalRuntime({ providerId: 'local-parakeet', modelId: PARAKET_MODEL_ID })
+    ).resolves.toEqual({ ok: true })
   })
 })
