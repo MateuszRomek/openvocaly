@@ -5,7 +5,7 @@
       "source": "MateuszRomek/skills",
       "sourceType": "github",
       "skillPath": ".agents/skills/agent-mode/SKILL.md",
-      "computedHash": "e79ccdb6d1aae0761d3c4e6afd0df444c1e036c2df35107021de4841f285dd0a"
+      "computedHash": "de848ffa0d27ed83e2a067b777da8dedac7f51a4ec9224548ce67a7337b13c47"
     },
     "animate": {
       "source": "emilkowalski/skills",
@@ -389,7 +389,7 @@
       "source": "MateuszRomek/skills",
       "sourceType": "github",
       "skillPath": ".agents/skills/setup-agent-mode/SKILL.md",
-      "computedHash": "5fc731faceced005597b9fa63975f27771b50bb3f93277017cd72e826730d05d"
+      "computedHash": "57ff1a7751450b23974f5448aa1418ac5209f23466a8db9c5d60e3193cbe3b98"
     },
     "setup-engineering-workspace": {
       "source": "MateuszRomek/skills",

@@ -1,7 +1,6 @@
 ---
 name: agent-mode
-description: Run the repository's engineering workflow for deliberate planning, bounded delegation, simple code, and verified work. Use for agent mode, /agent-mode, or requests to apply the full workflow.
-disable-model-invocation: true
+description: "Run the engineering workflow: a matched playbook, engineering principles, bounded delegation, and verified results. Use for /agent-mode, 'agent mode', or any nontrivial coding task: fixing a reported bug, building or changing a feature, refactoring, performance work, or investigating how or why code works. Skip one-line edits, quick factual questions, and non-code tasks."
 ---
 
 # Agent mode

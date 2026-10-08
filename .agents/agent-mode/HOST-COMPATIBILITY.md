@@ -12,7 +12,7 @@ Resolve the host from identity supplied by the running product, such as runtime 
 | Claude Code | `claude-code` |
 | Antigravity | `antigravity` |
 
-A host selected explicitly by the user during `setup-agent-mode` is also resolved. Repository directories, installed CLIs, environment leftovers, and model names are not host identity. If runtime signals conflict or none explicitly identify the product, leave the host unresolved.
+A host selected explicitly by the user during `setup-agent-mode` is also resolved. Normalize a product missing from the table to its lowercase, hyphenated name, such as `t3-code` for T3 Code. Repository directories, installed CLIs, environment leftovers, and model names are not host identity. If runtime signals conflict or none explicitly identify the product, leave the host unresolved.
 
 Host identity and host capability are separate. Inspect the live tool schema before using delegation, structured input, task history, waiting, or model overrides. A known host does not imply that every installation or session exposes the same tools.
 
@@ -20,7 +20,7 @@ Host identity and host capability are separate. Inspect the live tool schema bef
 
 Invoke a skill by its catalog name through the host's native skill mechanism. If the host exposes no explicit skill tool, read the target `SKILL.md` and follow it. Repository skills live in `.agents/skills`. Compatibility links may expose the same directories elsewhere, but `.agents/skills` remains the source of truth.
 
-A skill that Agent mode or one of its playbooks names is part of the workflow the user started, and starting Agent mode authorizes it. When the host refuses such a skill because it is user-invoked only (for example `disable-model-invocation: true`, or Codex `allow_implicit_invocation: false`), read its `SKILL.md` and follow it as if invoked. Principle skills are always read this way. The exception covers only skills named by Agent mode, its playbooks, or a skill they route to. Never treat a refusal as a reason to skip the step.
+A skill that Agent mode or one of its playbooks names is part of the Agent mode workflow, and running Agent mode authorizes it, whether the user or the agent started it. When the host refuses such a skill because it is user-invoked only (for example `disable-model-invocation: true`, or Codex `allow_implicit_invocation: false`), read its `SKILL.md` and follow it as if invoked. Principle skills are always read this way. The exception covers only skills named by Agent mode, its playbooks, or a skill they route to. Never treat a refusal as a reason to skip the step.
 
 ## User input
 
